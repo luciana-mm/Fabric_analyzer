@@ -1,10 +1,12 @@
+"use client";
+
 import { useState } from "react";
 import { Users, Layers, CheckCircle2, XCircle, TrendingUp, Award, Clock, BarChart3, LogOut, Search } from "lucide-react";
 import { LucideIcon } from "lucide-react";
 import gridBg from "@/assets/grid-bg.jpg";
 import { EmployeeDetailsDialog, Employee } from "@/components/EmployeeDetailsDialog";
 import { useAuth } from "@/hooks/useAuth";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 
 interface OverviewCardProps {
   icon: LucideIcon;
@@ -48,11 +50,11 @@ const Manager = () => {
   const [selected, setSelected] = useState<Employee | null>(null);
   const [search, setSearch] = useState("");
   const { signOut, user } = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const handleSignOut = async () => {
     await signOut();
-    navigate("/", { replace: true });
+    router.replace("/");
   };
 
   const totalVerified = employees.reduce((s, e) => s + e.verified, 0);
@@ -67,7 +69,7 @@ const Manager = () => {
 
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden">
-      <img src={gridBg} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" width={1920} height={1080} />
+      <img src={gridBg.src} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" width={1920} height={1080} />
       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/95 to-background/70" />
 
       {/* Top Bar */}

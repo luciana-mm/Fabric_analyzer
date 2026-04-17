@@ -1,5 +1,7 @@
+"use client";
+
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 import { Microscope, User, ShieldCheck, ArrowRight, Lock, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -22,7 +24,7 @@ const credentialsSchema = z.object({
 });
 
 const Login = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { user, role, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<Mode>("login");
   const [selectedRole, setSelectedRole] = useState<AppRole>("operador");
@@ -32,9 +34,9 @@ const Login = () => {
 
   useEffect(() => {
     if (!authLoading && user && role) {
-      navigate(role === "gestor" ? "/gestor" : "/painel", { replace: true });
+      router.replace(role === "gestor" ? "/gestor" : "/painel");
     }
-  }, [user, role, authLoading, navigate]);
+  }, [user, role, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +95,7 @@ const Login = () => {
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden p-6">
       <img
-        src={gridBg}
+      src={gridBg.src}
         alt=""
         className="absolute inset-0 w-full h-full object-cover opacity-20"
         width={1920}

@@ -1,4 +1,7 @@
-import { Navigate } from "react-router-dom";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth, AppRole } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 
@@ -9,6 +12,22 @@ interface ProtectedRouteProps {
 
 export const ProtectedRoute = ({ children, requireRole }: ProtectedRouteProps) => {
   const { user, role, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    if (!user) {
+      router.replace("/");
+      return;
+    }
+
+    if (requireRole && role && role !== requireRole) {
+      router.replace(role === "gestor" ? "/gestor" : "/painel");
+    }
+  }, [loading, user, role, requireRole, router]);
 
   if (loading) {
     return (
@@ -18,11 +37,10 @@ export const ProtectedRoute = ({ children, requireRole }: ProtectedRouteProps) =
     );
   }
 
-  if (!user) return <Navigate to="/" replace />;
+  if (!user) return null;
 
-  if (requireRole && role !== requireRole) {
-    // redireciona ao painel certo do papel atual
-    return <Navigate to={role === "gestor" ? "/gestor" : "/painel"} replace />;
+  if (requireRole && role && role !== requireRole) {
+    return null;
   }
 
   return <>{children}</>;
