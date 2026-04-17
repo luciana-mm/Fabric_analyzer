@@ -1,3 +1,5 @@
+"use client";
+
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,44 +23,62 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchRole = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (error) {
-      console.error("Erro ao buscar papel:", error);
-      setRole(null);
-      return;
+    try {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (error) {
+        console.error("Erro ao buscar papel:", error);
+        setRole(null);
+        return;
+      }
+      setRole((data?.role as AppRole) ?? null);
+    } finally {
+      setLoading(false);
     }
-    setRole((data?.role as AppRole) ?? null);
   };
 
   useEffect(() => {
-    // Listener primeiro
+    let mounted = true;
+
+    const loadSession = async () => {
+      const { data: { session: existing } } = await supabase.auth.getSession();
+      if (!mounted) return;
+
+      setSession(existing);
+      setUser(existing?.user ?? null);
+
+      if (existing?.user) {
+        setLoading(true);
+        await fetchRole(existing.user.id);
+      } else {
+        setRole(null);
+        setLoading(false);
+      }
+    };
+
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
       setUser(newSession?.user ?? null);
+      setLoading(true);
       if (newSession?.user) {
-        // defer to avoid deadlock
-        setTimeout(() => fetchRole(newSession.user.id), 0);
+        setTimeout(() => {
+          void fetchRole(newSession.user.id);
+        }, 0);
       } else {
         setRole(null);
-      }
-    });
-
-    // Depois sessão existente
-    supabase.auth.getSession().then(({ data: { session: existing } }) => {
-      setSession(existing);
-      setUser(existing?.user ?? null);
-      if (existing?.user) {
-        fetchRole(existing.user.id).finally(() => setLoading(false));
-      } else {
         setLoading(false);
       }
     });
 
-    return () => sub.subscription.unsubscribe();
+    void loadSession();
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {

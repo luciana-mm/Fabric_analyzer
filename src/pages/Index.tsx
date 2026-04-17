@@ -1,7 +1,9 @@
+"use client";
+
 import { useState } from "react";
 import { Play, Sun, Settings, Microscope, Layers, CheckCircle2, XCircle, Lock, BarChart3, LogOut } from "lucide-react";
 import { LucideIcon } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import gridBg from "@/assets/grid-bg.jpg";
 import { StatsDetailsDialog } from "@/components/StatsDetailsDialog";
@@ -83,13 +85,13 @@ const Index = () => {
   const [configured, setConfigured] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const { signOut, user } = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const isReady = calibrated && configured;
 
   const handleSignOut = async () => {
     await signOut();
-    navigate("/", { replace: true });
+    router.replace("/");
   };
 
   const handleCalibrate = () => {
@@ -135,7 +137,7 @@ const Index = () => {
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden">
       {/* Background */}
-      <img src={gridBg} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" width={1920} height={1080} />
+      <img src={gridBg.src} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" width={1920} height={1080} />
       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/95 to-background/70" />
 
       {/* Top Bar */}
