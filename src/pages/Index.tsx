@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import gridBg from "@/assets/grid-bg.jpg";
 import { StatsDetailsDialog } from "@/components/StatsDetailsDialog";
 import { useAuth } from "@/hooks/useAuth";
+import { Configuration } from "@/components/Configuration";
 
 interface StatCardProps {
   icon: LucideIcon;
@@ -84,6 +85,7 @@ const Index = () => {
   const [calibrated, setCalibrated] = useState(false);
   const [configured, setConfigured] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const { signOut, user } = useAuth();
   const router = useRouter();
 
@@ -105,12 +107,14 @@ const Index = () => {
 
   const handleConfigure = () => {
     setConfigured(true);
+    setShowSettings(false);
     toast.success("Configurações concluídas", {
       description: calibrated
         ? "O sistema está pronto para iniciar a análise."
         : "Agora calibre a luz para liberar o início.",
     });
   };
+
 
   const handleStart = () => {
     if (!isReady) {
@@ -134,6 +138,25 @@ const Index = () => {
     ? "Calibre a luz primeiro"
     : "Conclua as configurações";
 
+    if(showSettings){
+      return (
+      <div className="relative min-h-screen flex items-center justify-center bg-background">
+        <img src={gridBg.src} alt="" className="absolute inset-0 w-full h-full object-cover opacity-10" />
+        <div className="relative z-10 w-full max-w-2xl px-6">
+          <Configuration />
+          
+          {/* Botão para voltar manualmente se o componente Configuration não tiver o onClick interno */}
+          <button 
+            onClick={() => setShowSettings(false)}
+            className="mt-6 mx-auto block text-[10px] tracking-[0.3em] uppercase text-muted-foreground hover:text-foreground transition-colors"
+          >
+            ← Voltar ao Painel
+          </button>
+        </div>
+      </div>
+    );
+    }
+
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden">
       {/* Background */}
@@ -148,10 +171,10 @@ const Index = () => {
           </div>
           <div>
             <h1 className="font-display text-xl tracking-[0.15em] text-foreground uppercase leading-tight">
-              TissueScope
+              Meta
             </h1>
             <p className="text-[11px] tracking-[0.3em] text-muted-foreground uppercase">
-              Análise de Tecidos
+              Análise de cores de Tecidos
             </p>
           </div>
         </div>
@@ -203,8 +226,8 @@ const Index = () => {
               label="Iniciar"
               description={startDescription}
               highlight
-              disabled={!isReady}
-              badge={!isReady ? "Bloqueado" : undefined}
+              //disabled={!isReady}
+              //badge={!isReady ? "Bloqueado" : undefined}
               onClick={handleStart}
             />
             <ActionCard
@@ -217,7 +240,7 @@ const Index = () => {
               icon={configured ? CheckCircle2 : Settings}
               label="Configurações"
               description={configured ? "Configurações concluídas" : "Parâmetros do sistema"}
-              onClick={handleConfigure}
+              onClick={() => setShowSettings(true)}
             />
           </div>
 

@@ -110,7 +110,7 @@ const Login = () => {
             <Microscope className="w-7 h-7 text-foreground" />
           </div>
           <h1 className="font-display text-2xl tracking-[0.15em] text-foreground uppercase leading-tight">
-            TissueScope
+            Meta
           </h1>
           <p className="text-[11px] tracking-[0.3em] text-muted-foreground uppercase mt-1">
             Análise de Tecidos
@@ -232,7 +232,7 @@ const Login = () => {
         </div>
 
         <p className="text-[10px] text-center text-muted-foreground mt-6 tracking-[0.2em] uppercase">
-          v1.0.0 · TissueScope
+          v1.0.0 · Meta
         </p>
       </div>
     </div>
