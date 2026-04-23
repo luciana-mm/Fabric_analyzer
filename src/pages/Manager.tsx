@@ -1,10 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { Users, Layers, CheckCircle2, XCircle, TrendingUp, Award, Clock, BarChart3, LogOut, Search } from "lucide-react";
+import {
+  Users,
+  Layers,
+  CheckCircle2,
+  XCircle,
+  TrendingUp,
+  Award,
+  Clock,
+  BarChart3,
+  LogOut,
+  Search,
+} from "lucide-react";
 import { LucideIcon } from "lucide-react";
 import gridBg from "@/assets/grid-bg.jpg";
-import { EmployeeDetailsDialog, Employee } from "@/components/EmployeeDetailsDialog";
+import {
+  EmployeeDetailsDialog,
+  Employee,
+} from "@/components/EmployeeDetailsDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { useManagerDashboardData } from "@/hooks/useDashboardData";
@@ -17,7 +31,13 @@ interface OverviewCardProps {
   accent?: "default" | "success" | "danger";
 }
 
-const OverviewCard = ({ icon: Icon, label, value, sublabel, accent = "default" }: OverviewCardProps) => {
+const OverviewCard = ({
+  icon: Icon,
+  label,
+  value,
+  sublabel,
+  accent = "default",
+}: OverviewCardProps) => {
   const accentClasses = {
     default: "text-foreground",
     success: "text-primary",
@@ -26,14 +46,26 @@ const OverviewCard = ({ icon: Icon, label, value, sublabel, accent = "default" }
 
   return (
     <div className="relative flex items-center gap-4 p-5 rounded-xl border border-border/30 bg-card/40 backdrop-blur-sm">
-      <div className={`w-12 h-12 rounded-lg bg-muted/50 flex items-center justify-center ${accentClasses}`}>
+      <div
+        className={`w-12 h-12 rounded-lg bg-muted/50 flex items-center justify-center ${accentClasses}`}
+      >
         <Icon className="w-6 h-6" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-display text-[10px] tracking-[0.25em] uppercase text-muted-foreground">{label}</p>
+        <p className="font-display text-[10px] tracking-[0.25em] uppercase text-muted-foreground">
+          {label}
+        </p>
         <div className="flex items-baseline gap-2 mt-1">
-          <p className={`font-display text-2xl tracking-wider ${accentClasses}`}>{value}</p>
-          {sublabel && <p className="text-[10px] text-muted-foreground tracking-wider uppercase">{sublabel}</p>}
+          <p
+            className={`font-display text-2xl tracking-wider ${accentClasses}`}
+          >
+            {value}
+          </p>
+          {sublabel && (
+            <p className="text-[10px] text-muted-foreground tracking-wider uppercase">
+              {sublabel}
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -52,6 +84,8 @@ const Manager = () => {
     router.replace("/");
   };
 
+  const [isGlobalStatsOpen, setIsGlobalStatsOpen] = useState(false);
+
   const totalVerified = employees.reduce((s, e) => s + e.verified, 0);
   const totalSuccess = employees.reduce((s, e) => s + e.success, 0);
   const totalFailure = employees.reduce((s, e) => s + e.failure, 0);
@@ -67,12 +101,20 @@ const Manager = () => {
     employees.length === 0 ? null : [...employees].sort((a, b) => a.avgTimeMs - b.avgTimeMs)[0];
 
   const filtered = employees.filter(
-    (e) => e.name.toLowerCase().includes(search.toLowerCase()) || e.id.toLowerCase().includes(search.toLowerCase())
+    (e) =>
+      e.name.toLowerCase().includes(search.toLowerCase()) ||
+      e.id.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden">
-      <img src={gridBg.src} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" width={1920} height={1080} />
+      <img
+        src={gridBg.src}
+        alt=""
+        className="absolute inset-0 w-full h-full object-cover opacity-20"
+        width={1920}
+        height={1080}
+      />
       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/95 to-background/70" />
 
       {/* Top Bar */}
@@ -117,13 +159,42 @@ const Manager = () => {
                 Estatísticas Gerais
               </p>
               <div className="flex-1 h-px bg-gradient-to-r from-foreground/20 via-foreground/10 to-transparent" />
+
+              <div
+                onClick={() => setIsGlobalStatsOpen(true)}
+                className="flex items-center justify-center text-muted-foreground w-[120px] border rounded-[10px] p-1 bg-transparent text-xs cursor-pointer hover:bg-gray-800 transition-colors"
+              >
+                <p className="m-auto">Mais detalhes</p>
+              </div>
             </div>
 
             <div className="grid grid-cols-4 gap-4">
-              <OverviewCard icon={Users} label="Funcionários Ativos" value={loading ? "..." : String(employees.length)} sublabel="hoje" />
-              <OverviewCard icon={Layers} label="Tecidos Verificados" value={loading ? "..." : totalVerified.toLocaleString("pt-BR")} sublabel="total" />
-              <OverviewCard icon={CheckCircle2} label="Taxa de Sucesso" value={loading ? "..." : `${successRate}%`} sublabel={loading ? "..." : `${totalSuccess} ok`} accent="success" />
-              <OverviewCard icon={XCircle} label="Taxa de Erro" value={loading ? "..." : `${failureRate}%`} sublabel={loading ? "..." : `${totalFailure} falhas`} accent="danger" />
+              <OverviewCard
+                icon={Users}
+                label="Funcionários Ativos"
+                value={String(employees.length)}
+                sublabel="hoje"
+              />
+              <OverviewCard
+                icon={Layers}
+                label="Tecidos Verificados"
+                value={totalVerified.toLocaleString("pt-BR")}
+                sublabel="total"
+              />
+              <OverviewCard
+                icon={CheckCircle2}
+                label="Taxa de Sucesso"
+                value={`${successRate}%`}
+                sublabel={`${totalSuccess} ok`}
+                accent="success"
+              />
+              <OverviewCard
+                icon={XCircle}
+                label="Taxa de Erro"
+                value={`${failureRate}%`}
+                sublabel={`${totalFailure} falhas`}
+                accent="danger"
+              />
             </div>
             {isError && (
               <p className="text-xs text-destructive mt-3">
@@ -173,25 +244,41 @@ const Manager = () => {
                       key={emp.id}
                       onClick={() => setSelected(emp)}
                       className={`w-full grid grid-cols-12 gap-4 px-5 py-4 items-center text-left transition-colors hover:bg-muted/30 ${
-                        i !== filtered.length - 1 ? "border-b border-border/20" : ""
+                        i !== filtered.length - 1
+                          ? "border-b border-border/20"
+                          : ""
                       }`}
                     >
                       <div className="col-span-3 flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-foreground/10 flex items-center justify-center font-display text-xs text-foreground/80">
-                          {emp.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
+                          {emp.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .slice(0, 2)
+                            .join("")}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm text-foreground/90 truncate">{emp.name}</p>
-                          <p className="text-[10px] text-muted-foreground tracking-wider uppercase">{emp.role}</p>
+                          <p className="text-sm text-foreground/90 truncate">
+                            {emp.name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground tracking-wider uppercase">
+                            {emp.role}
+                          </p>
                         </div>
                       </div>
-                      <div className="col-span-2 text-xs text-muted-foreground">{emp.shift}</div>
+                      <div className="col-span-2 text-xs text-muted-foreground">
+                        {emp.shift}
+                      </div>
                       <div className="col-span-2 text-right font-display text-sm tracking-wider text-foreground/90">
                         {emp.verified}
                       </div>
                       <div className="col-span-2 text-right">
-                        <p className="font-display text-sm tracking-wider text-primary">{emp.success}</p>
-                        <p className="text-[10px] text-muted-foreground">{rate}%</p>
+                        <p className="font-display text-sm tracking-wider text-primary">
+                          {emp.success}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {rate}%
+                        </p>
                       </div>
                       <div className="col-span-2 text-right font-display text-sm tracking-wider text-destructive">
                         {emp.failure}
@@ -220,27 +307,37 @@ const Manager = () => {
                 <div className="flex items-center gap-2 text-foreground/70 text-[10px] tracking-[0.25em] uppercase mb-3">
                   <Award className="w-3.5 h-3.5" /> Maior Volume
                 </div>
-                <p className="font-display text-lg text-foreground">{highestVolume?.name ?? "Sem dados"}</p>
+                <p className="font-display text-lg text-foreground">
+                  {employees[0].name}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {highestVolume ? `${highestVolume.verified} tecidos verificados` : "Aguardando analises"}
+                  {employees[0].verified} tecidos verificados
                 </p>
               </div>
               <div className="p-5 rounded-xl border border-border/30 bg-card/40 backdrop-blur-sm">
                 <div className="flex items-center gap-2 text-primary text-[10px] tracking-[0.25em] uppercase mb-3">
                   <TrendingUp className="w-3.5 h-3.5" /> Melhor Taxa
                 </div>
-                <p className="font-display text-lg text-foreground">{bestRate?.name ?? "Sem dados"}</p>
+                <p className="font-display text-lg text-foreground">
+                  {employees[3].name}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {bestRate ? `${((bestRate.success / Math.max(1, bestRate.verified)) * 100).toFixed(1)}% de aprovacao` : "Aguardando analises"}
+                  {(
+                    (employees[3].success / employees[3].verified) *
+                    100
+                  ).toFixed(1)}
+                  % de aprovação
                 </p>
               </div>
               <div className="p-5 rounded-xl border border-border/30 bg-card/40 backdrop-blur-sm">
                 <div className="flex items-center gap-2 text-foreground/70 text-[10px] tracking-[0.25em] uppercase mb-3">
                   <Clock className="w-3.5 h-3.5" /> Mais Rápido
                 </div>
-                <p className="font-display text-lg text-foreground">{fastest?.name ?? "Sem dados"}</p>
+                <p className="font-display text-lg text-foreground">
+                  {employees[0].name}
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {fastest ? `${fastest.avgTime} por analise` : "Aguardando analises"}
+                  {employees[0].avgTime} por análise
                 </p>
               </div>
             </div>
@@ -254,6 +351,17 @@ const Manager = () => {
         employee={selected}
         open={!!selected}
         onOpenChange={(o) => !o && setSelected(null)}
+      />
+
+      <GlobalStatsDialog
+        open={isGlobalStatsOpen}
+        onOpenChange={setIsGlobalStatsOpen}
+        totals={{
+          verified: totalVerified,
+          success: totalSuccess,
+          failure: totalFailure,
+          avgTime: "2.4s", // Valor fixo ou calculado
+        }}
       />
     </div>
   );
