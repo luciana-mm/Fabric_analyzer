@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Play, Sun, Settings, Microscope, Layers, CheckCircle2, XCircle, Lock, BarChart3, LogOut } from "lucide-react";
+import { Play, Sun, Settings, Microscope, Layers, CheckCircle2, XCircle, Lock, BarChart3, LogOut, Camera } from "lucide-react";
 import { LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ import gridBg from "@/assets/grid-bg.jpg";
 import { StatsDetailsDialog } from "@/components/StatsDetailsDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { Configuration } from "@/components/Configuration";
+import { useOperatorDashboardData } from "@/hooks/useDashboardData";
 
 interface StatCardProps {
   icon: LucideIcon;
@@ -87,6 +88,7 @@ const Index = () => {
   const [statsOpen, setStatsOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const { signOut, user } = useAuth();
+  const { stats, isLoading, isError, formatMsToSecondsLabel } = useOperatorDashboardData(user?.id);
   const router = useRouter();
 
   const isReady = calibrated && configured;
@@ -115,6 +117,10 @@ const Index = () => {
     });
   };
 
+  const handleOpenCamera = () => {
+    router.push("/painel/camera");
+  };
+
 
   const handleStart = () => {
     if (!isReady) {
@@ -137,6 +143,10 @@ const Index = () => {
     : !calibrated
     ? "Calibre a luz primeiro"
     : "Conclua as configurações";
+
+  const totalLabel = isLoading ? "..." : stats.totalVerified.toLocaleString("pt-BR");
+  const successLabel = isLoading ? "..." : `${stats.successRate}%`;
+  const failureLabel = isLoading ? "..." : `${stats.failureRate}%`;
 
     if(showSettings){
       return (
@@ -217,7 +227,7 @@ const Index = () => {
             <div className="w-20 h-px bg-gradient-to-r from-transparent via-foreground/30 to-transparent mx-auto" />
           </div>
 
-          <div className="grid grid-cols-3 gap-6 mb-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
             <ActionCard
               icon={Play}
               label="Iniciar"
@@ -238,6 +248,12 @@ const Index = () => {
               label="Configurações"
               description={configured ? "Configurações concluídas" : "Parâmetros do sistema"}
               onClick={() => setShowSettings(true)}
+            />
+            <ActionCard
+              icon={Camera}
+              label="Camera Ao Vivo"
+              description="Acessar stream em tempo real"
+              onClick={handleOpenCamera}
             />
           </div>
 
@@ -261,24 +277,29 @@ const Index = () => {
               <StatCard
                 icon={Layers}
                 label="Tecidos Verificados"
-                value="1.248"
+                value={totalLabel}
                 sublabel="total"
               />
               <StatCard
                 icon={CheckCircle2}
                 label="Taxa de Sucesso"
-                value="94.6%"
-                sublabel="1.181 ok"
+                value={successLabel}
+                sublabel={isLoading ? "..." : `${stats.totalSuccess.toLocaleString("pt-BR")} ok`}
                 accent="success"
               />
               <StatCard
                 icon={XCircle}
                 label="Taxa de Erro"
-                value="5.4%"
-                sublabel="67 falhas"
+                value={failureLabel}
+                sublabel={isLoading ? "..." : `${stats.totalFailure.toLocaleString("pt-BR")} falhas`}
                 accent="danger"
               />
             </div>
+            {isError && (
+              <p className="text-xs text-destructive">
+                Nao foi possivel carregar os dados do painel. Verifique as policies e a tabela analysis_records.
+              </p>
+            )}
           </div>
         </div>
       </main>
@@ -286,7 +307,18 @@ const Index = () => {
       {/* Bottom accent line */}
       <div className="relative z-10 h-px bg-gradient-to-r from-transparent via-foreground/10 to-transparent" />
 
-      <StatsDetailsDialog open={statsOpen} onOpenChange={setStatsOpen} />
+      <StatsDetailsDialog
+        open={statsOpen}
+        onOpenChange={setStatsOpen}
+        totalVerified={stats.totalVerified}
+        averageTimeLabel={formatMsToSecondsLabel(stats.averageTimeMs)}
+        totalSuccess={stats.totalSuccess}
+        totalFailure={stats.totalFailure}
+        successRate={stats.successRate}
+        failureRate={stats.failureRate}
+        errorBreakdown={stats.errorBreakdown}
+        recentAnalyses={stats.recentAnalyses}
+      />
     </div>
   );
 };

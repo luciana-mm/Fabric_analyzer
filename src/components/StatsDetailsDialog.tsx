@@ -5,25 +5,45 @@ import { Progress } from "@/components/ui/progress";
 interface StatsDetailsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  totalVerified: number;
+  averageTimeLabel: string;
+  totalSuccess: number;
+  totalFailure: number;
+  successRate: number;
+  failureRate: number;
+  errorBreakdown: Array<{ label: string; count: number; percentage: number }>;
+  recentAnalyses: Array<{ id: string; type: string; result: "ok" | "fail"; analyzedAt: string }>;
 }
 
-const recentAnalyses = [
-  { id: "TX-1248", type: "Algodão", result: "ok", time: "há 2 min" },
-  { id: "TX-1247", type: "Poliéster", result: "ok", time: "há 4 min" },
-  { id: "TX-1246", type: "Linho", result: "fail", time: "há 7 min" },
-  { id: "TX-1245", type: "Seda", result: "ok", time: "há 9 min" },
-  { id: "TX-1244", type: "Algodão", result: "ok", time: "há 12 min" },
-  { id: "TX-1243", type: "Lã", result: "fail", time: "há 15 min" },
-];
+const formatRelativeTime = (value: string) => {
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return "agora";
 
-const errorBreakdown = [
-  { label: "Falha de iluminação", count: 28, percentage: 41.8 },
-  { label: "Tecido fora de posição", count: 19, percentage: 28.4 },
-  { label: "Padrão não reconhecido", count: 12, percentage: 17.9 },
-  { label: "Outros", count: 8, percentage: 11.9 },
-];
+  const diffMs = Date.now() - timestamp;
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
 
-export const StatsDetailsDialog = ({ open, onOpenChange }: StatsDetailsDialogProps) => {
+  if (diffMinutes < 1) return "agora";
+  if (diffMinutes < 60) return `há ${diffMinutes} min`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `há ${diffHours} h`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `há ${diffDays} d`;
+};
+
+export const StatsDetailsDialog = ({
+  open,
+  onOpenChange,
+  totalVerified,
+  averageTimeLabel,
+  totalSuccess,
+  totalFailure,
+  successRate,
+  failureRate,
+  errorBreakdown,
+  recentAnalyses,
+}: StatsDetailsDialogProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
@@ -47,31 +67,31 @@ export const StatsDetailsDialog = ({ open, onOpenChange }: StatsDetailsDialogPro
                 <div className="flex items-center gap-2 text-muted-foreground text-[10px] tracking-[0.2em] uppercase mb-2">
                   <Layers className="w-3.5 h-3.5" /> Total Verificado
                 </div>
-                <p className="font-display text-2xl">1.248</p>
+                <p className="font-display text-2xl">{totalVerified.toLocaleString("pt-BR")}</p>
                 <p className="text-xs text-muted-foreground mt-1">desde o início da sessão</p>
               </div>
               <div className="p-4 rounded-lg border border-border/40 bg-card/50">
                 <div className="flex items-center gap-2 text-muted-foreground text-[10px] tracking-[0.2em] uppercase mb-2">
                   <Clock className="w-3.5 h-3.5" /> Tempo Médio
                 </div>
-                <p className="font-display text-2xl">2,4s</p>
+                <p className="font-display text-2xl">{averageTimeLabel}</p>
                 <p className="text-xs text-muted-foreground mt-1">por tecido analisado</p>
               </div>
               <div className="p-4 rounded-lg border border-border/40 bg-card/50">
                 <div className="flex items-center gap-2 text-primary text-[10px] tracking-[0.2em] uppercase mb-2">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Sucessos
                 </div>
-                <p className="font-display text-2xl text-primary">1.181</p>
-                <Progress value={94.6} className="mt-2 h-1.5" />
-                <p className="text-xs text-muted-foreground mt-1">94.6% de aprovação</p>
+                <p className="font-display text-2xl text-primary">{totalSuccess.toLocaleString("pt-BR")}</p>
+                <Progress value={successRate} className="mt-2 h-1.5" />
+                <p className="text-xs text-muted-foreground mt-1">{successRate}% de aprovação</p>
               </div>
               <div className="p-4 rounded-lg border border-border/40 bg-card/50">
                 <div className="flex items-center gap-2 text-destructive text-[10px] tracking-[0.2em] uppercase mb-2">
                   <XCircle className="w-3.5 h-3.5" /> Falhas
                 </div>
-                <p className="font-display text-2xl text-destructive">67</p>
-                <Progress value={5.4} className="mt-2 h-1.5" />
-                <p className="text-xs text-muted-foreground mt-1">5.4% de rejeição</p>
+                <p className="font-display text-2xl text-destructive">{totalFailure.toLocaleString("pt-BR")}</p>
+                <Progress value={failureRate} className="mt-2 h-1.5" />
+                <p className="text-xs text-muted-foreground mt-1">{failureRate}% de rejeição</p>
               </div>
             </div>
           </section>
@@ -82,6 +102,9 @@ export const StatsDetailsDialog = ({ open, onOpenChange }: StatsDetailsDialogPro
               <AlertTriangle className="w-3.5 h-3.5" /> Causas de Falha
             </h3>
             <div className="space-y-3 p-4 rounded-lg border border-border/40 bg-card/50">
+              {errorBreakdown.length === 0 && (
+                <p className="text-xs text-muted-foreground">Sem falhas registradas.</p>
+              )}
               {errorBreakdown.map((item) => (
                 <div key={item.label}>
                   <div className="flex justify-between text-xs mb-1.5">
@@ -102,6 +125,9 @@ export const StatsDetailsDialog = ({ open, onOpenChange }: StatsDetailsDialogPro
               <TrendingUp className="w-3.5 h-3.5" /> Análises Recentes
             </h3>
             <div className="rounded-lg border border-border/40 bg-card/50 overflow-hidden">
+              {recentAnalyses.length === 0 && (
+                <div className="px-4 py-3 text-xs text-muted-foreground">Sem análises recentes.</div>
+              )}
               {recentAnalyses.map((a, i) => (
                 <div
                   key={a.id}
@@ -118,7 +144,7 @@ export const StatsDetailsDialog = ({ open, onOpenChange }: StatsDetailsDialogPro
                     <span className="font-display tracking-wider text-foreground/80">{a.id}</span>
                     <span className="text-muted-foreground">{a.type}</span>
                   </div>
-                  <span className="text-muted-foreground text-[11px]">{a.time}</span>
+                  <span className="text-muted-foreground text-[11px]">{formatRelativeTime(a.analyzedAt)}</span>
                 </div>
               ))}
             </div>
