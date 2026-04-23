@@ -101,9 +101,6 @@ const Manager = () => {
             <LogOut className="w-3 h-3" />
             Sair
           </button>
-          <span className="px-4 py-1.5 rounded-full bg-muted/40 border border-border/30 font-display text-[11px] tracking-wider text-muted-foreground">
-            Gestão · v1.0.0
-          </span>
         </div>
       </header>
 
