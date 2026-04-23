@@ -7,6 +7,7 @@ import gridBg from "@/assets/grid-bg.jpg";
 import { EmployeeDetailsDialog, Employee } from "@/components/EmployeeDetailsDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
+import { useManagerDashboardData } from "@/hooks/useDashboardData";
 
 interface OverviewCardProps {
   icon: LucideIcon;
@@ -39,17 +40,11 @@ const OverviewCard = ({ icon: Icon, label, value, sublabel, accent = "default" }
   );
 };
 
-const employees: Employee[] = [
-  { id: "EMP-001", name: "Ana Souza", role: "Operadora Sênior", verified: 412, success: 398, failure: 14, avgTime: "2,1s", shift: "Manhã" },
-  { id: "EMP-002", name: "Carlos Mendes", role: "Operador", verified: 356, success: 328, failure: 28, avgTime: "2,6s", shift: "Manhã" },
-  { id: "EMP-003", name: "Beatriz Lima", role: "Operadora", verified: 289, success: 271, failure: 18, avgTime: "2,4s", shift: "Tarde" },
-  { id: "EMP-004", name: "Diego Ramos", role: "Operador Jr.", verified: 191, success: 184, failure: 7, avgTime: "2,8s", shift: "Tarde" },
-];
-
 const Manager = () => {
   const [selected, setSelected] = useState<Employee | null>(null);
   const [search, setSearch] = useState("");
   const { signOut, user } = useAuth();
+  const { employees, loading, isError } = useManagerDashboardData();
   const router = useRouter();
 
   const handleSignOut = async () => {
@@ -60,8 +55,16 @@ const Manager = () => {
   const totalVerified = employees.reduce((s, e) => s + e.verified, 0);
   const totalSuccess = employees.reduce((s, e) => s + e.success, 0);
   const totalFailure = employees.reduce((s, e) => s + e.failure, 0);
-  const successRate = ((totalSuccess / totalVerified) * 100).toFixed(1);
-  const failureRate = ((totalFailure / totalVerified) * 100).toFixed(1);
+  const successRate = totalVerified === 0 ? "0.0" : ((totalSuccess / totalVerified) * 100).toFixed(1);
+  const failureRate = totalVerified === 0 ? "0.0" : ((totalFailure / totalVerified) * 100).toFixed(1);
+
+  const highestVolume = employees[0] ?? null;
+  const bestRate =
+    employees.length === 0
+      ? null
+      : [...employees].sort((a, b) => b.success / Math.max(1, b.verified) - a.success / Math.max(1, a.verified))[0];
+  const fastest =
+    employees.length === 0 ? null : [...employees].sort((a, b) => a.avgTimeMs - b.avgTimeMs)[0];
 
   const filtered = employees.filter(
     (e) => e.name.toLowerCase().includes(search.toLowerCase()) || e.id.toLowerCase().includes(search.toLowerCase())
@@ -117,11 +120,16 @@ const Manager = () => {
             </div>
 
             <div className="grid grid-cols-4 gap-4">
-              <OverviewCard icon={Users} label="Funcionários Ativos" value={String(employees.length)} sublabel="hoje" />
-              <OverviewCard icon={Layers} label="Tecidos Verificados" value={totalVerified.toLocaleString("pt-BR")} sublabel="total" />
-              <OverviewCard icon={CheckCircle2} label="Taxa de Sucesso" value={`${successRate}%`} sublabel={`${totalSuccess} ok`} accent="success" />
-              <OverviewCard icon={XCircle} label="Taxa de Erro" value={`${failureRate}%`} sublabel={`${totalFailure} falhas`} accent="danger" />
+              <OverviewCard icon={Users} label="Funcionários Ativos" value={loading ? "..." : String(employees.length)} sublabel="hoje" />
+              <OverviewCard icon={Layers} label="Tecidos Verificados" value={loading ? "..." : totalVerified.toLocaleString("pt-BR")} sublabel="total" />
+              <OverviewCard icon={CheckCircle2} label="Taxa de Sucesso" value={loading ? "..." : `${successRate}%`} sublabel={loading ? "..." : `${totalSuccess} ok`} accent="success" />
+              <OverviewCard icon={XCircle} label="Taxa de Erro" value={loading ? "..." : `${failureRate}%`} sublabel={loading ? "..." : `${totalFailure} falhas`} accent="danger" />
             </div>
+            {isError && (
+              <p className="text-xs text-destructive mt-3">
+                Nao foi possivel carregar os dados do gestor. Verifique as policies e tabelas no Supabase.
+              </p>
+            )}
           </section>
 
           {/* Funcionários */}
@@ -155,11 +163,11 @@ const Manager = () => {
 
               {filtered.length === 0 ? (
                 <div className="px-5 py-8 text-center text-xs text-muted-foreground">
-                  Nenhum funcionário encontrado
+                  {loading ? "Carregando funcionarios..." : "Nenhum funcionario encontrado"}
                 </div>
               ) : (
                 filtered.map((emp, i) => {
-                  const rate = ((emp.success / emp.verified) * 100).toFixed(1);
+                  const rate = emp.verified === 0 ? "0.0" : ((emp.success / emp.verified) * 100).toFixed(1);
                   return (
                     <button
                       key={emp.id}
@@ -212,24 +220,28 @@ const Manager = () => {
                 <div className="flex items-center gap-2 text-foreground/70 text-[10px] tracking-[0.25em] uppercase mb-3">
                   <Award className="w-3.5 h-3.5" /> Maior Volume
                 </div>
-                <p className="font-display text-lg text-foreground">{employees[0].name}</p>
-                <p className="text-xs text-muted-foreground mt-1">{employees[0].verified} tecidos verificados</p>
+                <p className="font-display text-lg text-foreground">{highestVolume?.name ?? "Sem dados"}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {highestVolume ? `${highestVolume.verified} tecidos verificados` : "Aguardando analises"}
+                </p>
               </div>
               <div className="p-5 rounded-xl border border-border/30 bg-card/40 backdrop-blur-sm">
                 <div className="flex items-center gap-2 text-primary text-[10px] tracking-[0.25em] uppercase mb-3">
                   <TrendingUp className="w-3.5 h-3.5" /> Melhor Taxa
                 </div>
-                <p className="font-display text-lg text-foreground">{employees[3].name}</p>
+                <p className="font-display text-lg text-foreground">{bestRate?.name ?? "Sem dados"}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {((employees[3].success / employees[3].verified) * 100).toFixed(1)}% de aprovação
+                  {bestRate ? `${((bestRate.success / Math.max(1, bestRate.verified)) * 100).toFixed(1)}% de aprovacao` : "Aguardando analises"}
                 </p>
               </div>
               <div className="p-5 rounded-xl border border-border/30 bg-card/40 backdrop-blur-sm">
                 <div className="flex items-center gap-2 text-foreground/70 text-[10px] tracking-[0.25em] uppercase mb-3">
                   <Clock className="w-3.5 h-3.5" /> Mais Rápido
                 </div>
-                <p className="font-display text-lg text-foreground">{employees[0].name}</p>
-                <p className="text-xs text-muted-foreground mt-1">{employees[0].avgTime} por análise</p>
+                <p className="font-display text-lg text-foreground">{fastest?.name ?? "Sem dados"}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {fastest ? `${fastest.avgTime} por analise` : "Aguardando analises"}
+                </p>
               </div>
             </div>
           </section>

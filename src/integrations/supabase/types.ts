@@ -16,25 +16,76 @@ export type Database = {
     Tables: {
       profiles: {
         Row: {
+          active: boolean
           created_at: string
+          department: string | null
           display_name: string | null
+          employee_code: string | null
           id: string
+          job_title: string | null
+          shift: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          active?: boolean
           created_at?: string
+          department?: string | null
           display_name?: string | null
+          employee_code?: string | null
           id?: string
+          job_title?: string | null
+          shift?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          active?: boolean
           created_at?: string
+          department?: string | null
           display_name?: string | null
+          employee_code?: string | null
           id?: string
+          job_title?: string | null
+          shift?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      analysis_records: {
+        Row: {
+          analyzed_at: string
+          created_at: string
+          failure_reason: string | null
+          id: string
+          operator_user_id: string
+          processing_time_ms: number
+          reference_code: string
+          result: string
+          tissue_type: string
+        }
+        Insert: {
+          analyzed_at?: string
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          operator_user_id: string
+          processing_time_ms: number
+          reference_code: string
+          result: string
+          tissue_type: string
+        }
+        Update: {
+          analyzed_at?: string
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          operator_user_id?: string
+          processing_time_ms?: number
+          reference_code?: string
+          result?: string
+          tissue_type?: string
         }
         Relationships: []
       }
