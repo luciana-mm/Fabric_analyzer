@@ -21,7 +21,7 @@ import {
 } from "@/components/EmployeeDetailsDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
-import { GlobalStatsDialog } from "@/components/GlobalStatsDialog";
+import { useManagerDashboardData } from "@/hooks/useDashboardData";
 
 interface OverviewCardProps {
   icon: LucideIcon;
@@ -72,53 +72,11 @@ const OverviewCard = ({
   );
 };
 
-const employees: Employee[] = [
-  {
-    id: "EMP-001",
-    name: "Ana Souza",
-    role: "Operadora Sênior",
-    verified: 412,
-    success: 398,
-    failure: 14,
-    avgTime: "2,1s",
-    shift: "Manhã",
-  },
-  {
-    id: "EMP-002",
-    name: "Carlos Mendes",
-    role: "Operador",
-    verified: 356,
-    success: 328,
-    failure: 28,
-    avgTime: "2,6s",
-    shift: "Manhã",
-  },
-  {
-    id: "EMP-003",
-    name: "Beatriz Lima",
-    role: "Operadora",
-    verified: 289,
-    success: 271,
-    failure: 18,
-    avgTime: "2,4s",
-    shift: "Tarde",
-  },
-  {
-    id: "EMP-004",
-    name: "Diego Ramos",
-    role: "Operador Jr.",
-    verified: 191,
-    success: 184,
-    failure: 7,
-    avgTime: "2,8s",
-    shift: "Tarde",
-  },
-];
-
 const Manager = () => {
   const [selected, setSelected] = useState<Employee | null>(null);
   const [search, setSearch] = useState("");
   const { signOut, user } = useAuth();
+  const { employees, loading, isError } = useManagerDashboardData();
   const router = useRouter();
 
   const handleSignOut = async () => {
@@ -131,8 +89,16 @@ const Manager = () => {
   const totalVerified = employees.reduce((s, e) => s + e.verified, 0);
   const totalSuccess = employees.reduce((s, e) => s + e.success, 0);
   const totalFailure = employees.reduce((s, e) => s + e.failure, 0);
-  const successRate = ((totalSuccess / totalVerified) * 100).toFixed(1);
-  const failureRate = ((totalFailure / totalVerified) * 100).toFixed(1);
+  const successRate = totalVerified === 0 ? "0.0" : ((totalSuccess / totalVerified) * 100).toFixed(1);
+  const failureRate = totalVerified === 0 ? "0.0" : ((totalFailure / totalVerified) * 100).toFixed(1);
+
+  const highestVolume = employees[0] ?? null;
+  const bestRate =
+    employees.length === 0
+      ? null
+      : [...employees].sort((a, b) => b.success / Math.max(1, b.verified) - a.success / Math.max(1, a.verified))[0];
+  const fastest =
+    employees.length === 0 ? null : [...employees].sort((a, b) => a.avgTimeMs - b.avgTimeMs)[0];
 
   const filtered = employees.filter(
     (e) =>
@@ -180,9 +146,6 @@ const Manager = () => {
             <LogOut className="w-3 h-3" />
             Sair
           </button>
-          <span className="px-4 py-1.5 rounded-full bg-muted/40 border border-border/30 font-display text-[11px] tracking-wider text-muted-foreground">
-            Gestão · v1.0.0
-          </span>
         </div>
       </header>
 
@@ -233,6 +196,11 @@ const Manager = () => {
                 accent="danger"
               />
             </div>
+            {isError && (
+              <p className="text-xs text-destructive mt-3">
+                Nao foi possivel carregar os dados do gestor. Verifique as policies e tabelas no Supabase.
+              </p>
+            )}
           </section>
 
           {/* Funcionários */}
@@ -266,11 +234,11 @@ const Manager = () => {
 
               {filtered.length === 0 ? (
                 <div className="px-5 py-8 text-center text-xs text-muted-foreground">
-                  Nenhum funcionário encontrado
+                  {loading ? "Carregando funcionarios..." : "Nenhum funcionario encontrado"}
                 </div>
               ) : (
                 filtered.map((emp, i) => {
-                  const rate = ((emp.success / emp.verified) * 100).toFixed(1);
+                  const rate = emp.verified === 0 ? "0.0" : ((emp.success / emp.verified) * 100).toFixed(1);
                   return (
                     <button
                       key={emp.id}

@@ -8,6 +8,8 @@
     "build": "next build",
     "lint": "eslint .",
     "start": "next start",
+    "camera:install": "python -m pip install -r camera-proxy/requirements.txt",
+    "camera:proxy": "python -m uvicorn server:app --host 0.0.0.0 --port 8090 --app-dir camera-proxy",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -41,7 +43,7 @@
     "@radix-ui/react-toggle-group": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.7",
     "@supabase/ssr": "^0.10.2",
-    "@supabase/supabase-js": "^2.103.3",
+    "@supabase/supabase-js": "^2.104.0",
     "@tanstack/react-query": "^5.83.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

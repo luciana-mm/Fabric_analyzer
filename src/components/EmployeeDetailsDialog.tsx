@@ -11,6 +11,8 @@ export interface Employee {
   failure: number;
   avgTime: string;
   shift: string;
+  errorBreakdown: Array<{ label: string; percentage: number }>;
+  recentAnalyses: Array<{ id: string; type: string; result: "ok" | "fail"; analyzedAt: string }>;
 }
 
 interface EmployeeDetailsDialogProps {
@@ -19,20 +21,22 @@ interface EmployeeDetailsDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const errorBreakdown = [
-  { label: "Falha de iluminação", percentage: 38.2 },
-  { label: "Tecido fora de posição", percentage: 29.7 },
-  { label: "Padrão não reconhecido", percentage: 19.4 },
-  { label: "Outros", percentage: 12.7 },
-];
+const formatRelativeTime = (value: string) => {
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return "agora";
 
-const recentAnalyses = [
-  { id: "TX-1248", type: "Algodão", result: "ok", time: "há 2 min" },
-  { id: "TX-1247", type: "Poliéster", result: "ok", time: "há 6 min" },
-  { id: "TX-1246", type: "Linho", result: "fail", time: "há 11 min" },
-  { id: "TX-1245", type: "Seda", result: "ok", time: "há 14 min" },
-  { id: "TX-1244", type: "Algodão", result: "ok", time: "há 18 min" },
-];
+  const diffMs = Date.now() - timestamp;
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+
+  if (diffMinutes < 1) return "agora";
+  if (diffMinutes < 60) return `há ${diffMinutes} min`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `há ${diffHours} h`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `há ${diffDays} d`;
+};
 
 export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: EmployeeDetailsDialogProps) => {
   if (!employee) return null;
@@ -105,7 +109,10 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
               <AlertTriangle className="w-3.5 h-3.5" /> Principais Causas de Falha
             </h3>
             <div className="space-y-3 p-4 rounded-lg border border-border/40 bg-card/50">
-              {errorBreakdown.map((item) => (
+              {employee.errorBreakdown.length === 0 && (
+                <p className="text-xs text-muted-foreground">Sem falhas registradas.</p>
+              )}
+              {employee.errorBreakdown.map((item) => (
                 <div key={item.label}>
                   <div className="flex justify-between text-xs mb-1.5">
                     <span className="text-foreground/80">{item.label}</span>
@@ -125,11 +132,14 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
               <TrendingUp className="w-3.5 h-3.5" /> Análises Recentes
             </h3>
             <div className="rounded-lg border border-border/40 bg-card/50 overflow-hidden">
-              {recentAnalyses.map((a, i) => (
+              {employee.recentAnalyses.length === 0 && (
+                <div className="px-4 py-3 text-xs text-muted-foreground">Sem análises recentes.</div>
+              )}
+              {employee.recentAnalyses.map((a, i) => (
                 <div
                   key={a.id}
                   className={`flex items-center justify-between px-4 py-3 text-xs ${
-                    i !== recentAnalyses.length - 1 ? "border-b border-border/30" : ""
+                    i !== employee.recentAnalyses.length - 1 ? "border-b border-border/30" : ""
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -141,7 +151,7 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
                     <span className="font-display tracking-wider text-foreground/80">{a.id}</span>
                     <span className="text-muted-foreground">{a.type}</span>
                   </div>
-                  <span className="text-muted-foreground text-[11px]">{a.time}</span>
+                  <span className="text-muted-foreground text-[11px]">{formatRelativeTime(a.analyzedAt)}</span>
                 </div>
               ))}
             </div>

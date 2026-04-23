@@ -230,10 +230,6 @@ const Login = () => {
             Acesso restrito · Uso interno
           </p>
         </div>
-
-        <p className="text-[10px] text-center text-muted-foreground mt-6 tracking-[0.2em] uppercase">
-          v1.0.0 · Meta
-        </p>
       </div>
     </div>
   );
