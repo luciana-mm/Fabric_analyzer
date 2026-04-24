@@ -4,10 +4,11 @@ import time
 from typing import Optional
 
 import cv2
+import numpy as np
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 load_dotenv()
 
@@ -127,6 +128,68 @@ def stream_mjpeg() -> StreamingResponse:
         frame_generator(),
         media_type=f"multipart/x-mixed-replace; boundary={boundary}",
         headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )
+
+
+def _decode_latest_frame() -> np.ndarray:
+    with camera_state.lock:
+        frame_bytes = camera_state.latest_frame
+
+    if frame_bytes is None:
+        raise HTTPException(status_code=503, detail="Nenhum frame disponivel no momento")
+
+    frame_array = np.frombuffer(frame_bytes, dtype=np.uint8)
+    frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
+    if frame is None:
+        raise HTTPException(status_code=500, detail="Falha ao decodificar frame")
+
+    return frame
+
+
+@app.get("/snapshot.jpg")
+def snapshot() -> Response:
+    with camera_state.lock:
+        frame_bytes = camera_state.latest_frame
+
+    if frame_bytes is None:
+        raise HTTPException(status_code=503, detail="Nenhum frame disponivel no momento")
+
+    return Response(content=frame_bytes, media_type="image/jpeg")
+
+
+@app.get("/sample-color")
+def sample_color() -> JSONResponse:
+    frame = _decode_latest_frame()
+    height, width = frame.shape[:2]
+
+    center_x = width // 2
+    center_y = height // 2
+    sample_size = 10
+
+    x0 = max(0, center_x - sample_size)
+    x1 = min(width, center_x + sample_size)
+    y0 = max(0, center_y - sample_size)
+    y1 = min(height, center_y + sample_size)
+
+    region = frame[y0:y1, x0:x1]
+    if region.size == 0:
+        raise HTTPException(status_code=500, detail="Regiao de amostragem invalida")
+
+    b, g, r = region.mean(axis=(0, 1))
+    rgb = {
+        "r": int(round(r)),
+        "g": int(round(g)),
+        "b": int(round(b)),
+    }
+    hex_value = f"#{rgb['r']:02x}{rgb['g']:02x}{rgb['b']:02x}"
+
+    return JSONResponse(
+        {
+            "rgb": rgb,
+            "hex": hex_value,
+            "sample_center": {"x": center_x, "y": center_y},
+            "sample_size": sample_size * 2,
+        }
     )
 
 

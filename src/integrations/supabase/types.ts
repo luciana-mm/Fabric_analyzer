@@ -89,6 +89,66 @@ export type Database = {
         }
         Relationships: []
       }
+      operator_configurations: {
+        Row: {
+          active_view: string
+          analysis_area_configured: boolean
+          color_configured: boolean
+          created_at: string
+          delta_configured: boolean
+          delta_e: number
+          id: string
+          light_calibrated: boolean
+          reference_color_b: number
+          reference_color_g: number
+          reference_color_hex: string
+          reference_color_r: number
+          sample_area_height_percent: number
+          sample_area_width_percent: number
+          sample_points: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active_view?: string
+          analysis_area_configured?: boolean
+          color_configured?: boolean
+          created_at?: string
+          delta_configured?: boolean
+          delta_e?: number
+          id?: string
+          light_calibrated?: boolean
+          reference_color_b?: number
+          reference_color_g?: number
+          reference_color_hex?: string
+          reference_color_r?: number
+          sample_area_height_percent?: number
+          sample_area_width_percent?: number
+          sample_points?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active_view?: string
+          analysis_area_configured?: boolean
+          color_configured?: boolean
+          created_at?: string
+          delta_configured?: boolean
+          delta_e?: number
+          id?: string
+          light_calibrated?: boolean
+          reference_color_b?: number
+          reference_color_g?: number
+          reference_color_hex?: string
+          reference_color_r?: number
+          sample_area_height_percent?: number
+          sample_area_width_percent?: number
+          sample_points?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
