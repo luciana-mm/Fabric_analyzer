@@ -16,6 +16,12 @@ import {
 
 type ConfigLoadSource = "supabase" | "local";
 
+type SupabaseErrorLike = {
+  code?: string;
+  status?: number;
+  message?: string;
+};
+
 type OperatorConfigRow = {
   user_id: string;
   delta_e: number;
@@ -77,17 +83,36 @@ const systemConfigToRow = (
   };
 };
 
+const isMissingOperatorConfigurationsError = (error: unknown): boolean => {
+  const candidate = error as SupabaseErrorLike | null;
+  if (!candidate) {
+    return false;
+  }
+
+  if (candidate.status === 404) {
+    return true;
+  }
+
+  if (candidate.code === "PGRST205" || candidate.code === "42P01") {
+    return true;
+  }
+
+  const message = candidate.message?.toLowerCase() ?? "";
+  return message.includes("operator_configurations") && message.includes("not found");
+};
+
 export const useOperatorSystemConfig = (userId: string | null | undefined) => {
   const [config, setConfig] = useState<SystemConfig>(defaultSystemConfig);
   const [activeView, setActiveViewState] = useState<ConfigView>("home");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [loadSource, setLoadSource] = useState<ConfigLoadSource>("local");
+  const [isRemoteConfigAvailable, setIsRemoteConfigAvailable] = useState(true);
 
   const saveToSupabase = useCallback(
-    async (nextConfig: SystemConfig, nextView: ConfigView) => {
-      if (!userId) {
-        return;
+    async (nextConfig: SystemConfig, nextView: ConfigView): Promise<boolean> => {
+      if (!userId || !isRemoteConfigAvailable) {
+        return false;
       }
 
       const payload = systemConfigToRow(userId, nextConfig, nextView);
@@ -96,10 +121,16 @@ export const useOperatorSystemConfig = (userId: string | null | undefined) => {
         .upsert(payload, { onConflict: "user_id" });
 
       if (error) {
+        if (isMissingOperatorConfigurationsError(error)) {
+          setIsRemoteConfigAvailable(false);
+          return false;
+        }
         throw error;
       }
+
+      return true;
     },
-    [userId],
+    [isRemoteConfigAvailable, userId],
   );
 
   const refresh = useCallback(async () => {
@@ -108,7 +139,7 @@ export const useOperatorSystemConfig = (userId: string | null | undefined) => {
     const localConfig = loadSystemConfig();
     const localView = loadSystemConfigView();
 
-    if (!userId) {
+    if (!userId || !isRemoteConfigAvailable) {
       setConfig(localConfig);
       setActiveViewState(localView);
       setLoadSource("local");
@@ -126,6 +157,13 @@ export const useOperatorSystemConfig = (userId: string | null | undefined) => {
         .maybeSingle();
 
       if (error) {
+        if (isMissingOperatorConfigurationsError(error)) {
+          setIsRemoteConfigAvailable(false);
+          setConfig(localConfig);
+          setActiveViewState(localView);
+          setLoadSource("local");
+          return;
+        }
         throw error;
       }
 
@@ -149,7 +187,7 @@ export const useOperatorSystemConfig = (userId: string | null | undefined) => {
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, [isRemoteConfigAvailable, userId]);
 
   useEffect(() => {
     void refresh();
@@ -166,11 +204,11 @@ export const useOperatorSystemConfig = (userId: string | null | undefined) => {
       setIsSaving(true);
 
       try {
-        await saveToSupabase(nextConfig, activeView);
+        const savedRemotely = await saveToSupabase(nextConfig, activeView);
         setConfig(nextConfig);
         cacheSystemConfig(nextConfig);
-        setLoadSource(userId ? "supabase" : "local");
-        return { config: nextConfig, savedToSupabase: Boolean(userId) };
+        setLoadSource(savedRemotely ? "supabase" : "local");
+        return { config: nextConfig, savedToSupabase: savedRemotely };
       } catch {
         const fallback = saveSystemConfig(nextConfig);
         setConfig(fallback);
@@ -208,10 +246,21 @@ export const useOperatorSystemConfig = (userId: string | null | undefined) => {
       isLoading,
       isSaving,
       loadSource,
+      isRemoteConfigAvailable,
       refresh,
       persistPatch,
       setActiveView,
     }),
-    [activeView, config, isLoading, isSaving, loadSource, persistPatch, refresh, setActiveView],
+    [
+      activeView,
+      config,
+      isLoading,
+      isSaving,
+      loadSource,
+      isRemoteConfigAvailable,
+      persistPatch,
+      refresh,
+      setActiveView,
+    ],
   );
 };
