@@ -1,18 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowLeft, Camera, RefreshCw, Circle } from "lucide-react";
+import { ArrowLeft, Camera } from "lucide-react";
 import { useRouter } from "next/navigation";
 import gridBg from "@/assets/grid-bg.jpg";
-
-const CAMERA_PROXY_URL = process.env.NEXT_PUBLIC_CAMERA_PROXY_URL ?? "http://127.0.0.1:8090";
+import { CameraPreview } from "@/components/CameraPreview";
 
 const CameraStream = () => {
   const router = useRouter();
-  const [streamKey, setStreamKey] = useState(0);
-
-  const streamUrl = `${CAMERA_PROXY_URL}/stream.mjpg?t=${streamKey}`;
-  const restartStream = () => setStreamKey((value) => value + 1);
 
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden">
@@ -41,7 +35,7 @@ const CameraStream = () => {
             </div>
             <div>
               <h1 className="font-display text-base tracking-[0.2em] uppercase text-foreground">
-                Camera Hikvision
+                Camera
               </h1>
               <p className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground">
                 Stream em tempo real
@@ -53,12 +47,11 @@ const CameraStream = () => {
 
       <main className="relative z-10 flex-1 px-6 md:px-10 py-8">
         <div className="w-full max-w-6xl mx-auto">
-
           <div className="rounded-2xl border border-border/30 bg-card/40 backdrop-blur-sm overflow-hidden">
-            <img
-              src={streamUrl}
-              alt="Video ao vivo da camera"
-              className="w-full max-h-[75vh] object-contain bg-black"
+            <CameraPreview
+              className="w-full min-h-[55vh] max-h-[75vh]"
+              imageClassName="w-full max-h-[75vh] object-contain bg-black"
+              fallbackMessage="O servidor local da camera nao respondeu."
             />
           </div>
         </div>

@@ -19,6 +19,7 @@ import {
   EmployeeDetailsDialog,
   Employee,
 } from "@/components/EmployeeDetailsDialog";
+import { GlobalStatsDialog } from "@/components/GlobalStatsDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { useManagerDashboardData } from "@/hooks/useDashboardData";
@@ -96,9 +97,10 @@ const Manager = () => {
   const bestRate =
     employees.length === 0
       ? null
-      : [...employees].sort((a, b) => b.success / Math.max(1, b.verified) - a.success / Math.max(1, a.verified))[0];
-  const fastest =
-    employees.length === 0 ? null : [...employees].sort((a, b) => a.avgTimeMs - b.avgTimeMs)[0];
+      : [...employees].sort(
+          (a, b) => b.success / Math.max(1, b.verified) - a.success / Math.max(1, a.verified),
+        )[0];
+  const fastest = employees.length === 0 ? null : [...employees].sort((a, b) => a.avgTimeMs - b.avgTimeMs)[0];
 
   const filtered = employees.filter(
     (e) =>
@@ -308,10 +310,10 @@ const Manager = () => {
                   <Award className="w-3.5 h-3.5" /> Maior Volume
                 </div>
                 <p className="font-display text-lg text-foreground">
-                  {employees[0].name}
+                  {highestVolume?.name ?? "Sem dados"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {employees[0].verified} tecidos verificados
+                  {highestVolume ? `${highestVolume.verified} tecidos verificados` : "Aguardando sincronização"}
                 </p>
               </div>
               <div className="p-5 rounded-xl border border-border/30 bg-card/40 backdrop-blur-sm">
@@ -319,14 +321,12 @@ const Manager = () => {
                   <TrendingUp className="w-3.5 h-3.5" /> Melhor Taxa
                 </div>
                 <p className="font-display text-lg text-foreground">
-                  {employees[3].name}
+                  {bestRate?.name ?? "Sem dados"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {(
-                    (employees[3].success / employees[3].verified) *
-                    100
-                  ).toFixed(1)}
-                  % de aprovação
+                  {bestRate
+                    ? `${((bestRate.success / Math.max(1, bestRate.verified)) * 100).toFixed(1)}% de aprovação`
+                    : "Aguardando sincronização"}
                 </p>
               </div>
               <div className="p-5 rounded-xl border border-border/30 bg-card/40 backdrop-blur-sm">
@@ -334,10 +334,10 @@ const Manager = () => {
                   <Clock className="w-3.5 h-3.5" /> Mais Rápido
                 </div>
                 <p className="font-display text-lg text-foreground">
-                  {employees[0].name}
+                  {fastest?.name ?? "Sem dados"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {employees[0].avgTime} por análise
+                  {fastest ? `${fastest.avgTime} por análise` : "Aguardando sincronização"}
                 </p>
               </div>
             </div>

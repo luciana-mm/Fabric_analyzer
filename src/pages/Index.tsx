@@ -8,8 +8,12 @@ import { toast } from "sonner";
 import gridBg from "@/assets/grid-bg.jpg";
 import { StatsDetailsDialog } from "@/components/StatsDetailsDialog";
 import { useAuth } from "@/hooks/useAuth";
-import { Configuration } from "@/components/Configuration";
+import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
 import { useOperatorDashboardData } from "@/hooks/useDashboardData";
+import {
+  isConfigurationComplete,
+  isLightCalibrated,
+} from "@/lib/systemConfig";
 
 interface StatCardProps {
   icon: LucideIcon;
@@ -83,14 +87,14 @@ const ActionCard = ({ icon: Icon, label, description, onClick, highlight, disabl
 );
 
 const Index = () => {
-  const [calibrated, setCalibrated] = useState(false);
-  const [configured, setConfigured] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const { signOut, user } = useAuth();
-  const { stats, isLoading, isError, formatMsToSecondsLabel } = useOperatorDashboardData(user?.id);
+  const { config: systemConfig } = useOperatorSystemConfig(user?.id);
+  const { stats, isLoading: dashboardLoading, isError, formatMsToSecondsLabel } = useOperatorDashboardData(user?.id);
   const router = useRouter();
 
+  const calibrated = isLightCalibrated(systemConfig);
+  const configured = isConfigurationComplete(systemConfig);
   const isReady = calibrated && configured;
 
   const handleSignOut = async () => {
@@ -99,21 +103,9 @@ const Index = () => {
   };
 
   const handleCalibrate = () => {
-    setCalibrated(true);
-    toast.success("Luz calibrada com sucesso", {
-      description: configured
-        ? "O sistema está pronto para iniciar a análise."
-        : "Agora conclua as configurações do sistema.",
-    });
-  };
-
-  const handleConfigure = () => {
-    setConfigured(true);
-    setShowSettings(false);
-    toast.success("Configurações concluídas", {
-      description: calibrated
-        ? "O sistema está pronto para iniciar a análise."
-        : "Agora calibre a luz para liberar o início.",
+    router.push("/painel/config?view=capture");
+    toast.info("Abra a calibracao na configuracao", {
+      description: "Use Capturar Cor e depois Calibrar Luz.",
     });
   };
 
@@ -144,28 +136,9 @@ const Index = () => {
     ? "Calibre a luz primeiro"
     : "Conclua as configurações";
 
-  const totalLabel = isLoading ? "..." : stats.totalVerified.toLocaleString("pt-BR");
-  const successLabel = isLoading ? "..." : `${stats.successRate}%`;
-  const failureLabel = isLoading ? "..." : `${stats.failureRate}%`;
-
-    if(showSettings){
-      return (
-      <div className="relative min-h-screen flex items-center justify-center bg-background">
-        <img src={gridBg.src} alt="" className="absolute inset-0 w-full h-full object-cover opacity-10" />
-        <div className="relative z-10 w-full max-w-2xl px-6">
-          <Configuration />
-          
-          {/* Botão para voltar manualmente se o componente Configuration não tiver o onClick interno */}
-          <button 
-            onClick={() => setShowSettings(false)}
-            className="mt-6 mx-auto block text-[10px] tracking-[0.3em] uppercase text-muted-foreground hover:text-foreground transition-colors"
-          >
-            ← Voltar ao Painel
-          </button>
-        </div>
-      </div>
-    );
-    }
+  const totalLabel = dashboardLoading ? "..." : stats.totalVerified.toLocaleString("pt-BR");
+  const successLabel = dashboardLoading ? "..." : `${stats.successRate}%`;
+  const failureLabel = dashboardLoading ? "..." : `${stats.failureRate}%`;
 
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden">
@@ -247,7 +220,7 @@ const Index = () => {
               icon={configured ? CheckCircle2 : Settings}
               label="Configurações"
               description={configured ? "Configurações concluídas" : "Parâmetros do sistema"}
-              onClick={() => setShowSettings(true)}
+              onClick={() => router.push("/painel/config?view=home")}
             />
             <ActionCard
               icon={Camera}
@@ -284,14 +257,14 @@ const Index = () => {
                 icon={CheckCircle2}
                 label="Taxa de Sucesso"
                 value={successLabel}
-                sublabel={isLoading ? "..." : `${stats.totalSuccess.toLocaleString("pt-BR")} ok`}
+                sublabel={dashboardLoading ? "..." : `${stats.totalSuccess.toLocaleString("pt-BR")} ok`}
                 accent="success"
               />
               <StatCard
                 icon={XCircle}
                 label="Taxa de Erro"
                 value={failureLabel}
-                sublabel={isLoading ? "..." : `${stats.totalFailure.toLocaleString("pt-BR")} falhas`}
+                sublabel={dashboardLoading ? "..." : `${stats.totalFailure.toLocaleString("pt-BR")} falhas`}
                 accent="danger"
               />
             </div>

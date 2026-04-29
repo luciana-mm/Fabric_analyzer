@@ -1,9 +1,16 @@
 import { useState } from "react";
 import { LocateFixed, Save } from "lucide-react";
+import type { DeltaEValue } from "@/lib/systemConfig";
 
-export const DeltaE = ({onBack}) => {
+interface DeltaEProps {
+  onBack: () => void;
+  initialDelta: DeltaEValue;
+  onSave: (value: DeltaEValue) => void;
+}
 
-    const[selectedDelta ,setSelectedDelta] = useState(null)
+export const DeltaE = ({ onBack, initialDelta, onSave }: DeltaEProps) => {
+
+    const[selectedDelta ,setSelectedDelta] = useState<DeltaEValue>(initialDelta)
     
         const getPointStyle = (value) => {
         const baseClasses = "flex flex-col text-xs justify-center items-center w-full h-full cursor-pointer transition-colors";
@@ -41,7 +48,10 @@ return (
       </div>
       <div className="flex justify-end gap-5 mt-10 text-sm ">
         <button 
-          onClick={onBack} 
+          onClick={() => {
+            onSave(selectedDelta);
+            onBack();
+          }} 
           className="flex-col justify-items-center bg-gray-500 p-2 w-[100px] gap-2 rounded-[10px] hover:bg-gray-400">
             <Save/>
             <p>Salvar</p>

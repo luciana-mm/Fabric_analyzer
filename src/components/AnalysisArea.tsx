@@ -1,13 +1,27 @@
 import { useState } from "react";
 import { Grip, Save,Eye } from "lucide-react";
 import { MeasurementGridOverlay } from "./PreviewArea";
+import { CameraPreview } from "./CameraPreview";
+import type { SamplePointsValue } from "@/lib/systemConfig";
 
-export const AnalysisArea = ({ onBack }) => {
+interface AnalysisAreaProps {
+  onBack: () => void;
+  onSave: (value: {
+    samplePoints: SamplePointsValue;
+    sampleAreaWidthPercent: number;
+    sampleAreaHeightPercent: number;
+  }) => void;
+  initialWidth: number;
+  initialHeight: number;
+  initialPoints: SamplePointsValue;
+}
+
+export const AnalysisArea = ({ onBack, onSave, initialWidth, initialHeight, initialPoints }: AnalysisAreaProps) => {
   const [isVisible, setIsVisible] = useState(true);
 
-  const [heightRangeValue, setHeightRangeValue] = useState(30);
-  const [widthRangeValue, setWidthRangeValue] = useState(50);
-  const [selectedPoints, setSelectedPoints] = useState(9);
+  const [heightRangeValue, setHeightRangeValue] = useState(initialHeight);
+  const [widthRangeValue, setWidthRangeValue] = useState(initialWidth);
+  const [selectedPoints, setSelectedPoints] = useState<SamplePointsValue>(initialPoints);
 
   const getPointStyle = (value) => {
     const baseClasses =
@@ -20,12 +34,18 @@ export const AnalysisArea = ({ onBack }) => {
 
   return (
     <div className="fixed inset-0 z-20 overflow-hidden bg-[#0a0c14] flex items-center justify-center">
+      <CameraPreview
+        className="absolute inset-0 z-0 rounded-none border-0"
+        imageClassName="w-full h-full object-cover opacity-55"
+        fallbackMessage="Preview indisponivel para a area de analise."
+        showRetryButton={false}
+      />
       <MeasurementGridOverlay
         width={widthRangeValue}
         height={heightRangeValue}
       />
       {isVisible && (
-        <div className="relative z-10 w-full max-w-2xl mx-auto bg-[#0a0c14] p-8 rounded-xl border border-slate-800 text-white text-sm">
+        <div className="relative z-20 w-full max-w-2xl mx-auto bg-[#0a0c14]/90 backdrop-blur-sm p-8 rounded-xl border border-slate-800 text-white text-sm">
           <h2 className="text-center text-xl font-bold mb-10 cursor-default">
             Selecione o Nº de pontos e medidas da área
           </h2>
@@ -96,7 +116,14 @@ export const AnalysisArea = ({ onBack }) => {
               Esconder
             </button>
             <button
-              onClick={onBack}
+              onClick={() => {
+                onSave({
+                  samplePoints: selectedPoints,
+                  sampleAreaWidthPercent: widthRangeValue,
+                  sampleAreaHeightPercent: heightRangeValue,
+                });
+                onBack();
+              }}
               className="flex-col justify-items-center bg-gray-500 p-2 w-[100px] gap-2 rounded-[10px] hover:bg-gray-400"
             >
               <Save />
@@ -107,7 +134,7 @@ export const AnalysisArea = ({ onBack }) => {
       )}
 
       {!isVisible && (
-        <div className="absolute bottom-10 z-10 flex gap-10">
+        <div className="absolute bottom-10 z-20 flex gap-10">
           <div className="flex gap-3">
             <div className="flex flex-col gap-y-4 text-sm font-medium text-slate-300">
               <span className="h-6 flex items-center cursor-default">
