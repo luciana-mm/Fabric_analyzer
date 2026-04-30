@@ -1,36 +1,24 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRef } from "react";
 import { ArrowLeft, Loader2, Settings } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import gridBg from "@/assets/grid-bg.jpg";
 import { Configuration } from "@/components/Configuration";
+import { runAllTests } from "@/utils/colorConversionTests";
 import { useAuth } from "@/hooks/useAuth";
 import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
-import type { ConfigView } from "@/lib/systemConfig";
-
-const isConfigView = (value: string | null): value is ConfigView => {
-  return value === "home" || value === "analysis" || value === "capture" || value === "delta";
-};
 
 const PanelConfiguration = () => {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { user } = useAuth();
-  const { config, activeView, isLoading, persistPatch, setActiveView, loadSource } = useOperatorSystemConfig(user?.id);
-  const activeViewRef = useRef(activeView);
+  const { config, isLoading, persistPatch, loadSource } = useOperatorSystemConfig(user?.id);
 
   useEffect(() => {
-    activeViewRef.current = activeView;
-  }, [activeView]);
-
-  useEffect(() => {
-    const requestedView = searchParams.get("view");
-    if (isConfigView(requestedView) && requestedView !== activeViewRef.current) {
-      void setActiveView(requestedView);
+    if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
+      runAllTests();
     }
-  }, [searchParams, setActiveView]);
+  }, []);
 
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden">
@@ -82,11 +70,7 @@ const PanelConfiguration = () => {
           ) : (
             <Configuration
               initialConfig={config}
-              initialView={activeView}
               onPersistPatch={persistPatch}
-              onViewChange={(view) => {
-                void setActiveView(view);
-              }}
               onClose={() => {
                 router.push("/painel");
               }}

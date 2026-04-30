@@ -262,7 +262,7 @@ function radToDeg(radians: number): number {
  */
 function getHueAngle(a: number, b: number): number {
   if (a === 0 && b === 0) return 0;
-  let hue = Math.atan2(b, a);
+  const hue = Math.atan2(b, a);
   return hue < 0 ? hue + 2 * Math.PI : hue;
 }
 

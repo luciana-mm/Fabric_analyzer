@@ -41,6 +41,7 @@ type OperatorConfigRow = {
 };
 
 const rowToSystemConfig = (row: OperatorConfigRow): SystemConfig => {
+  const localConfig = loadSystemConfig();
   return sanitizeSystemConfig({
     deltaE: row.delta_e as SystemConfig["deltaE"],
     samplePoints: row.sample_points as SystemConfig["samplePoints"],
@@ -52,6 +53,9 @@ const rowToSystemConfig = (row: OperatorConfigRow): SystemConfig => {
       g: row.reference_color_g,
       b: row.reference_color_b,
     },
+    ambientLightReferenceHex: localConfig.ambientLightReferenceHex,
+    ambientLightReferenceRgb: localConfig.ambientLightReferenceRgb,
+    ambientLightConfigured: localConfig.ambientLightConfigured,
     deltaConfigured: row.delta_configured,
     analysisAreaConfigured: row.analysis_area_configured,
     colorConfigured: row.color_configured,

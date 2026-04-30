@@ -1,6 +1,6 @@
 export type DeltaEValue = 1 | 2 | 3;
 export type SamplePointsValue = 4 | 9 | 18;
-export type ConfigView = "home" | "analysis" | "capture" | "delta";
+export type ConfigView = "home" | "analysis" | "capture" | "delta" | "ambient";
 
 export interface SystemConfig {
   version: 1;
@@ -14,6 +14,13 @@ export interface SystemConfig {
     g: number;
     b: number;
   };
+  ambientLightReferenceHex: string;
+  ambientLightReferenceRgb: {
+    r: number;
+    g: number;
+    b: number;
+  };
+  ambientLightConfigured: boolean;
   deltaConfigured: boolean;
   analysisAreaConfigured: boolean;
   colorConfigured: boolean;
@@ -32,6 +39,9 @@ export const defaultSystemConfig: SystemConfig = {
   sampleAreaHeightPercent: 50,
   referenceColorHex: "#ffffff",
   referenceColorRgb: { r: 255, g: 255, b: 255 },
+  ambientLightReferenceHex: "#000000",
+  ambientLightReferenceRgb: { r: 0, g: 0, b: 0 },
+  ambientLightConfigured: false,
   deltaConfigured: false,
   analysisAreaConfigured: false,
   colorConfigured: false,
@@ -44,7 +54,7 @@ export const isConfigurationComplete = (config: SystemConfig): boolean => {
 };
 
 export const isLightCalibrated = (config: SystemConfig): boolean => {
-  return config.lightCalibrated && config.colorConfigured;
+  return config.lightCalibrated && config.colorConfigured && config.ambientLightConfigured;
 };
 
 const normalizeNumber = (value: unknown, fallback: number, min = 0, max = 100): number => {
@@ -81,6 +91,16 @@ export const sanitizeSystemConfig = (value: Partial<SystemConfig> | null | undef
       g: normalizeNumber(source.referenceColorRgb?.g, defaultSystemConfig.referenceColorRgb.g, 0, 255),
       b: normalizeNumber(source.referenceColorRgb?.b, defaultSystemConfig.referenceColorRgb.b, 0, 255),
     },
+    ambientLightReferenceHex:
+      typeof source.ambientLightReferenceHex === "string" && /^#[0-9a-fA-F]{6}$/.test(source.ambientLightReferenceHex)
+        ? source.ambientLightReferenceHex
+        : defaultSystemConfig.ambientLightReferenceHex,
+    ambientLightReferenceRgb: {
+      r: normalizeNumber(source.ambientLightReferenceRgb?.r, defaultSystemConfig.ambientLightReferenceRgb.r, 0, 255),
+      g: normalizeNumber(source.ambientLightReferenceRgb?.g, defaultSystemConfig.ambientLightReferenceRgb.g, 0, 255),
+      b: normalizeNumber(source.ambientLightReferenceRgb?.b, defaultSystemConfig.ambientLightReferenceRgb.b, 0, 255),
+    },
+    ambientLightConfigured: Boolean(source.ambientLightConfigured),
     deltaConfigured: Boolean(source.deltaConfigured),
     analysisAreaConfigured: Boolean(source.analysisAreaConfigured),
     colorConfigured: Boolean(source.colorConfigured),
@@ -135,7 +155,13 @@ export const loadSystemConfigView = (): ConfigView => {
   }
 
   const value = window.localStorage.getItem(SYSTEM_CONFIG_VIEW_STORAGE_KEY);
-  if (value === "home" || value === "analysis" || value === "capture" || value === "delta") {
+  if (
+    value === "home" ||
+    value === "analysis" ||
+    value === "capture" ||
+    value === "delta" ||
+    value === "ambient"
+  ) {
     return value;
   }
 

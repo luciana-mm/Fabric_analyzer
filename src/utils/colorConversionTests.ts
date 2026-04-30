@@ -20,6 +20,7 @@ import {
   calculateRgbBalance,
   calculateColorStandardDeviation,
   createCalibratedColorData,
+  calculateAmbientLightMatch,
 } from '@/utils/calibrationUtils';
 
 import { getQualityRating, getDeltaEInterpretation } from '@/utils/colorimetricStandards';
@@ -217,6 +218,29 @@ export function testCalibratedDataStructure() {
 }
 
 /**
+ * Test Suite 4.5: Ambient Light Match
+ */
+export function testAmbientLightMatch() {
+  console.group('🧪 Test Suite 4.5: Ambient Light Match');
+
+  const reference = rgb8BitToNormalized({ r: 200, g: 180, b: 160 });
+  const ambientClose = rgb8BitToNormalized({ r: 196, g: 176, b: 158 });
+  const ambientFar = rgb8BitToNormalized({ r: 80, g: 100, b: 180 });
+
+  const closeResult = calculateAmbientLightMatch(ambientClose, reference);
+  console.assert(closeResult.matches, `Expected ambient close match, got ΔE=${closeResult.deltaE.toFixed(2)}`);
+  console.assert(closeResult.similarityPercent > 70, `Expected similarity >70%, got ${closeResult.similarityPercent.toFixed(1)}%`);
+  console.log(`✓ Test 4.5.1 PASSED: Close ambient match = ${closeResult.similarityPercent.toFixed(1)}%`);
+
+  const farResult = calculateAmbientLightMatch(ambientFar, reference);
+  console.assert(!farResult.matches, `Expected ambient far mismatch, got ΔE=${farResult.deltaE.toFixed(2)}`);
+  console.assert(farResult.similarityPercent < 50, `Expected similarity <50%, got ${farResult.similarityPercent.toFixed(1)}%`);
+  console.log(`✓ Test 4.5.2 PASSED: Far ambient mismatch = ${farResult.similarityPercent.toFixed(1)}%`);
+
+  console.groupEnd();
+}
+
+/**
  * Test Suite 5: Quality Ratings
  */
 export function testQualityRatings() {
@@ -289,6 +313,7 @@ export function runAllTests() {
     testDeltaECalculation();
     testCalibrationUtilities();
     testCalibratedDataStructure();
+    testAmbientLightMatch();
     testQualityRatings();
     testDeltaEInterpretation();
 
