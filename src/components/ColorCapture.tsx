@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Camera, Lightbulb, Save, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import { toast } from 'sonner';
 import { CameraPreview } from './CameraPreview';
@@ -25,6 +25,13 @@ interface ColorCaptureProps {
     };
     colorConfigured: boolean;
     lightCalibrated: boolean;
+    ambientLightConfigured: boolean;
+    ambientLightReferenceHex: string;
+    ambientLightReferenceRgb: {
+      r: number;
+      g: number;
+      b: number;
+    };
   }) => void;
 }
 
@@ -45,22 +52,9 @@ export const ColorCapture = ({
     rgb: initialColorRgb,
   });
   const [isLightCalibrated, setIsLightCalibrated] = useState(initialLightCalibrated);
-  const [qualityScore, setQualityScore] = useState<number | null>(null);
 
   const cameraCapture = useCameraRobustCapture();
   const colorCalibration = useRobustColorCalibration();
-
-  // Monitor calibration state
-  useEffect(() => {
-    if (colorCalibration.lightCalibrationData) {
-      setIsLightCalibrated(true);
-      setDisplayColor({
-        hex: colorCalibration.lightCalibrationData.referenceHex,
-        rgb: colorCalibration.lightCalibrationData.referenceRgb8Bit,
-      });
-      setQualityScore(colorCalibration.lightCalibrationData.qualityScore);
-    }
-  }, [colorCalibration.lightCalibrationData]);
 
   const handleCalibrateLight = async () => {
     try {
@@ -75,17 +69,12 @@ export const ColorCapture = ({
         SAMPLE_INTERVAL_MS,
       );
 
-      if (success) {
-        const latestQualityScore =
-          colorCalibration.lastValidationResult?.qualityScore ??
-          colorCalibration.lightCalibrationData?.qualityScore ??
-          qualityScore;
+        if (success) {
+        setIsLightCalibrated(true);
+
         toast.success('Calibração de luz concluída!', {
           id: 'light-calibration-progress',
-          description:
-            latestQualityScore !== null && latestQualityScore !== undefined
-              ? `Qualidade: ${latestQualityScore.toFixed(0)}%`
-              : 'Calibração concluída com sucesso',
+          description: 'Calibração salva como referência de luz base',
         });
       } else {
         toast.error('Falha na calibração', {
@@ -119,7 +108,7 @@ export const ColorCapture = ({
         SAMPLE_INTERVAL_MS,
       );
 
-      if (result.success && result.correctedColor) {
+        if (result.success && result.correctedColor) {
         const hex = rgbToHex(result.correctedColor);
         const rgb8Bit = rgbToRgb8Bit(result.correctedColor);
 
@@ -127,11 +116,10 @@ export const ColorCapture = ({
           hex,
           rgb: rgb8Bit,
         });
-        setQualityScore(result.qualityMetrics?.overallScore ?? null);
 
         toast.success('Cor capturada com sucesso!', {
           id: 'color-capture-progress',
-          description: `Cor: ${hex} | Qualidade: ${result.qualityMetrics?.overallScore.toFixed(0)}%`,
+          description: `Cor base salva: ${hex}`,
         });
       } else {
         toast.error('Falha na captura de cor', {
@@ -157,7 +145,10 @@ export const ColorCapture = ({
       referenceColorHex: displayColor.hex,
       referenceColorRgb: displayColor.rgb,
       colorConfigured: true,
-      lightCalibrated: true,
+      lightCalibrated: colorCalibration.isLightCalibrated() || initialLightCalibrated,
+      ambientLightConfigured: colorCalibration.isLightCalibrated() || initialLightCalibrated,
+      ambientLightReferenceHex: colorCalibration.lightCalibrationData?.referenceHex ?? "#000000",
+      ambientLightReferenceRgb: colorCalibration.lightCalibrationData?.referenceRgb8Bit ?? { r: 0, g: 0, b: 0 },
     });
     onBack();
   };
@@ -197,7 +188,7 @@ export const ColorCapture = ({
             ) : (
               <>
                 <Lightbulb className="w-5 h-5" />
-                <span className="text-xs">Calibrar Luz</span>
+                <span className="text-xs">Calibrar Luz Ambiente</span>
               </>
             )}
           </button>
@@ -265,28 +256,10 @@ export const ColorCapture = ({
           </div>
 
           {/* Quality Score */}
-          {qualityScore !== null && (
-            <div className="p-3 bg-slate-900/40 rounded-lg border border-slate-700">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Qualidade da Calibração</span>
-                <div className="flex items-center gap-2">
-                  {qualityScore >= 80 ? (
-                    <CheckCircle className="w-4 h-4 text-green-400" />
-                  ) : qualityScore >= 60 ? (
-                    <AlertCircle className="w-4 h-4 text-yellow-400" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 text-red-400" />
-                  )}
-                  <span className="font-mono text-sm">{qualityScore.toFixed(0)}%</span>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Quality score hidden in configuration context (base definition). */}
 
-          {/* Status Message */}
-          {colorCalibration.statusMessage && (
-            <p className="text-xs text-slate-400 italic">{colorCalibration.statusMessage}</p>
-          )}
+          {/* Status Message intentionally hidden here:
+              this flow defines base calibration, so we avoid showing similarity/quality percentages. */}
 
           {/* Error Message */}
           {colorCalibration.error && (

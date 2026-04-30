@@ -14,7 +14,7 @@ create table if not exists public.operator_configurations (
   analysis_area_configured boolean not null default false,
   color_configured boolean not null default false,
   light_calibrated boolean not null default false,
-  active_view text not null default 'home' check (active_view in ('home', 'analysis', 'capture', 'delta')),
+  active_view text not null default 'home' check (active_view in ('home', 'analysis', 'capture', 'delta', 'ambient')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

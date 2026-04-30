@@ -103,9 +103,16 @@ const Index = () => {
   };
 
   const handleCalibrate = () => {
-    router.push("/painel/config?view=capture");
-    toast.info("Abra a calibracao na configuracao", {
-      description: "Use Capturar Cor e depois Calibrar Luz.",
+    if (!systemConfig.ambientLightConfigured) {
+      toast.error("Defina a luz base nas configurações primeiro", {
+        description: "Acesse Configurações > Capturar Cor e faça a calibragem base.",
+      });
+      return;
+    }
+
+    router.push("/painel/calibrar-luz");
+    toast.info("Abrindo calibragem de luz", {
+      description: "Compare a iluminação atual com a luz base definida nas configurações.",
     });
   };
 
@@ -215,12 +222,14 @@ const Index = () => {
               label="Calibrar Luz"
               description={calibrated ? "Calibração concluída" : "Ajustar iluminação"}
               onClick={handleCalibrate}
+              disabled={!systemConfig.ambientLightConfigured}
+              badge={!systemConfig.ambientLightConfigured ? "Config" : undefined}
             />
             <ActionCard
               icon={configured ? CheckCircle2 : Settings}
               label="Configurações"
               description={configured ? "Configurações concluídas" : "Parâmetros do sistema"}
-              onClick={() => router.push("/painel/config?view=home")}
+              onClick={() => router.push("/painel/config")}
             />
             <ActionCard
               icon={Camera}

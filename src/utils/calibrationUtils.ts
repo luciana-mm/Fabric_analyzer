@@ -199,9 +199,9 @@ export function applyColorCorrection(rawColor: RgbColor, whiteReference: RgbColo
     return rawColor;
   }
 
-  let correctedR = Math.min(1, rawColor.r / whiteReference.r);
-  let correctedG = Math.min(1, rawColor.g / whiteReference.g);
-  let correctedB = Math.min(1, rawColor.b / whiteReference.b);
+  const correctedR = Math.min(1, rawColor.r / whiteReference.r);
+  const correctedG = Math.min(1, rawColor.g / whiteReference.g);
+  const correctedB = Math.min(1, rawColor.b / whiteReference.b);
 
   const corrected: RgbColor = { r: correctedR, g: correctedG, b: correctedB };
 
@@ -344,6 +344,29 @@ export function calculateColorQualityMetrics(
     stabilityScore: Math.max(0, Math.min(100, stabilityScore)),
     correctionScore: Math.max(0, Math.min(100, correctionScore)),
     overallScore: Math.max(0, Math.min(100, overallScore)),
+  };
+}
+
+export interface AmbientLightMatchResult {
+  deltaE: number;
+  similarityPercent: number;
+  matches: boolean;
+}
+
+export function calculateAmbientLightMatch(
+  ambientColor: RgbColor,
+  referenceColor: RgbColor,
+): AmbientLightMatchResult {
+  const ambientLab = rgbToLab(ambientColor);
+  const referenceLab = rgbToLab(referenceColor);
+  const deltaE = calculateDeltaE2000(referenceLab, ambientLab);
+  const similarityPercent = Math.max(0, Math.min(100, 100 - deltaE * 2));
+  const matches = deltaE <= 8;
+
+  return {
+    deltaE,
+    similarityPercent,
+    matches,
   };
 }
 
