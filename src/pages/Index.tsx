@@ -132,7 +132,7 @@ const Index = () => {
       });
       return;
     }
-    toast.success("Análise iniciada");
+    router.push("/painel/analise");
   };
 
   const startDescription = isReady

@@ -56,35 +56,56 @@ export type Database = {
       analysis_records: {
         Row: {
           analyzed_at: string
+          comparison_method: string | null
           created_at: string
+          delta_e_measured: number | null
+          delta_e_threshold: number | null
           failure_reason: string | null
           id: string
+          measured_color_hex: string | null
           operator_user_id: string
           processing_time_ms: number
+          precision_percent: number | null
           reference_code: string
+          reference_color_hex: string | null
           result: string
+          required_precision_percent: number | null
           tissue_type: string
         }
         Insert: {
           analyzed_at?: string
+          comparison_method?: string | null
           created_at?: string
+          delta_e_measured?: number | null
+          delta_e_threshold?: number | null
           failure_reason?: string | null
           id?: string
+          measured_color_hex?: string | null
           operator_user_id: string
           processing_time_ms: number
+          precision_percent?: number | null
           reference_code: string
+          reference_color_hex?: string | null
           result: string
+          required_precision_percent?: number | null
           tissue_type: string
         }
         Update: {
           analyzed_at?: string
+          comparison_method?: string | null
           created_at?: string
+          delta_e_measured?: number | null
+          delta_e_threshold?: number | null
           failure_reason?: string | null
           id?: string
+          measured_color_hex?: string | null
           operator_user_id?: string
           processing_time_ms?: number
+          precision_percent?: number | null
           reference_code?: string
+          reference_color_hex?: string | null
           result?: string
+          required_precision_percent?: number | null
           tissue_type?: string
         }
         Relationships: []

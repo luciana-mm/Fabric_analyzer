@@ -45,7 +45,7 @@ export const AnalysisArea = ({ onBack, onSave, initialWidth, initialHeight, init
         height={heightRangeValue}
       />
       {isVisible && (
-        <div className="relative z-20 w-full max-w-2xl mx-auto bg-[#0a0c14]/90 backdrop-blur-sm p-8 rounded-xl border border-slate-800 text-white text-sm">
+        <div className="relative z-20 w-full max-w-2xl mx-auto bg-[#0a0c1481]/90 backdrop-blur-sm p-8 rounded-xl border border-slate-800 text-white text-sm">
           <h2 className="text-center text-xl font-bold mb-10 cursor-default">
             Selecione o Nº de pontos e medidas da área
           </h2>
