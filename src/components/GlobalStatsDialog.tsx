@@ -34,7 +34,7 @@ export const GlobalStatsDialog = ({ open, onOpenChange, totals }: GlobalStatsDia
               <BarChart3 className="w-6 h-6 text-blue-500" />
             </div>
             <div>
-              <DialogTitle className="font-display tracking-[0.2em] uppercase text-lg">
+              <DialogTitle className="font-sansserief tracking-[0.2em] uppercase text-lg">
                 Relatório Global de Operações
               </DialogTitle>
               <DialogDescription className="text-[11px] tracking-[0.25em] uppercase text-slate-400">

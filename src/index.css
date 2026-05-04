@@ -39,7 +39,7 @@
     --glow-primary: 0 0 20px hsl(232 10% 92% / 0.15);
     --glow-strong: 0 0 30px hsl(232 10% 92% / 0.25);
 
-    --font-display: 'Orbitron', monospace;
+    --font-sansserief: 'Orbitron', monospace;
     --font-body: 'Inter', sans-serif;
 
     --sidebar-background: 0 0% 98%;
@@ -65,8 +65,8 @@
 }
 
 @layer utilities {
-  .font-display {
-    font-family: var(--font-display);
+  .font-sansserief {
+    font-family: var(--font-sansserief);
   }
 
   .glow-primary {

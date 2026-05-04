@@ -23,7 +23,7 @@ const CameraStream = () => {
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push("/painel")}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-muted/40 border border-border/30 hover:bg-muted/60 hover:border-foreground/30 transition-all font-display text-[10px] tracking-[0.25em] uppercase text-foreground/80"
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-muted/40 border border-border/30 hover:bg-muted/60 hover:border-foreground/30 transition-all font-sansserief text-[10px] tracking-[0.25em] uppercase text-foreground/80"
           >
             <ArrowLeft className="w-3 h-3" />
             Voltar
@@ -34,7 +34,7 @@ const CameraStream = () => {
               <Camera className="w-5 h-5 text-foreground" />
             </div>
             <div>
-              <h1 className="font-display text-base tracking-[0.2em] uppercase text-foreground">
+              <h1 className="font-sansserief text-base tracking-[0.2em] uppercase text-foreground">
                 Camera
               </h1>
               <p className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground">

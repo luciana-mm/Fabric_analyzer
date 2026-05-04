@@ -37,7 +37,7 @@ export const CameraPreview = ({
               <AlertTriangle className="w-6 h-6" />
             </div>
             <div className="space-y-2">
-              <h2 className="font-display text-sm tracking-[0.18em] uppercase text-foreground">
+              <h2 className="font-sansserief text-sm tracking-[0.18em] uppercase text-foreground">
                 Camera offline
               </h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
@@ -50,7 +50,7 @@ export const CameraPreview = ({
                 <button
                   type="button"
                   onClick={retry}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-foreground text-background font-display text-[10px] tracking-[0.25em] uppercase"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-foreground text-background font-sansserief text-[10px] tracking-[0.25em] uppercase"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   Tentar novamente

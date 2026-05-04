@@ -53,12 +53,12 @@ const OverviewCard = ({
         <Icon className="w-6 h-6" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-display text-[10px] tracking-[0.25em] uppercase text-muted-foreground">
+        <p className="font-sansserief text-[10px] tracking-[0.25em] uppercase text-muted-foreground">
           {label}
         </p>
         <div className="flex items-baseline gap-2 mt-1">
           <p
-            className={`font-display text-2xl tracking-wider ${accentClasses}`}
+            className={`font-sansserief text-2xl tracking-wider ${accentClasses}`}
           >
             {value}
           </p>
@@ -126,7 +126,7 @@ const Manager = () => {
             <Users className="w-6 h-6 text-foreground" />
           </div>
           <div>
-            <h1 className="font-display text-xl tracking-[0.15em] text-foreground uppercase leading-tight">
+            <h1 className="font-sansserief text-xl tracking-[0.15em] text-foreground uppercase leading-tight">
               Painel do Gestor
             </h1>
             <p className="text-[11px] tracking-[0.3em] text-muted-foreground uppercase">
@@ -143,7 +143,7 @@ const Manager = () => {
           )}
           <button
             onClick={handleSignOut}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-muted/40 border border-border/30 hover:bg-muted/60 hover:border-foreground/30 transition-all font-display text-[10px] tracking-[0.25em] uppercase text-foreground/80"
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-muted/40 border border-border/30 hover:bg-muted/60 hover:border-foreground/30 transition-all font-sansserief text-[10px] tracking-[0.25em] uppercase text-foreground/80"
           >
             <LogOut className="w-3 h-3" />
             Sair
@@ -157,7 +157,7 @@ const Manager = () => {
           {/* Estatísticas Gerais */}
           <section>
             <div className="flex items-center gap-4 mb-5">
-              <p className="font-display text-[11px] tracking-[0.4em] text-muted-foreground uppercase whitespace-nowrap">
+              <p className="font-sansserief text-[11px] tracking-[0.4em] text-muted-foreground uppercase whitespace-nowrap">
                 Estatísticas Gerais
               </p>
               <div className="flex-1 h-px bg-gradient-to-r from-foreground/20 via-foreground/10 to-transparent" />
@@ -208,7 +208,7 @@ const Manager = () => {
           {/* Funcionários */}
           <section>
             <div className="flex items-center gap-4 mb-5">
-              <p className="font-display text-[11px] tracking-[0.4em] text-muted-foreground uppercase whitespace-nowrap">
+              <p className="font-sansserief text-[11px] tracking-[0.4em] text-muted-foreground uppercase whitespace-nowrap">
                 Desempenho por Funcionário
               </p>
               <div className="flex-1 h-px bg-gradient-to-r from-foreground/20 via-foreground/10 to-transparent" />
@@ -225,7 +225,7 @@ const Manager = () => {
             </div>
 
             <div className="rounded-xl border border-border/30 bg-card/40 backdrop-blur-sm overflow-hidden">
-              <div className="grid grid-cols-12 gap-4 px-5 py-3 border-b border-border/30 bg-muted/20 font-display text-[10px] tracking-[0.25em] uppercase text-muted-foreground">
+              <div className="grid grid-cols-12 gap-4 px-5 py-3 border-b border-border/30 bg-muted/20 font-sansserief text-[10px] tracking-[0.25em] uppercase text-muted-foreground">
                 <div className="col-span-3">Funcionário</div>
                 <div className="col-span-2">Turno</div>
                 <div className="col-span-2 text-right">Verificados</div>
@@ -252,7 +252,7 @@ const Manager = () => {
                       }`}
                     >
                       <div className="col-span-3 flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-foreground/10 flex items-center justify-center font-display text-xs text-foreground/80">
+                        <div className="w-9 h-9 rounded-full bg-foreground/10 flex items-center justify-center font-sansserief text-xs text-foreground/80">
                           {emp.name
                             .split(" ")
                             .map((n) => n[0])
@@ -271,18 +271,18 @@ const Manager = () => {
                       <div className="col-span-2 text-xs text-muted-foreground">
                         {emp.shift}
                       </div>
-                      <div className="col-span-2 text-right font-display text-sm tracking-wider text-foreground/90">
+                      <div className="col-span-2 text-right font-sansserief text-sm tracking-wider text-foreground/90">
                         {emp.verified}
                       </div>
                       <div className="col-span-2 text-right">
-                        <p className="font-display text-sm tracking-wider text-primary">
+                        <p className="font-sansserief text-sm tracking-wider text-primary">
                           {emp.success}
                         </p>
                         <p className="text-[10px] text-muted-foreground">
                           {rate}%
                         </p>
                       </div>
-                      <div className="col-span-2 text-right font-display text-sm tracking-wider text-destructive">
+                      <div className="col-span-2 text-right font-sansserief text-sm tracking-wider text-destructive">
                         {emp.failure}
                       </div>
                       <div className="col-span-1 flex justify-end">
@@ -298,7 +298,7 @@ const Manager = () => {
           {/* Destaques */}
           <section>
             <div className="flex items-center gap-4 mb-5">
-              <p className="font-display text-[11px] tracking-[0.4em] text-muted-foreground uppercase whitespace-nowrap">
+              <p className="font-sansserief text-[11px] tracking-[0.4em] text-muted-foreground uppercase whitespace-nowrap">
                 Destaques da Equipe
               </p>
               <div className="flex-1 h-px bg-gradient-to-r from-foreground/20 via-foreground/10 to-transparent" />
@@ -309,7 +309,7 @@ const Manager = () => {
                 <div className="flex items-center gap-2 text-foreground/70 text-[10px] tracking-[0.25em] uppercase mb-3">
                   <Award className="w-3.5 h-3.5" /> Maior Volume
                 </div>
-                <p className="font-display text-lg text-foreground">
+                <p className="font-sansserief text-lg text-foreground">
                   {highestVolume?.name ?? "Sem dados"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -320,7 +320,7 @@ const Manager = () => {
                 <div className="flex items-center gap-2 text-primary text-[10px] tracking-[0.25em] uppercase mb-3">
                   <TrendingUp className="w-3.5 h-3.5" /> Melhor Taxa
                 </div>
-                <p className="font-display text-lg text-foreground">
+                <p className="font-sansserief text-lg text-foreground">
                   {bestRate?.name ?? "Sem dados"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -333,7 +333,7 @@ const Manager = () => {
                 <div className="flex items-center gap-2 text-foreground/70 text-[10px] tracking-[0.25em] uppercase mb-3">
                   <Clock className="w-3.5 h-3.5" /> Mais Rápido
                 </div>
-                <p className="font-display text-lg text-foreground">
+                <p className="font-sansserief text-lg text-foreground">
                   {fastest?.name ?? "Sem dados"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">

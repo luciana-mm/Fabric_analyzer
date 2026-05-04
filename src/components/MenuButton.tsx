@@ -29,7 +29,7 @@ const MenuButton = ({ icon: Icon, label, onClick, variant = "default" }: MenuBut
         <Icon className="w-5 h-5 text-primary transition-all duration-300 group-hover:drop-shadow-[0_0_6px_hsl(185_70%_50%/0.6)]" />
       </div>
       <span className={cn(
-        "font-display text-sm tracking-wider uppercase text-foreground/80 group-hover:text-foreground transition-colors",
+        "font-sansserief text-sm tracking-wider uppercase text-foreground/80 group-hover:text-foreground transition-colors",
         variant === "primary" && "text-primary",
       )}>
         {label}
