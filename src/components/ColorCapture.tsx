@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Camera, Lightbulb, Save, CheckCircle, AlertCircle, Loader } from 'lucide-react';
+import { Camera, Lightbulb, Save, CheckCircle, AlertCircle, Loader, Pipette } from 'lucide-react';
 import { toast } from 'sonner';
 import { CameraPreview } from './CameraPreview';
+import { RgbScreen } from './RgbScreen';
 import { useCameraRobustCapture } from '@/hooks/useCameraRobustCapture';
 import { useRobustColorCalibration } from '@/hooks/useRobustColorCalibration';
 
@@ -52,6 +53,7 @@ export const ColorCapture = ({
     rgb: initialColorRgb,
   });
   const [isLightCalibrated, setIsLightCalibrated] = useState(initialLightCalibrated);
+  const [isRgbPickerOpen, setIsRgbPickerOpen] = useState(false);
 
   const cameraCapture = useCameraRobustCapture();
   const colorCalibration = useRobustColorCalibration();
@@ -229,7 +231,32 @@ export const ColorCapture = ({
             <Save className="w-5 h-5" />
             <span className="text-xs">Salvar</span>
           </button>
+
+          <button
+            onClick={() => isLightCalibrated && setIsRgbPickerOpen(true)}
+            disabled={!isLightCalibrated}
+            className={`flex flex-col items-center gap-2 p-4 rounded-lg border transition-all ${
+              isLightCalibrated
+                ? 'border-slate-700 bg-slate-900/40 text-slate-200 hover:bg-slate-800/60'
+                : 'border-slate-800 bg-slate-950/50 text-slate-500 cursor-not-allowed'
+            }`}
+          >
+            <Pipette className="w-5 h-5" />
+            <span className="text-xs">Selecionar cor</span>
+          </button>
         </div>
+          <RgbScreen
+            open={isRgbPickerOpen}
+            initialHex={displayColor.hex}
+            onOpenChange={setIsRgbPickerOpen}
+            onSelect={(color) => {
+              setDisplayColor(color);
+              setIsRgbPickerOpen(false);
+              toast.success('Cor atualizada', {
+                description: `${color.hex.toUpperCase()} selecionado`,
+              });
+            }}
+          />
 
         {/* Right Panel - Preview and Info */}
         <div className="space-y-4">

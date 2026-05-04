@@ -109,7 +109,7 @@ const Login = () => {
           <div className="w-14 h-14 rounded-xl bg-foreground/10 flex items-center justify-center mb-4">
             <Microscope className="w-7 h-7 text-foreground" />
           </div>
-          <h1 className="font-display text-2xl tracking-[0.15em] text-foreground uppercase leading-tight">
+          <h1 className="font-sansserief text-2xl tracking-[0.15em] text-foreground  leading-tight">
             Meta
           </h1>
           <p className="text-[11px] tracking-[0.3em] text-muted-foreground uppercase mt-1">
@@ -126,7 +126,7 @@ const Login = () => {
                 key={m}
                 type="button"
                 onClick={() => setMode(m)}
-                className={`flex-1 py-2 rounded-md font-display text-[10px] tracking-[0.25em] uppercase transition-all ${
+                className={`flex-1 py-2 rounded-md font-sansserief text-[10px] tracking-[0.25em] uppercase transition-all ${
                   mode === m
                     ? "bg-foreground/10 text-foreground"
                     : "text-muted-foreground hover:text-foreground/80"
@@ -140,7 +140,7 @@ const Login = () => {
           {/* Role selector (only signup) */}
           {mode === "signup" && (
             <div className="mb-6">
-              <p className="font-display text-[10px] tracking-[0.25em] uppercase text-muted-foreground mb-2">
+              <p className="font-sansserief text-[10px] tracking-[0.25em] uppercase text-muted-foreground mb-2">
                 Tipo de acesso
               </p>
               <div className="grid grid-cols-2 gap-3">
@@ -163,7 +163,7 @@ const Login = () => {
                           active ? "text-foreground" : "text-secondary"
                         }`}
                       />
-                      <span className="font-display text-[10px] tracking-[0.25em] uppercase text-foreground/90">
+                      <span className="font-sansserief text-[10px] tracking-[0.25em] uppercase text-foreground/90">
                         {r === "gestor" ? "Gestor" : "Operador"}
                       </span>
                     </button>
@@ -177,7 +177,7 @@ const Login = () => {
             <div className="space-y-1.5">
               <label
                 htmlFor="email"
-                className="font-display text-[10px] tracking-[0.25em] uppercase text-muted-foreground"
+                className="font-sansserief text-[10px] tracking-[0.25em] uppercase text-muted-foreground"
               >
                 E-mail
               </label>
@@ -198,7 +198,7 @@ const Login = () => {
             <div className="space-y-1.5">
               <label
                 htmlFor="password"
-                className="font-display text-[10px] tracking-[0.25em] uppercase text-muted-foreground"
+                className="font-sansserief text-[10px] tracking-[0.25em] uppercase text-muted-foreground"
               >
                 Senha
               </label>
@@ -219,7 +219,7 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-11 mt-2 flex items-center justify-center gap-2 rounded-lg bg-foreground/10 border border-foreground/30 hover:bg-foreground/15 transition-all font-display text-[11px] tracking-[0.3em] uppercase text-foreground glow-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-11 mt-2 flex items-center justify-center gap-2 rounded-lg bg-foreground/10 border border-foreground/30 hover:bg-foreground/15 transition-all font-sansserief text-[11px] tracking-[0.3em] uppercase text-foreground glow-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? "Aguarde..." : mode === "signup" ? "Criar conta" : "Entrar"}
               {!loading && <ArrowRight className="w-4 h-4" />}

@@ -53,7 +53,7 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
               <User className="w-6 h-6 text-foreground" />
             </div>
             <div>
-              <DialogTitle className="font-display tracking-[0.2em] uppercase text-lg">
+              <DialogTitle className="font-sansserief tracking-[0.2em] uppercase text-lg">
                 {employee.name}
               </DialogTitle>
               <DialogDescription className="text-[11px] tracking-[0.25em] uppercase">
@@ -66,7 +66,7 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
         <div className="space-y-6 mt-4">
           {/* Resumo */}
           <section>
-            <h3 className="font-display text-[11px] tracking-[0.3em] uppercase text-muted-foreground mb-3">
+            <h3 className="font-sansserief text-[11px] tracking-[0.3em] uppercase text-muted-foreground mb-3">
               Resumo Individual
             </h3>
             <div className="grid grid-cols-2 gap-3">
@@ -74,21 +74,21 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
                 <div className="flex items-center gap-2 text-muted-foreground text-[10px] tracking-[0.2em] uppercase mb-2">
                   <Layers className="w-3.5 h-3.5" /> Total Verificado
                 </div>
-                <p className="font-display text-2xl">{employee.verified}</p>
+                <p className="font-sansserief text-2xl">{employee.verified}</p>
                 <p className="text-xs text-muted-foreground mt-1">na sessão atual</p>
               </div>
               <div className="p-4 rounded-lg border border-border/40 bg-card/50">
                 <div className="flex items-center gap-2 text-muted-foreground text-[10px] tracking-[0.2em] uppercase mb-2">
                   <Clock className="w-3.5 h-3.5" /> Tempo Médio
                 </div>
-                <p className="font-display text-2xl">{employee.avgTime}</p>
+                <p className="font-sansserief text-2xl">{employee.avgTime}</p>
                 <p className="text-xs text-muted-foreground mt-1">por tecido analisado</p>
               </div>
               <div className="p-4 rounded-lg border border-border/40 bg-card/50">
                 <div className="flex items-center gap-2 text-primary text-[10px] tracking-[0.2em] uppercase mb-2">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Sucessos
                 </div>
-                <p className="font-display text-2xl text-primary">{employee.success}</p>
+                <p className="font-sansserief text-2xl text-primary">{employee.success}</p>
                 <Progress value={parseFloat(successRate)} className="mt-2 h-1.5" />
                 <p className="text-xs text-muted-foreground mt-1">{successRate}% de aprovação</p>
               </div>
@@ -96,7 +96,7 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
                 <div className="flex items-center gap-2 text-destructive text-[10px] tracking-[0.2em] uppercase mb-2">
                   <XCircle className="w-3.5 h-3.5" /> Falhas
                 </div>
-                <p className="font-display text-2xl text-destructive">{employee.failure}</p>
+                <p className="font-sansserief text-2xl text-destructive">{employee.failure}</p>
                 <Progress value={parseFloat(failureRate)} className="mt-2 h-1.5" />
                 <p className="text-xs text-muted-foreground mt-1">{failureRate}% de rejeição</p>
               </div>
@@ -105,7 +105,7 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
 
           {/* Causas de Erro */}
           <section>
-            <h3 className="font-display text-[11px] tracking-[0.3em] uppercase text-muted-foreground mb-3 flex items-center gap-2">
+            <h3 className="font-sansserief text-[11px] tracking-[0.3em] uppercase text-muted-foreground mb-3 flex items-center gap-2">
               <AlertTriangle className="w-3.5 h-3.5" /> Principais Causas de Falha
             </h3>
             <div className="space-y-3 p-4 rounded-lg border border-border/40 bg-card/50">
@@ -116,7 +116,7 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
                 <div key={item.label}>
                   <div className="flex justify-between text-xs mb-1.5">
                     <span className="text-foreground/80">{item.label}</span>
-                    <span className="font-display tracking-wider text-muted-foreground">
+                    <span className="font-sansserief tracking-wider text-muted-foreground">
                       {item.percentage}%
                     </span>
                   </div>
@@ -128,7 +128,7 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
 
           {/* Análises Recentes */}
           <section>
-            <h3 className="font-display text-[11px] tracking-[0.3em] uppercase text-muted-foreground mb-3 flex items-center gap-2">
+            <h3 className="font-sansserief text-[11px] tracking-[0.3em] uppercase text-muted-foreground mb-3 flex items-center gap-2">
               <TrendingUp className="w-3.5 h-3.5" /> Análises Recentes
             </h3>
             <div className="rounded-lg border border-border/40 bg-card/50 overflow-hidden">
@@ -148,7 +148,7 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
                     ) : (
                       <XCircle className="w-4 h-4 text-destructive" />
                     )}
-                    <span className="font-display tracking-wider text-foreground/80">{a.id}</span>
+                    <span className="font-sansserief tracking-wider text-foreground/80">{a.id}</span>
                     <span className="text-muted-foreground">{a.type}</span>
                   </div>
                   <span className="text-muted-foreground text-[11px]">{formatRelativeTime(a.analyzedAt)}</span>

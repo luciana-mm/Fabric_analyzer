@@ -22,7 +22,7 @@ function ConfigCaptureColorContent() {
       <header className="relative z-10 flex items-center justify-between px-6 md:px-10 py-6 border-b border-border/20">
         <button
           onClick={() => router.push("/painel/config")}
-          className="flex items-center gap-2 px-4 py-2 rounded-full bg-muted/40 border border-border/30 hover:bg-muted/60 hover:border-foreground/30 transition-all font-display text-[10px] tracking-[0.25em] uppercase text-foreground/80"
+          className="flex items-center gap-2 px-4 py-2 rounded-full bg-muted/40 border border-border/30 hover:bg-muted/60 hover:border-foreground/30 transition-all font-sansserief text-[10px] tracking-[0.25em] uppercase text-foreground/80"
         >
           <ArrowLeft className="w-3 h-3" />
           Voltar
