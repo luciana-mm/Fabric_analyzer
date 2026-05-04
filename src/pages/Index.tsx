@@ -36,9 +36,9 @@ const StatCard = ({ icon: Icon, label, value, sublabel, accent = "default" }: St
         <Icon className="w-6 h-6" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-display text-[10px] tracking-[0.25em] uppercase text-muted-foreground">{label}</p>
+        <p className="font-sansserief text-[10px] tracking-[0.25em] uppercase text-muted-foreground">{label}</p>
         <div className="flex items-baseline gap-2 mt-1">
-          <p className={`font-display text-2xl tracking-wider ${accentClasses}`}>{value}</p>
+          <p className={`font-sansserief text-2xl tracking-wider ${accentClasses}`}>{value}</p>
           {sublabel && <p className="text-[10px] text-muted-foreground tracking-wider uppercase">{sublabel}</p>}
         </div>
       </div>
@@ -80,7 +80,7 @@ const ActionCard = ({ icon: Icon, label, description, onClick, highlight, disabl
         ${highlight && !disabled ? "text-foreground" : "text-secondary group-hover:text-foreground"}`} />
     </div>
     <div>
-      <p className="font-display text-sm tracking-[0.2em] uppercase text-foreground/90">{label}</p>
+      <p className="font-sansserief text-sm tracking-[0.2em] uppercase text-foreground/90">{label}</p>
       <p className="text-xs text-muted-foreground mt-1.5">{description}</p>
     </div>
   </button>
@@ -160,7 +160,7 @@ const Index = () => {
             <Microscope className="w-6 h-6 text-foreground" />
           </div>
           <div>
-            <h1 className="font-display text-xl tracking-[0.15em] text-foreground uppercase leading-tight">
+            <h1 className="font-sansserief text-xl tracking-[0.15em] text-foreground uppercase leading-tight">
               Meta
             </h1>
             <p className="text-[11px] tracking-[0.3em] text-muted-foreground uppercase">
@@ -189,7 +189,7 @@ const Index = () => {
           )}
           <button
             onClick={handleSignOut}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-muted/40 border border-border/30 hover:bg-muted/60 hover:border-foreground/30 transition-all font-display text-[10px] tracking-[0.25em] uppercase text-foreground/80"
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-muted/40 border border-border/30 hover:bg-muted/60 hover:border-foreground/30 transition-all font-sansserief text-[10px] tracking-[0.25em] uppercase text-foreground/80"
           >
             <LogOut className="w-3 h-3" />
             Sair
@@ -201,7 +201,7 @@ const Index = () => {
       <main className="relative z-10 flex-1 flex items-center justify-center p-10">
         <div className="w-full max-w-5xl">
           <div className="text-center mb-10">
-            <p className="font-display text-[11px] tracking-[0.4em] text-muted-foreground uppercase mb-3">
+            <p className="font-sansserief text-[11px] tracking-[0.4em] text-muted-foreground uppercase mb-3">
               Painel de Controle
             </p>
             <div className="w-20 h-px bg-gradient-to-r from-transparent via-foreground/30 to-transparent mx-auto" />
@@ -242,13 +242,13 @@ const Index = () => {
           {/* Stats Section */}
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-4">
-              <p className="font-display text-[11px] tracking-[0.4em] text-muted-foreground uppercase whitespace-nowrap">
+              <p className="font-sansserief text-[11px] tracking-[0.4em] text-muted-foreground uppercase whitespace-nowrap">
                 Estatísticas de Análise
               </p>
               <div className="flex-1 h-px bg-gradient-to-r from-foreground/20 via-foreground/10 to-transparent" />
               <button
                 onClick={() => setStatsOpen(true)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/40 border border-border/30 hover:bg-muted/60 hover:border-foreground/30 transition-all font-display text-[10px] tracking-[0.2em] uppercase text-foreground/80"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/40 border border-border/30 hover:bg-muted/60 hover:border-foreground/30 transition-all font-sansserief text-[10px] tracking-[0.2em] uppercase text-foreground/80"
               >
                 <BarChart3 className="w-3 h-3" />
                 Ver Detalhes
