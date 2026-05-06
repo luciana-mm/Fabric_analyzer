@@ -38,6 +38,7 @@
 
     --glow-primary: 0 0 20px hsl(232 10% 92% / 0.15);
     --glow-strong: 0 0 30px hsl(232 10% 92% / 0.25);
+    --glow-box: 0 0 10px hsl(232 10% 95% / 0.25);
 
     --font-sansserief: 'Orbitron', monospace;
     --font-body: 'Inter', sans-serif;
@@ -75,6 +76,10 @@
 
   .glow-strong {
     box-shadow: var(--glow-strong);
+  }
+  
+  .glow-box {
+    box-shadow: var(--glow-box);
   }
 
   .glass-panel {
