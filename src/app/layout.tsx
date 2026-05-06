@@ -4,7 +4,7 @@ import "../index.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "TissueScope",
+  title: "Meta Classificador",
   description: "Análise de tecidos com controle operacional e gerencial.",
 };
 

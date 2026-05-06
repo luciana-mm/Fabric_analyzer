@@ -106,14 +106,6 @@ export const AmbientLightCalibration = ({
   return (
     <div className="bg-[#0a0c14] p-8 rounded-xl border border-slate-800 text-white max-w-3xl mx-auto">
       <div className="mb-8 flex items-center justify-between gap-4">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs text-slate-300 hover:bg-slate-800"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Voltar
-        </button>
-
         <div>
           <h2 className="text-center text-2xl font-bold mb-2">Calibração de Luz Ambiente</h2>
           <p className="text-center text-xs text-slate-400">

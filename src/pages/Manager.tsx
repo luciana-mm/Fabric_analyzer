@@ -127,7 +127,7 @@ const Manager = () => {
               Painel do Gestor
             </h1>
             <p className="text-[11px] tracking-[0.3em] text-muted-foreground uppercase">
-              Visão Operacional · TissueScope
+              Visão Operacional · Meta Classificador
             </p>
           </div>
         </div>
