@@ -120,6 +120,7 @@ export type Database = {
           delta_e: number
           id: string
           light_calibrated: boolean
+          system_step: string
           reference_color_b: number
           reference_color_g: number
           reference_color_hex: string
@@ -139,6 +140,7 @@ export type Database = {
           delta_e?: number
           id?: string
           light_calibrated?: boolean
+          system_step?: string
           reference_color_b?: number
           reference_color_g?: number
           reference_color_hex?: string
@@ -158,6 +160,7 @@ export type Database = {
           delta_e?: number
           id?: string
           light_calibrated?: boolean
+          system_step?: string
           reference_color_b?: number
           reference_color_g?: number
           reference_color_hex?: string

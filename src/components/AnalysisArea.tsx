@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Grip, Save,Eye } from "lucide-react";
+import { Grip, Save,Eye, Info } from "lucide-react";
 import { MeasurementGridOverlay } from "./PreviewArea";
 import { CameraPreview } from "./CameraPreview";
 import type { SamplePointsValue } from "@/lib/systemConfig";
@@ -45,10 +45,30 @@ export const AnalysisArea = ({ onBack, onSave, initialWidth, initialHeight, init
         height={heightRangeValue}
       />
       {isVisible && (
-        <div className="relative z-20 w-full max-w-2xl mx-auto bg-[#0a0c1481]/90 backdrop-blur-sm p-8 rounded-xl border border-slate-800 text-white text-sm">
-          <h2 className="text-center text-xl font-bold mb-10 cursor-default">
-            Selecione o Nº de pontos e medidas da área
-          </h2>
+        <div className="relative z-20 w-full max-w-2xl mx-auto bg-[#0a0c14]/90 backdrop-blur-sm p-8 rounded-xl border border-slate-800 text-white text-sm">
+          <div className="relative flex items-center justify-center mb-10">
+        <h2 className="text-xl font-bold cursor-default text-center">
+          Selecione o Nº de pontos e medidas da área
+        </h2>
+        <div className="absolute right-0">
+          <div className="group relative flex items-center justify-center">
+            <Info
+              size={20}
+              className="cursor-pointer text-slate-400 group-hover:text-slate-100 transition-colors"
+            />
+            <div className="absolute left-full ml-3 hidden group-hover:block w-64 p-3 bg-slate-800 text-xs text-white rounded shadow-lg border border-slate-700 glow-box z-50">
+              <p className="mb-1">Selecione o número de pontos de amostragem e as medidas da área de análise.</p>
+              <ul className="space-y-1 text-[11px] text-slate-300">
+                <li><strong className="text-white">4 Pontos:</strong> Amostragem básica para análise de cor.</li>
+                <li><strong className="text-white">9 Pontos:</strong> Amostragem moderada para análise de cor.</li>
+                <li><strong className="text-white">18 Pontos:</strong> Amostragem detalhada para análise de cor.</li>
+              </ul>
+
+              <div className="absolute top-1/2 -translate-y-1/2 right-full border-8 border-transparent border-r-slate-800"></div>
+            </div>
+          </div>
+        </div>
+      </div>
           <div className="grid grid-cols-3 border border-slate-700 rounded-[10px] w-[350px] h-[100px] m-auto mb-10 overflow-hidden">
             <span
               onClick={() => setSelectedPoints(4)}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import cameraImage from "@/assets/camera-bg.jpg";
+import { useState, useEffect } from "react";
 import { Play, Sun, Settings, Microscope, Layers, CheckCircle2, XCircle, Lock, BarChart3, LogOut, Camera } from "lucide-react";
 import { LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -11,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
 import { useOperatorDashboardData } from "@/hooks/useDashboardData";
 import {
+  getSystemStep,
   isConfigurationComplete,
   isLightCalibrated,
 } from "@/lib/systemConfig";
@@ -54,13 +56,14 @@ interface ActionCardProps {
   highlight?: boolean;
   disabled?: boolean;
   badge?: string;
+  bgImage?: string;
 }
 
-const ActionCard = ({ icon: Icon, label, description, onClick, highlight, disabled, badge }: ActionCardProps) => (
+const ActionCard = ({ icon: Icon, label, description, onClick, highlight, disabled, badge, bgImage }: ActionCardProps) => (
   <button
     onClick={onClick}
     disabled={disabled}
-    className={`group relative flex flex-col items-center justify-center gap-3 p-8 rounded-2xl border transition-all duration-300 text-center
+    className={`group overflow-hidden relative flex flex-col items-center justify-center gap-3 p-8 rounded-2xl border transition-all duration-300 text-center
       ${disabled
         ? "bg-card/20 border-border/20 opacity-50 cursor-not-allowed"
         : highlight
@@ -68,6 +71,16 @@ const ActionCard = ({ icon: Icon, label, description, onClick, highlight, disabl
         : "bg-card/50 border-border/30 hover:border-foreground/20 hover:bg-card/80"
       } ${!disabled && "active:scale-[0.97]"}`}
   >
+    {bgImage && (
+      <>
+        <img
+          src={bgImage}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:opacity-40 transition-opacity duration-500 z-0"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-transparent z-0" />
+      </>
+    )}
     {badge && (
       <span className="absolute top-3 right-3 flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted/60 border border-border/40 text-[9px] tracking-[0.2em] uppercase text-muted-foreground">
         <Lock className="w-2.5 h-2.5" />
@@ -93,9 +106,13 @@ const Index = () => {
   const { stats, isLoading: dashboardLoading, isError, formatMsToSecondsLabel } = useOperatorDashboardData(user?.id);
   const router = useRouter();
 
+  const systemStep = getSystemStep(systemConfig);
   const calibrated = isLightCalibrated(systemConfig);
   const configured = isConfigurationComplete(systemConfig);
-  const isReady = calibrated && configured;
+  const isReady = systemStep === "READY";
+  const shouldHighlightConfig = systemStep === "CONFIG";
+  const shouldHighlightCalibrate = systemStep === "LIGHT";
+  const shouldHighlightStart = systemStep === "READY";
 
   const handleSignOut = async () => {
     await signOut();
@@ -103,9 +120,16 @@ const Index = () => {
   };
 
   const handleCalibrate = () => {
+    if (!configured) {
+      toast.error("Pré-requisitos pendentes", {
+        description: "Conclua as configurações antes de calibrar.",
+      });
+      return;
+    }
+
     if (!systemConfig.ambientLightConfigured) {
-      toast.error("Defina a luz base nas configurações primeiro", {
-        description: "Acesse Configurações > Capturar Cor e faça a calibragem base.",
+      toast.error("Requisitos pendentes", {
+        description: "Configure a luz base primeiro.",
       });
       return;
     }
@@ -125,7 +149,7 @@ const Index = () => {
     if (!isReady) {
       toast.error("Pré-requisitos pendentes", {
         description: !calibrated && !configured
-          ? "Calibre a luz e conclua as configurações antes de iniciar."
+          ? "Conclua as configurações e depois calibre a luz antes de iniciar."
           : !calibrated
           ? "Execute a calibração da luz antes de iniciar."
           : "Conclua as configurações antes de iniciar.",
@@ -137,15 +161,16 @@ const Index = () => {
 
   const startDescription = isReady
     ? "Começar análise"
-    : !calibrated && !configured
-    ? "Calibre a luz e configure"
+    : !configured
+    ? "Conclua as configurações"
     : !calibrated
     ? "Calibre a luz primeiro"
-    : "Conclua as configurações";
+    : "Pronto para iniciar";
 
   const totalLabel = dashboardLoading ? "..." : stats.totalVerified.toLocaleString("pt-BR");
   const successLabel = dashboardLoading ? "..." : `${stats.successRate}%`;
   const failureLabel = dashboardLoading ? "..." : `${stats.failureRate}%`;
+
 
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden">
@@ -173,13 +198,11 @@ const Index = () => {
           <div className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full animate-pulse ${isReady ? "bg-primary" : "bg-muted-foreground"}`} />
             <span>
-              {isReady
+              {systemStep === "READY"
                 ? "Sistema Pronto"
-                : !calibrated && !configured
-                ? "Aguardando Calibração e Configuração"
-                : !calibrated
-                ? "Aguardando Calibração"
-                : "Aguardando Configuração"}
+                : systemStep === "CONFIG"
+                ? "Aguardando Configuração"
+                : "Aguardando Calibração"}
             </span>
           </div>
           {user?.email && (
@@ -209,33 +232,36 @@ const Index = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
             <ActionCard
-              icon={Play}
-              label="Iniciar"
-              description={startDescription}
-              highlight
-              //disabled={!isReady}
-              //badge={!isReady ? "Bloqueado" : undefined}
-              onClick={handleStart}
+              icon={configured ? CheckCircle2 : Settings}
+              label="Configuração"
+              description={configured ? "Configurações concluídas" : "Parâmetros do sistema"}
+              highlight={shouldHighlightConfig}
+              onClick={() => router.push("/painel/config")}
             />
             <ActionCard
               icon={calibrated ? CheckCircle2 : Sun}
               label="Calibrar Luz"
               description={calibrated ? "Calibração concluída" : "Ajustar iluminação"}
+              highlight={shouldHighlightCalibrate}
+              disabled={!configured}
               onClick={handleCalibrate}
-              disabled={!systemConfig.ambientLightConfigured}
-              badge={!systemConfig.ambientLightConfigured ? "Config" : undefined}
+              badge={!configured ? "Config" : !systemConfig.ambientLightConfigured ? "Luz base" : undefined}
             />
             <ActionCard
-              icon={configured ? CheckCircle2 : Settings}
-              label="Configurações"
-              description={configured ? "Configurações concluídas" : "Parâmetros do sistema"}
-              onClick={() => router.push("/painel/config")}
+              icon={Play}
+              label="Iniciar"
+              description={startDescription}
+              highlight={shouldHighlightStart}
+              disabled={!isReady}
+              badge={!isReady ? "Bloqueado" : undefined}
+              onClick={handleStart}
             />
             <ActionCard
               icon={Camera}
               label="Camera Ao Vivo"
               description="Acessar stream em tempo real"
               onClick={handleOpenCamera}
+              bgImage={cameraImage.src}
             />
           </div>
 

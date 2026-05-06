@@ -7,11 +7,13 @@ import {
   defaultSystemConfig,
   loadSystemConfig,
   loadSystemConfigView,
+  mergeSystemConfigPatch,
   sanitizeSystemConfig,
   saveSystemConfig,
   saveSystemConfigView,
   type ConfigView,
   type SystemConfig,
+  type SystemStep,
 } from "@/lib/systemConfig";
 
 type ConfigLoadSource = "supabase" | "local";
@@ -36,13 +38,14 @@ type OperatorConfigRow = {
   analysis_area_configured: boolean;
   color_configured: boolean;
   light_calibrated: boolean;
+  system_step: SystemStep;
   active_view: ConfigView;
   updated_at: string;
 };
 
-const rowToSystemConfig = (row: OperatorConfigRow): SystemConfig => {
-  const localConfig = loadSystemConfig();
+const rowToSystemConfig = (row: OperatorConfigRow, localConfig: SystemConfig): SystemConfig => {
   return sanitizeSystemConfig({
+    systemStep: row.system_step ?? localConfig.systemStep,
     deltaE: row.delta_e as SystemConfig["deltaE"],
     samplePoints: row.sample_points as SystemConfig["samplePoints"],
     sampleAreaWidthPercent: row.sample_area_width_percent,
@@ -83,6 +86,7 @@ const systemConfigToRow = (
     analysis_area_configured: config.analysisAreaConfigured,
     color_configured: config.colorConfigured,
     light_calibrated: config.lightCalibrated,
+    system_step: config.systemStep,
     active_view: activeView,
   };
 };
@@ -140,8 +144,8 @@ export const useOperatorSystemConfig = (userId: string | null | undefined) => {
   const refresh = useCallback(async () => {
     setIsLoading(true);
 
-    const localConfig = loadSystemConfig();
-    const localView = loadSystemConfigView();
+    const localConfig = loadSystemConfig(userId);
+    const localView = loadSystemConfigView(userId);
 
     if (!userId || !isRemoteConfigAvailable) {
       setConfig(localConfig);
@@ -155,7 +159,7 @@ export const useOperatorSystemConfig = (userId: string | null | undefined) => {
       const { data, error } = await supabase
         .from("operator_configurations")
         .select(
-          "user_id, delta_e, sample_points, sample_area_width_percent, sample_area_height_percent, reference_color_hex, reference_color_r, reference_color_g, reference_color_b, delta_configured, analysis_area_configured, color_configured, light_calibrated, active_view, updated_at",
+          "user_id, delta_e, sample_points, sample_area_width_percent, sample_area_height_percent, reference_color_hex, reference_color_r, reference_color_g, reference_color_b, delta_configured, analysis_area_configured, color_configured, light_calibrated, system_step, active_view, updated_at",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -172,12 +176,12 @@ export const useOperatorSystemConfig = (userId: string | null | undefined) => {
       }
 
       if (data) {
-        const hydratedConfig = rowToSystemConfig(data as OperatorConfigRow);
+        const hydratedConfig = rowToSystemConfig(data as OperatorConfigRow, localConfig);
         const hydratedView = (data as OperatorConfigRow).active_view ?? "home";
         setConfig(hydratedConfig);
         setActiveViewState(hydratedView);
-        cacheSystemConfig(hydratedConfig);
-        saveSystemConfigView(hydratedView);
+        cacheSystemConfig(hydratedConfig, userId);
+        saveSystemConfigView(hydratedView, userId);
         setLoadSource("supabase");
       } else {
         setConfig(localConfig);
@@ -199,22 +203,18 @@ export const useOperatorSystemConfig = (userId: string | null | undefined) => {
 
   const persistPatch = useCallback(
     async (patch: Partial<SystemConfig>) => {
-      const nextConfig = sanitizeSystemConfig({
-        ...config,
-        ...patch,
-        updatedAt: new Date().toISOString(),
-      });
+      const nextConfig = mergeSystemConfigPatch(config, patch);
 
       setIsSaving(true);
 
       try {
         const savedRemotely = await saveToSupabase(nextConfig, activeView);
         setConfig(nextConfig);
-        cacheSystemConfig(nextConfig);
+        cacheSystemConfig(nextConfig, userId);
         setLoadSource(savedRemotely ? "supabase" : "local");
         return { config: nextConfig, savedToSupabase: savedRemotely };
       } catch {
-        const fallback = saveSystemConfig(nextConfig);
+        const fallback = saveSystemConfig(nextConfig, userId);
         setConfig(fallback);
         setLoadSource("local");
         return { config: fallback, savedToSupabase: false };
@@ -228,7 +228,7 @@ export const useOperatorSystemConfig = (userId: string | null | undefined) => {
   const setActiveView = useCallback(
     async (view: ConfigView) => {
       setActiveViewState(view);
-      saveSystemConfigView(view);
+      saveSystemConfigView(view, userId);
 
       if (!userId) {
         return;

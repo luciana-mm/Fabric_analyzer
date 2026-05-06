@@ -4,8 +4,8 @@ import { Scan, SwatchBook, Triangle, Save } from "lucide-react"
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
-  isConfigurationComplete,
-  isLightCalibrated,
+  areConfigurationFieldsComplete,
+  getSystemStep,
   loadSystemConfig,
   sanitizeSystemConfig,
   saveSystemConfig,
@@ -35,40 +35,17 @@ export const Configuration = ({
 
   const router = useRouter();
 
-  const persistAndSync = async (patch: Partial<SystemConfig>) => {
-    const optimisticConfig = sanitizeSystemConfig({
-      ...config,
-      ...patch,
-      updatedAt: new Date().toISOString(),
-    })
-
-    setConfig(optimisticConfig)
-
-    if (onPersistPatch) {
-      const persisted = (await onPersistPatch(patch)) as PersistPatchResult | undefined
-      const resolvedConfig = persisted?.config ?? optimisticConfig
-      setConfig(resolvedConfig)
-      onSaveComplete?.(resolvedConfig)
-
-      if (persisted && persisted.savedToSupabase === false) {
-        toast.warning("Salvo localmente", {
-          description: "Nao foi possivel sincronizar com o Supabase agora.",
-        })
-      }
-      return
-    }
-
-    const nextConfig = saveSystemConfig(optimisticConfig)
-    setConfig(nextConfig)
-    onSaveComplete?.(nextConfig)
-  }
-
   const configurationStatusLabel = useMemo(() => {
-    if (isConfigurationComplete(config) && isLightCalibrated(config)) {
+    const step = getSystemStep(config)
+
+    if (step === "READY") {
       return "Configuracoes e calibracao concluidas"
     }
-    if (isConfigurationComplete(config)) {
+    if (step === "LIGHT") {
       return "Configuracoes concluidas; falta calibracao da luz"
+    }
+    if (areConfigurationFieldsComplete(config)) {
+      return "Configuracao pronta para salvar"
     }
     return "Configuracao pendente"
   }, [config])
@@ -82,7 +59,7 @@ export const Configuration = ({
       <div className="grid grid-cols-3 gap-4">
         <button 
         onClick={() => router.push("/painel/config/area-analise")}
-        className="bg-slate-800/50 hover:bg-slate-700 p-6 rounded-lg flex flex-col items-center gap-2 transition-all ">
+        className="bg-slate-800/50 hover:bg-slate-700 p-6 rounded-lg flex flex-col items-center gap-2 transition-all border border-white/10  border-foreground/30 glow-box hover:bg-foreground/15">
         <span className="text-xs text-center">
             <Scan size={35} className="m-auto mb-2"/>
             Área de Análise
@@ -91,7 +68,7 @@ export const Configuration = ({
         
         <button 
           onClick={() => router.push("/painel/config/capturar-cor")}
-          className="bg-slate-800/50 hover:bg-slate-700 p-6 rounded-lg text-xs">
+          className="bg-slate-800/50 hover:bg-slate-700 p-6 rounded-lg text-xs border border-white/10  border-foreground/30 glow-box hover:bg-foreground/15">
         <span>
             <SwatchBook size={35} className="m-auto mb-2"/>
             Capturar Cor
@@ -100,22 +77,35 @@ export const Configuration = ({
 
         <button 
           onClick={() => router.push("/painel/config/tolerancia-delta-e")}
-          className="bg-slate-800/50 hover:bg-slate-700 p-6 rounded-lg text-xs">
+          className="bg-slate-800/50 hover:bg-slate-700 p-6 rounded-lg text-xs border border-white/10  border-foreground/30 glow-box hover:bg-foreground/15">
         <Triangle size={35} className="m-auto mb-2"/>
           Tolerância Delta E
         </button>
 
         <button
           onClick={async () => {
+            if (!areConfigurationFieldsComplete(config)) {
+              toast.error("Configuracao incompleta", {
+                description: "Configure area de analise, cor e Delta E antes de salvar.",
+              })
+              return
+            }
+
+            const patch = sanitizeSystemConfig({
+              ...config,
+              systemStep: "LIGHT",
+              lightCalibrated: false,
+              updatedAt: new Date().toISOString(),
+            })
             const updated = onPersistPatch
-              ? ((await onPersistPatch(config)) as PersistPatchResult | undefined)?.config ?? config
-              : saveSystemConfig(config)
+              ? ((await onPersistPatch(patch)) as PersistPatchResult | undefined)?.config ?? patch
+              : saveSystemConfig(patch)
             setConfig(updated)
             onSaveComplete?.(updated)
             toast.success("Configuracao geral salva")
             onClose?.()
           }}
-          className="bg-slate-800/50 hover:bg-slate-700 p-6 rounded-lg text-xs col-start-1"
+          className="bg-slate-800/50 hover:bg-slate-700 p-6 rounded-lg text-xs col-start-1 border border-white/10  border-foreground/30 glow-box hover:bg-foreground/15"
         >
           <Save size={35} className="m-auto mb-2"/>
           Salvar Configuração
