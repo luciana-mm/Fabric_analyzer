@@ -1,9 +1,11 @@
 export type DeltaEValue = 1 | 2 | 3;
 export type SamplePointsValue = 4 | 9 | 18;
+export type SystemStep = "CONFIG" | "LIGHT" | "READY";
 export type ConfigView = "home" | "analysis" | "capture" | "delta" | "ambient";
 
 export interface SystemConfig {
   version: 1;
+  systemStep: SystemStep;
   deltaE: DeltaEValue;
   samplePoints: SamplePointsValue;
   sampleAreaWidthPercent: number;
@@ -33,6 +35,7 @@ export const SYSTEM_CONFIG_VIEW_STORAGE_KEY = "fabric-analyzer-system-config-vie
 
 export const defaultSystemConfig: SystemConfig = {
   version: 1,
+  systemStep: "CONFIG",
   deltaE: 3,
   samplePoints: 9,
   sampleAreaWidthPercent: 60,
@@ -49,12 +52,52 @@ export const defaultSystemConfig: SystemConfig = {
   updatedAt: new Date().toISOString(),
 };
 
+const systemSteps: SystemStep[] = ["CONFIG", "LIGHT", "READY"];
+
+export const normalizeSystemStep = (value: unknown): SystemStep => {
+  return systemSteps.includes(value as SystemStep) ? (value as SystemStep) : "CONFIG";
+};
+
+export const getSystemStep = (
+  config: Pick<SystemConfig, "systemStep"> | Partial<SystemConfig> | null | undefined,
+): SystemStep => {
+  return normalizeSystemStep(config?.systemStep);
+};
+
+export const areConfigurationFieldsComplete = (config: SystemConfig): boolean => {
+  return (
+    config.deltaConfigured &&
+    config.analysisAreaConfigured &&
+    config.colorConfigured &&
+    config.ambientLightConfigured
+  );
+};
+
 export const isConfigurationComplete = (config: SystemConfig): boolean => {
-  return config.deltaConfigured && config.analysisAreaConfigured && config.colorConfigured;
+  return getSystemStep(config) !== "CONFIG";
 };
 
 export const isLightCalibrated = (config: SystemConfig): boolean => {
-  return config.lightCalibrated && config.colorConfigured && config.ambientLightConfigured;
+  return getSystemStep(config) === "READY";
+};
+
+const configurationPatchKeys: Array<keyof SystemConfig> = [
+  "deltaE",
+  "samplePoints",
+  "sampleAreaWidthPercent",
+  "sampleAreaHeightPercent",
+  "referenceColorHex",
+  "referenceColorRgb",
+  "ambientLightReferenceHex",
+  "ambientLightReferenceRgb",
+  "ambientLightConfigured",
+  "deltaConfigured",
+  "analysisAreaConfigured",
+  "colorConfigured",
+];
+
+const patchTouchesConfiguration = (value: Partial<SystemConfig>): boolean => {
+  return configurationPatchKeys.some((key) => Object.prototype.hasOwnProperty.call(value, key));
 };
 
 const normalizeNumber = (value: unknown, fallback: number, min = 0, max = 100): number => {
@@ -75,9 +118,11 @@ const normalizeSamplePoints = (value: unknown): SamplePointsValue => {
 
 export const sanitizeSystemConfig = (value: Partial<SystemConfig> | null | undefined): SystemConfig => {
   const source = value ?? {};
+  const systemStep = normalizeSystemStep(source.systemStep);
 
   return {
     version: 1,
+    systemStep,
     deltaE: normalizeDeltaE(source.deltaE),
     samplePoints: normalizeSamplePoints(source.samplePoints),
     sampleAreaWidthPercent: normalizeNumber(source.sampleAreaWidthPercent, defaultSystemConfig.sampleAreaWidthPercent),
@@ -104,17 +149,47 @@ export const sanitizeSystemConfig = (value: Partial<SystemConfig> | null | undef
     deltaConfigured: Boolean(source.deltaConfigured),
     analysisAreaConfigured: Boolean(source.analysisAreaConfigured),
     colorConfigured: Boolean(source.colorConfigured),
-    lightCalibrated: Boolean(source.lightCalibrated),
+    lightCalibrated: systemStep === "READY",
     updatedAt: typeof source.updatedAt === "string" ? source.updatedAt : new Date().toISOString(),
   };
 };
 
-export const loadSystemConfig = (): SystemConfig => {
+export const mergeSystemConfigPatch = (
+  currentConfig: SystemConfig,
+  value: Partial<SystemConfig>,
+): SystemConfig => {
+  const systemStep = value.systemStep
+    ? normalizeSystemStep(value.systemStep)
+    : patchTouchesConfiguration(value)
+    ? "CONFIG"
+    : currentConfig.systemStep;
+
+  return sanitizeSystemConfig({
+    ...currentConfig,
+    ...value,
+    systemStep,
+    updatedAt: new Date().toISOString(),
+  });
+};
+
+const getScopedStorageKey = (baseKey: string, scopeKey?: string | null): string => {
+  return scopeKey ? `${baseKey}:${scopeKey}` : baseKey;
+};
+
+export const getSystemConfigStorageKey = (scopeKey?: string | null): string => {
+  return getScopedStorageKey(SYSTEM_CONFIG_STORAGE_KEY, scopeKey);
+};
+
+export const getSystemConfigViewStorageKey = (scopeKey?: string | null): string => {
+  return getScopedStorageKey(SYSTEM_CONFIG_VIEW_STORAGE_KEY, scopeKey);
+};
+
+export const loadSystemConfig = (scopeKey?: string | null): SystemConfig => {
   if (typeof window === "undefined") {
     return defaultSystemConfig;
   }
 
-  const raw = window.localStorage.getItem(SYSTEM_CONFIG_STORAGE_KEY);
+  const raw = window.localStorage.getItem(getSystemConfigStorageKey(scopeKey));
   if (!raw) {
     return defaultSystemConfig;
   }
@@ -127,34 +202,31 @@ export const loadSystemConfig = (): SystemConfig => {
   }
 };
 
-export const saveSystemConfig = (value: Partial<SystemConfig>): SystemConfig => {
-  const nextConfig = sanitizeSystemConfig({
-    ...loadSystemConfig(),
-    ...value,
-    updatedAt: new Date().toISOString(),
-  });
+export const saveSystemConfig = (value: Partial<SystemConfig>, scopeKey?: string | null): SystemConfig => {
+  const currentConfig = loadSystemConfig(scopeKey);
+  const nextConfig = mergeSystemConfigPatch(currentConfig, value);
 
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(SYSTEM_CONFIG_STORAGE_KEY, JSON.stringify(nextConfig));
+    window.localStorage.setItem(getSystemConfigStorageKey(scopeKey), JSON.stringify(nextConfig));
   }
 
   return nextConfig;
 };
 
-export const cacheSystemConfig = (config: SystemConfig): void => {
+export const cacheSystemConfig = (config: SystemConfig, scopeKey?: string | null): void => {
   if (typeof window === "undefined") {
     return;
   }
 
-  window.localStorage.setItem(SYSTEM_CONFIG_STORAGE_KEY, JSON.stringify(sanitizeSystemConfig(config)));
+  window.localStorage.setItem(getSystemConfigStorageKey(scopeKey), JSON.stringify(sanitizeSystemConfig(config)));
 };
 
-export const loadSystemConfigView = (): ConfigView => {
+export const loadSystemConfigView = (scopeKey?: string | null): ConfigView => {
   if (typeof window === "undefined") {
     return "home";
   }
 
-  const value = window.localStorage.getItem(SYSTEM_CONFIG_VIEW_STORAGE_KEY);
+  const value = window.localStorage.getItem(getSystemConfigViewStorageKey(scopeKey));
   if (
     value === "home" ||
     value === "analysis" ||
@@ -168,10 +240,10 @@ export const loadSystemConfigView = (): ConfigView => {
   return "home";
 };
 
-export const saveSystemConfigView = (view: ConfigView): void => {
+export const saveSystemConfigView = (view: ConfigView, scopeKey?: string | null): void => {
   if (typeof window === "undefined") {
     return;
   }
 
-  window.localStorage.setItem(SYSTEM_CONFIG_VIEW_STORAGE_KEY, view);
+  window.localStorage.setItem(getSystemConfigViewStorageKey(scopeKey), view);
 };
