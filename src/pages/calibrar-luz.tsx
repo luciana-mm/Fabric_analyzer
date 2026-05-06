@@ -43,7 +43,10 @@ export default function CalibrarLuzPage() {
             onBack={() => router.push("/painel")}
             onSave={async (patch) => {
                 if (persistPatch) {
-                  await persistPatch({ lightCalibrated: patch.lightCalibrated });
+                  await persistPatch({
+                    lightCalibrated: patch.lightCalibrated,
+                    systemStep: patch.lightCalibrated ? "READY" : "LIGHT",
+                  });
                 }
               }}
             referenceHex={systemConfig.ambientLightReferenceHex}

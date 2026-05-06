@@ -36,7 +36,7 @@ function ConfigCaptureColorContent() {
             onBack={() => router.push("/painel/config")}
             initialColorHex={config.referenceColorHex}
             initialColorRgb={config.referenceColorRgb}
-            initialLightCalibrated={config.lightCalibrated}
+            initialLightCalibrated={config.ambientLightConfigured}
             onSave={async (payload) => {
               if (persistPatch) {
                 await persistPatch(payload);
