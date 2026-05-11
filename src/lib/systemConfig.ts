@@ -2,9 +2,10 @@ export type DeltaEValue = 1 | 2 | 3;
 export type SamplePointsValue = 4 | 9 | 18;
 export type SystemStep = "CONFIG" | "LIGHT" | "READY";
 export type ConfigView = "home" | "analysis" | "capture" | "delta" | "ambient";
+export type SystemConfigVersion = 2;
 
 export interface SystemConfig {
-  version: 1;
+  version: SystemConfigVersion;
   systemStep: SystemStep;
   deltaE: DeltaEValue;
   samplePoints: SamplePointsValue;
@@ -26,15 +27,24 @@ export interface SystemConfig {
   deltaConfigured: boolean;
   analysisAreaConfigured: boolean;
   colorConfigured: boolean;
+  configurationSaved: boolean;
   lightCalibrated: boolean;
   updatedAt: string;
+}
+
+export interface SystemFlowState {
+  systemStep: SystemStep;
+  configuracaoConcluida: boolean;
+  luzCalibrada: boolean;
+  podeCalibrarLuz: boolean;
+  podeIniciar: boolean;
 }
 
 export const SYSTEM_CONFIG_STORAGE_KEY = "fabric-analyzer-system-config";
 export const SYSTEM_CONFIG_VIEW_STORAGE_KEY = "fabric-analyzer-system-config-view";
 
 export const defaultSystemConfig: SystemConfig = {
-  version: 1,
+  version: 2,
   systemStep: "CONFIG",
   deltaE: 3,
   samplePoints: 9,
@@ -48,6 +58,7 @@ export const defaultSystemConfig: SystemConfig = {
   deltaConfigured: false,
   analysisAreaConfigured: false,
   colorConfigured: false,
+  configurationSaved: false,
   lightCalibrated: false,
   updatedAt: new Date().toISOString(),
 };
@@ -58,27 +69,72 @@ export const normalizeSystemStep = (value: unknown): SystemStep => {
   return systemSteps.includes(value as SystemStep) ? (value as SystemStep) : "CONFIG";
 };
 
-export const getSystemStep = (
-  config: Pick<SystemConfig, "systemStep"> | Partial<SystemConfig> | null | undefined,
-): SystemStep => {
-  return normalizeSystemStep(config?.systemStep);
-};
-
-export const areConfigurationFieldsComplete = (config: SystemConfig): boolean => {
+export const areConfigurationFieldsComplete = (
+  config: Partial<
+    Pick<SystemConfig, "deltaConfigured" | "analysisAreaConfigured" | "colorConfigured">
+  >,
+): boolean => {
   return (
-    config.deltaConfigured &&
-    config.analysisAreaConfigured &&
-    config.colorConfigured &&
-    config.ambientLightConfigured
+    config.deltaConfigured === true &&
+    config.analysisAreaConfigured === true &&
+    config.colorConfigured === true
   );
 };
 
+export const getSystemStep = (
+  config: Partial<SystemConfig> | null | undefined,
+): SystemStep => {
+  if (!config || config.configurationSaved !== true || !areConfigurationFieldsComplete(config)) {
+    return "CONFIG";
+  }
+
+  const requestedStep = normalizeSystemStep(config.systemStep);
+  if (requestedStep === "CONFIG") {
+    return "CONFIG";
+  }
+
+  if (requestedStep === "READY" && config.lightCalibrated === true) {
+    return "READY";
+  }
+
+  return "LIGHT";
+};
+
 export const isConfigurationComplete = (config: SystemConfig): boolean => {
-  return getSystemStep(config) !== "CONFIG";
+  return config.configurationSaved === true && areConfigurationFieldsComplete(config) && getSystemStep(config) !== "CONFIG";
 };
 
 export const isLightCalibrated = (config: SystemConfig): boolean => {
-  return getSystemStep(config) === "READY";
+  return isConfigurationComplete(config) && config.lightCalibrated === true && getSystemStep(config) === "READY";
+};
+
+export const getSystemFlowState = (config: SystemConfig): SystemFlowState => {
+  const systemStep = getSystemStep(config);
+  const configuracaoConcluida = isConfigurationComplete(config);
+  const luzCalibrada = isLightCalibrated(config);
+
+  return {
+    systemStep,
+    configuracaoConcluida,
+    luzCalibrada,
+    podeCalibrarLuz: configuracaoConcluida,
+    podeIniciar: luzCalibrada,
+  };
+};
+
+export const getStartBlockedDescription = (config: SystemConfig): string => {
+  const configured = isConfigurationComplete(config);
+  const calibrated = isLightCalibrated(config);
+
+  if (!calibrated && !configured) {
+    return "Conclua as configurações e depois calibre a luz antes de iniciar.";
+  }
+
+  if (!calibrated) {
+    return "Execute a calibração da luz antes de iniciar.";
+  }
+
+  return "Conclua as configurações antes de iniciar.";
 };
 
 const configurationPatchKeys: Array<keyof SystemConfig> = [
@@ -118,10 +174,23 @@ const normalizeSamplePoints = (value: unknown): SamplePointsValue => {
 
 export const sanitizeSystemConfig = (value: Partial<SystemConfig> | null | undefined): SystemConfig => {
   const source = value ?? {};
-  const systemStep = normalizeSystemStep(source.systemStep);
+  const isCurrentVersion = source.version === 2;
+  const deltaConfigured = isCurrentVersion && source.deltaConfigured === true;
+  const analysisAreaConfigured = isCurrentVersion && source.analysisAreaConfigured === true;
+  const colorConfigured = isCurrentVersion && source.colorConfigured === true;
+  const ambientLightConfigured = isCurrentVersion && source.ambientLightConfigured === true;
+  const configurationSaved = isCurrentVersion && source.configurationSaved === true;
+  const systemStep = getSystemStep({
+    systemStep: source.systemStep,
+    deltaConfigured,
+    analysisAreaConfigured,
+    colorConfigured,
+    configurationSaved,
+    lightCalibrated: source.lightCalibrated === true,
+  });
 
   return {
-    version: 1,
+    version: 2,
     systemStep,
     deltaE: normalizeDeltaE(source.deltaE),
     samplePoints: normalizeSamplePoints(source.samplePoints),
@@ -145,10 +214,11 @@ export const sanitizeSystemConfig = (value: Partial<SystemConfig> | null | undef
       g: normalizeNumber(source.ambientLightReferenceRgb?.g, defaultSystemConfig.ambientLightReferenceRgb.g, 0, 255),
       b: normalizeNumber(source.ambientLightReferenceRgb?.b, defaultSystemConfig.ambientLightReferenceRgb.b, 0, 255),
     },
-    ambientLightConfigured: Boolean(source.ambientLightConfigured),
-    deltaConfigured: Boolean(source.deltaConfigured),
-    analysisAreaConfigured: Boolean(source.analysisAreaConfigured),
-    colorConfigured: Boolean(source.colorConfigured),
+    ambientLightConfigured,
+    deltaConfigured,
+    analysisAreaConfigured,
+    colorConfigured,
+    configurationSaved,
     lightCalibrated: systemStep === "READY",
     updatedAt: typeof source.updatedAt === "string" ? source.updatedAt : new Date().toISOString(),
   };
@@ -158,6 +228,11 @@ export const mergeSystemConfigPatch = (
   currentConfig: SystemConfig,
   value: Partial<SystemConfig>,
 ): SystemConfig => {
+  const configurationSaved = Object.prototype.hasOwnProperty.call(value, "configurationSaved")
+    ? value.configurationSaved === true
+    : patchTouchesConfiguration(value)
+    ? false
+    : currentConfig.configurationSaved;
   const systemStep = value.systemStep
     ? normalizeSystemStep(value.systemStep)
     : patchTouchesConfiguration(value)
@@ -167,6 +242,7 @@ export const mergeSystemConfigPatch = (
   return sanitizeSystemConfig({
     ...currentConfig,
     ...value,
+    configurationSaved,
     systemStep,
     updatedAt: new Date().toISOString(),
   });

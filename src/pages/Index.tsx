@@ -12,9 +12,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
 import { useOperatorDashboardData } from "@/hooks/useDashboardData";
 import {
-  getSystemStep,
-  isConfigurationComplete,
-  isLightCalibrated,
+  getStartBlockedDescription,
+  getSystemFlowState,
 } from "@/lib/systemConfig";
 
 interface StatCardProps {
@@ -106,10 +105,15 @@ const Index = () => {
   const { stats, isLoading: dashboardLoading, isError, formatMsToSecondsLabel } = useOperatorDashboardData(user?.id);
   const router = useRouter();
 
-  const systemStep = getSystemStep(systemConfig);
-  const calibrated = isLightCalibrated(systemConfig);
-  const configured = isConfigurationComplete(systemConfig);
-  const isReady = systemStep === "READY";
+  const {
+    systemStep,
+    configuracaoConcluida,
+    luzCalibrada,
+    podeCalibrarLuz,
+    podeIniciar,
+  } = getSystemFlowState(systemConfig);
+  const isReady = podeIniciar;
+
   const shouldHighlightConfig = systemStep === "CONFIG";
   const shouldHighlightCalibrate = systemStep === "LIGHT";
   const shouldHighlightStart = systemStep === "READY";
@@ -120,7 +124,7 @@ const Index = () => {
   };
 
   const handleCalibrate = () => {
-    if (!configured) {
+    if (!podeCalibrarLuz) {
       toast.error("Pré-requisitos pendentes", {
         description: "Conclua as configurações antes de calibrar.",
       });
@@ -148,11 +152,7 @@ const Index = () => {
   const handleStart = () => {
     if (!isReady) {
       toast.error("Pré-requisitos pendentes", {
-        description: !calibrated && !configured
-          ? "Conclua as configurações e depois calibre a luz antes de iniciar."
-          : !calibrated
-          ? "Execute a calibração da luz antes de iniciar."
-          : "Conclua as configurações antes de iniciar.",
+        description: getStartBlockedDescription(systemConfig),
       });
       return;
     }
@@ -161,9 +161,9 @@ const Index = () => {
 
   const startDescription = isReady
     ? "Começar análise"
-    : !configured
+    : !configuracaoConcluida
     ? "Conclua as configurações"
-    : !calibrated
+    : !luzCalibrada
     ? "Calibre a luz primeiro"
     : "Pronto para iniciar";
 
@@ -232,20 +232,20 @@ const Index = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
             <ActionCard
-              icon={configured ? CheckCircle2 : Settings}
+              icon={configuracaoConcluida ? CheckCircle2 : Settings}
               label="Configuração"
-              description={configured ? "Configurações concluídas" : "Parâmetros do sistema"}
+              description={configuracaoConcluida ? "Configurações concluídas" : "Parâmetros do sistema"}
               highlight={shouldHighlightConfig}
               onClick={() => router.push("/painel/config")}
             />
             <ActionCard
-              icon={calibrated ? CheckCircle2 : Sun}
+              icon={luzCalibrada ? CheckCircle2 : Sun}
               label="Calibrar Luz"
-              description={calibrated ? "Calibração concluída" : "Ajustar iluminação"}
+              description={luzCalibrada ? "Calibração concluída" : "Ajustar iluminação"}
               highlight={shouldHighlightCalibrate}
-              disabled={!configured}
+              disabled={!podeCalibrarLuz}
               onClick={handleCalibrate}
-              badge={!configured ? "Config" : !systemConfig.ambientLightConfigured ? "Luz base" : undefined}
+              badge={!podeCalibrarLuz ? "Config" : !systemConfig.ambientLightConfigured ? "Luz base" : undefined}
             />
             <ActionCard
               icon={Play}
