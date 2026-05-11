@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 const ColorAnalysis = () => {
   const router = useRouter();
   const { user } = useAuth();
-  const { config } = useOperatorSystemConfig(user?.id);
+  const { config, persistPatch } = useOperatorSystemConfig(user?.id);
   const cameraCapture = useCameraRobustCapture();
 
   const [result, setResult] = useState<{
@@ -26,9 +26,9 @@ const ColorAnalysis = () => {
   } | null>(null);
 
   const requiredPrecision = useMemo(() => {
-    if (config.deltaE === 1) return 90;
-    if (config.deltaE === 2) return 80;
-    return 70;
+    if (config.deltaE === 1) return 80;
+    if (config.deltaE === 2) return 70;
+    return 60;
   }, [config.deltaE]);
 
   const handleAnalyze = async () => {
@@ -95,6 +95,27 @@ const ColorAnalysis = () => {
     });
   };
 
+  const handleFinishTissue = async () => {
+    if (!persistPatch) {
+      return;
+    }
+
+    await persistPatch({
+      deltaConfigured: false,
+      analysisAreaConfigured: false,
+      colorConfigured: false,
+      configurationSaved: false,
+      lightCalibrated: false,
+      systemStep: "CONFIG",
+    });
+
+    setResult(null);
+    toast.success("Tecido finalizado", {
+      description: "Reconfigure o sistema antes de iniciar a nova análise.",
+    });
+    router.push("/painel/config");
+  };
+
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden">
       <img
@@ -143,6 +164,13 @@ const ColorAnalysis = () => {
                   Analisar Agora
                 </span>
               )}
+            </button>
+            <button
+              onClick={handleFinishTissue}
+              disabled={cameraCapture.isCapturing}
+              className="px-4 py-2 rounded-full border border-destructive text-destructive bg-destructive/10 hover:bg-destructive/15 transition-all font-display text-[10px] tracking-[0.25em] uppercase disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              Finalizar Tecido
             </button>
           </div>
 

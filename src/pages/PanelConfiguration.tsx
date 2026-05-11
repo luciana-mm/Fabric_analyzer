@@ -55,10 +55,6 @@ const PanelConfiguration = () => {
             </div>
           </div>
         </div>
-
-        <span className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground">
-          Origem: {loadSource === "supabase" ? "Supabase" : "Local"}
-        </span>
       </header>
 
       <main className="relative z-10 flex-1 flex items-center justify-center p-6 md:p-10">

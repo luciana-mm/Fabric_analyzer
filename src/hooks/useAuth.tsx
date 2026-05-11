@@ -21,6 +21,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 
   const fetchRole = async (userId: string) => {
     try {
@@ -85,6 +86,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await supabase.auth.signOut();
     setRole(null);
   };
+
+  useEffect(() => {
+    if (!user || typeof window === "undefined") {
+      return;
+    }
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const resetInactivityTimer = () => {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+      timeoutId = window.setTimeout(() => {
+        void signOut();
+      }, INACTIVITY_TIMEOUT_MS);
+    };
+
+    const activityEvents: Array<keyof DocumentEventMap> = [
+      "mousemove",
+      "mousedown",
+      "keydown",
+      "scroll",
+      "touchstart",
+      "click",
+    ];
+
+    activityEvents.forEach((eventName) => window.addEventListener(eventName, resetInactivityTimer, true));
+
+    resetInactivityTimer();
+
+    return () => {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+      activityEvents.forEach((eventName) => window.removeEventListener(eventName, resetInactivityTimer, true));
+    };
+  }, [user]);
 
   return (
     <AuthContext.Provider value={{ session, user, role, loading, signOut }}>

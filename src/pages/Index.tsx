@@ -1,12 +1,13 @@
 "use client";
 
 import cameraImage from "@/assets/camera-bg.jpg";
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Play, Sun, Settings, Microscope, Layers, CheckCircle2, XCircle, Lock, BarChart3, LogOut, Camera } from "lucide-react";
 import { LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import gridBg from "@/assets/grid-bg.jpg";
+import { EmployeeDetailsDialog } from "@/components/EmployeeDetailsDialog";
 import { StatsDetailsDialog } from "@/components/StatsDetailsDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
@@ -100,6 +101,7 @@ const ActionCard = ({ icon: Icon, label, description, onClick, highlight, disabl
 
 const Index = () => {
   const [statsOpen, setStatsOpen] = useState(false);
+  const [employeeDetailsOpen, setEmployeeDetailsOpen] = useState(false);
   const { signOut, user } = useAuth();
   const { config: systemConfig } = useOperatorSystemConfig(user?.id);
   const { stats, isLoading: dashboardLoading, isError, formatMsToSecondsLabel } = useOperatorDashboardData(user?.id);
@@ -117,6 +119,23 @@ const Index = () => {
   const shouldHighlightConfig = systemStep === "CONFIG";
   const shouldHighlightCalibrate = systemStep === "LIGHT";
   const shouldHighlightStart = systemStep === "READY";
+
+  const operatorDetails = useMemo(() => {
+    if (!user) return null;
+
+    return {
+      id: user.email ?? user.id,
+      name: user.email ?? "Operador",
+      role: "Operador",
+      verified: stats.totalVerified,
+      success: stats.totalSuccess,
+      failure: stats.totalFailure,
+      avgTime: formatMsToSecondsLabel(stats.averageTimeMs),
+      shift: "Não disponível",
+      errorBreakdown: stats.errorBreakdown,
+      recentAnalyses: stats.recentAnalyses,
+    };
+  }, [formatMsToSecondsLabel, stats.errorBreakdown, stats.recentAnalyses, stats.totalFailure, stats.totalSuccess, stats.totalVerified, user]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -206,9 +225,13 @@ const Index = () => {
             </span>
           </div>
           {user?.email && (
-            <span className="hidden md:inline text-[11px] text-muted-foreground tracking-wider">
+            <button
+              type="button"
+              onClick={() => setEmployeeDetailsOpen(true)}
+              className="hidden md:inline text-[11px] text-muted-foreground tracking-wider uppercase hover:text-foreground transition"
+            >
               {user.email}
-            </span>
+            </button>
           )}
           <button
             onClick={handleSignOut}
@@ -326,6 +349,12 @@ const Index = () => {
         failureRate={stats.failureRate}
         errorBreakdown={stats.errorBreakdown}
         recentAnalyses={stats.recentAnalyses}
+      />
+
+      <EmployeeDetailsDialog
+        employee={operatorDetails}
+        open={employeeDetailsOpen}
+        onOpenChange={setEmployeeDetailsOpen}
       />
     </div>
   );
