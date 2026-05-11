@@ -44,7 +44,15 @@ type OperatorConfigRow = {
 };
 
 const rowToSystemConfig = (row: OperatorConfigRow, localConfig: SystemConfig): SystemConfig => {
+  const hasCurrentLocalProgress =
+    localConfig.version === 2 &&
+    (localConfig.deltaConfigured ||
+      localConfig.analysisAreaConfigured ||
+      localConfig.colorConfigured ||
+      localConfig.configurationSaved);
+
   return sanitizeSystemConfig({
+    version: hasCurrentLocalProgress ? localConfig.version : undefined,
     systemStep: row.system_step ?? localConfig.systemStep,
     deltaE: row.delta_e as SystemConfig["deltaE"],
     samplePoints: row.sample_points as SystemConfig["samplePoints"],
@@ -58,11 +66,12 @@ const rowToSystemConfig = (row: OperatorConfigRow, localConfig: SystemConfig): S
     },
     ambientLightReferenceHex: localConfig.ambientLightReferenceHex,
     ambientLightReferenceRgb: localConfig.ambientLightReferenceRgb,
-    ambientLightConfigured: localConfig.ambientLightConfigured,
-    deltaConfigured: row.delta_configured,
-    analysisAreaConfigured: row.analysis_area_configured,
-    colorConfigured: row.color_configured,
-    lightCalibrated: row.light_calibrated,
+    ambientLightConfigured: hasCurrentLocalProgress ? localConfig.ambientLightConfigured : false,
+    deltaConfigured: hasCurrentLocalProgress ? row.delta_configured : false,
+    analysisAreaConfigured: hasCurrentLocalProgress ? row.analysis_area_configured : false,
+    colorConfigured: hasCurrentLocalProgress ? row.color_configured : false,
+    configurationSaved: hasCurrentLocalProgress ? localConfig.configurationSaved : false,
+    lightCalibrated: hasCurrentLocalProgress ? row.light_calibrated : false,
     updatedAt: row.updated_at,
   });
 };
