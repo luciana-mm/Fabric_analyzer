@@ -38,7 +38,7 @@ export const GlobalStatsDialog = ({ open, onOpenChange, totals }: GlobalStatsDia
                 Relatório Global de Operações
               </DialogTitle>
               <DialogDescription className="text-[11px] tracking-[0.25em] uppercase text-slate-400">
-                Consolidado de todos os setores · TissueScope Pro
+                Consolidado de todos os setores
               </DialogDescription>
             </div>
           </div>

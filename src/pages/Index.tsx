@@ -156,7 +156,7 @@ const Index = () => {
       });
       return;
     }
-    router.push("/painel/iniciar");
+    router.push("/painel/analise");
   };
 
   const startDescription = isReady

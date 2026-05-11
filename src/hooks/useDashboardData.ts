@@ -23,6 +23,11 @@ type ProfileSummary = {
   active: boolean;
 };
 
+type UserRoleRow = {
+  user_id: string;
+  role: "operador" | "gestor";
+};
+
 export type OperatorDashboardStats = {
   totalVerified: number;
   totalSuccess: number;
@@ -179,9 +184,30 @@ export const useManagerDashboardData = () => {
     },
   });
 
+  const rolesQuery = useQuery({
+    queryKey: ["manager-dashboard", "roles"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("user_id, role");
+
+      if (error) {
+        throw error;
+      }
+
+      return (data ?? []) as UserRoleRow[];
+    },
+  });
+
   const employees = useMemo<ManagerEmployeeRow[]>(() => {
     const profiles = profilesQuery.data ?? [];
     const records = analysesQuery.data ?? [];
+    const roles = rolesQuery.data ?? [];
+    const employeeIds = new Set(
+      roles
+        .filter((item) => item.role !== "gestor")
+        .map((item) => item.user_id),
+    );
 
     const groupedRecords = records.reduce<Record<string, AnalysisRecord[]>>((acc, item) => {
       if (!acc[item.operator_user_id]) {
@@ -192,6 +218,7 @@ export const useManagerDashboardData = () => {
     }, {});
 
     return profiles
+      .filter((profile) => employeeIds.has(profile.user_id))
       .map((profile) => {
         const items = groupedRecords[profile.user_id] ?? [];
         const verified = items.length;
@@ -215,7 +242,7 @@ export const useManagerDashboardData = () => {
         return {
           id: profile.employee_code ?? profile.user_id.slice(0, 8).toUpperCase(),
           name: profile.display_name ?? "Sem nome",
-          role: profile.job_title ?? "Operador",
+          role: profile.job_title ?? "Funcionario (Operador)",
           verified,
           success,
           failure,
@@ -227,11 +254,11 @@ export const useManagerDashboardData = () => {
         };
       })
       .sort((a, b) => b.verified - a.verified);
-  }, [profilesQuery.data, analysesQuery.data]);
+  }, [profilesQuery.data, analysesQuery.data, rolesQuery.data]);
 
-  const loading = analysesQuery.isLoading || profilesQuery.isLoading;
-  const isError = analysesQuery.isError || profilesQuery.isError;
-  const error = analysesQuery.error ?? profilesQuery.error;
+  const loading = analysesQuery.isLoading || profilesQuery.isLoading || rolesQuery.isLoading;
+  const isError = analysesQuery.isError || profilesQuery.isError || rolesQuery.isError;
+  const error = analysesQuery.error ?? profilesQuery.error ?? rolesQuery.error;
 
   return {
     employees,

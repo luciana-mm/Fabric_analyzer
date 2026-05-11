@@ -225,10 +225,6 @@ const Login = () => {
               {!loading && <ArrowRight className="w-4 h-4" />}
             </button>
           </form>
-
-          <p className="text-[10px] text-center text-muted-foreground mt-6 tracking-wider">
-            Acesso restrito · Uso interno
-          </p>
         </div>
       </div>
     </div>

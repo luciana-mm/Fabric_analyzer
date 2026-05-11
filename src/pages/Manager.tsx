@@ -12,14 +12,11 @@ import {
   BarChart3,
   LogOut,
   Search,
-  UserRoundPlus
+  UserRoundPlus,
+  ExternalLink,
 } from "lucide-react";
 import { LucideIcon } from "lucide-react";
 import gridBg from "@/assets/grid-bg.jpg";
-import {
-  EmployeeDetailsDialog,
-  Employee,
-} from "@/components/EmployeeDetailsDialog";
 import { GlobalStatsDialog } from "@/components/GlobalStatsDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
@@ -76,7 +73,6 @@ const OverviewCard = ({
 };
 
 const Manager = () => {
-  const [selected, setSelected] = useState<Employee | null>(null);
   const [search, setSearch] = useState("");
   const { signOut, user } = useAuth();
   const { employees, loading, isError } = useManagerDashboardData();
@@ -109,6 +105,7 @@ const Manager = () => {
       e.name.toLowerCase().includes(search.toLowerCase()) ||
       e.id.toLowerCase().includes(search.toLowerCase()),
   );
+  const previewEmployees = filtered.slice(0, 5);
 
   
     const [isOpen, setIsOpen] = useState(false)
@@ -135,7 +132,7 @@ const Manager = () => {
               Painel do Gestor
             </h1>
             <p className="text-[11px] tracking-[0.3em] text-muted-foreground uppercase">
-              Visão Operacional · TissueScope
+              Visão Operacional · Meta Classificador
             </p>
           </div>
         </div>
@@ -237,6 +234,13 @@ const Manager = () => {
                   className="bg-transparent outline-none text-xs text-foreground placeholder:text-muted-foreground w-32"
                 />
               </div>
+              <button
+                onClick={() => router.push("/gestor/funcionarios")}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/40 border border-border/30 hover:bg-muted/60 hover:border-foreground/30 transition-all text-xs text-foreground/80"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Detalhes
+              </button>
             </div>
 
             <div className="rounded-xl border border-border/30 bg-card/40 backdrop-blur-sm overflow-hidden">
@@ -249,19 +253,18 @@ const Manager = () => {
                 <div className="col-span-1 text-right">Detalhes</div>
               </div>
 
-              {filtered.length === 0 ? (
+              {previewEmployees.length === 0 ? (
                 <div className="px-5 py-8 text-center text-xs text-muted-foreground">
                   {loading ? "Carregando funcionarios..." : "Nenhum funcionario encontrado"}
                 </div>
               ) : (
-                filtered.map((emp, i) => {
+                previewEmployees.map((emp, i) => {
                   const rate = emp.verified === 0 ? "0.0" : ((emp.success / emp.verified) * 100).toFixed(1);
                   return (
-                    <button
+                    <div
                       key={emp.id}
-                      onClick={() => setSelected(emp)}
                       className={`w-full grid grid-cols-12 gap-4 px-5 py-4 items-center text-left transition-colors hover:bg-muted/30 ${
-                        i !== filtered.length - 1
+                        i !== previewEmployees.length - 1
                           ? "border-b border-border/20"
                           : ""
                       }`}
@@ -303,7 +306,7 @@ const Manager = () => {
                       <div className="col-span-1 flex justify-end">
                         <BarChart3 className="w-4 h-4 text-muted-foreground" />
                       </div>
-                    </button>
+                    </div>
                   );
                 })
               )}
@@ -361,12 +364,6 @@ const Manager = () => {
       </main>
 
       <div className="relative z-10 h-px bg-gradient-to-r from-transparent via-foreground/10 to-transparent" />
-
-      <EmployeeDetailsDialog
-        employee={selected}
-        open={!!selected}
-        onOpenChange={(o) => !o && setSelected(null)}
-      />
 
       <GlobalStatsDialog
         open={isGlobalStatsOpen}
