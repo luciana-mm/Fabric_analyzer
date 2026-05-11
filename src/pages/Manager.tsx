@@ -12,7 +12,6 @@ import {
   BarChart3,
   LogOut,
   Search,
-  UserRoundPlus,
   ExternalLink,
 } from "lucide-react";
 import { LucideIcon } from "lucide-react";
@@ -21,7 +20,6 @@ import { GlobalStatsDialog } from "@/components/GlobalStatsDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { useManagerDashboardData } from "@/hooks/useDashboardData";
-import CreateAccountPage from "./CreateAccount";
 
 interface OverviewCardProps {
   icon: LucideIcon;
@@ -106,9 +104,6 @@ const Manager = () => {
       e.id.toLowerCase().includes(search.toLowerCase()),
   );
   const previewEmployees = filtered.slice(0, 5);
-
-  
-    const [isOpen, setIsOpen] = useState(false)
 
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden">
@@ -214,16 +209,6 @@ const Manager = () => {
                 Desempenho por Funcionário
               </p>
               <div className="flex-1 h-px bg-gradient-to-r from-foreground/20 via-foreground/10 to-transparent" />
-              <div>
-                <button
-                  onClick={() => setIsOpen(true)}
-                  className="text-xs text-muted-foreground tracking-wider uppercase border border-muted-foreground rounded-full px-3 py-1  transition-colors flex items-center gap-1 hover:bg-muted/90 hover:border-muted-foreground/30"
-                >
-                  <UserRoundPlus
-                  size={18}/>
-                  Adicionar funcionário
-                </button>
-              </div>
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/40 border border-border/30">
                 <Search className="w-3 h-3 text-muted-foreground" />
                 <input
@@ -374,10 +359,6 @@ const Manager = () => {
           failure: totalFailure,
           avgTime: "2.4s", // Valor fixo ou calculado
         }}
-      />
-      <CreateAccountPage
-        aberto={isOpen}
-        isClosed={() => setIsOpen(false)}  
       />
     </div>
   );

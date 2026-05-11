@@ -1,20 +1,23 @@
 "use client";
 
 import cameraImage from "@/assets/camera-bg.jpg";
-import { useEffect, useMemo, useState } from "react";
+import { useState, useEffect } from "react";
 import { Play, Sun, Settings, Microscope, Layers, CheckCircle2, XCircle, Lock, BarChart3, LogOut, Camera } from "lucide-react";
 import { LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import gridBg from "@/assets/grid-bg.jpg";
-import { EmployeeDetailsDialog } from "@/components/EmployeeDetailsDialog";
 import { StatsDetailsDialog } from "@/components/StatsDetailsDialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
 import { useOperatorDashboardData } from "@/hooks/useDashboardData";
+import { supabase } from "@/integrations/supabase/client";
 import {
-  getStartBlockedDescription,
-  getSystemFlowState,
+  getSystemStep,
+  isConfigurationComplete,
+  isLightCalibrated,
 } from "@/lib/systemConfig";
 
 interface StatCardProps {
@@ -101,41 +104,37 @@ const ActionCard = ({ icon: Icon, label, description, onClick, highlight, disabl
 
 const Index = () => {
   const [statsOpen, setStatsOpen] = useState(false);
-  const [employeeDetailsOpen, setEmployeeDetailsOpen] = useState(false);
+  const [employeeInfoOpen, setEmployeeInfoOpen] = useState(false);
   const { signOut, user } = useAuth();
   const { config: systemConfig } = useOperatorSystemConfig(user?.id);
   const { stats, isLoading: dashboardLoading, isError, formatMsToSecondsLabel } = useOperatorDashboardData(user?.id);
   const router = useRouter();
 
-  const {
-    systemStep,
-    configuracaoConcluida,
-    luzCalibrada,
-    podeCalibrarLuz,
-    podeIniciar,
-  } = getSystemFlowState(systemConfig);
-  const isReady = podeIniciar;
+  const profileQuery = useQuery({
+    queryKey: ["operator-profile", user?.id],
+    enabled: Boolean(user?.id),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("display_name, employee_code, shift, job_title")
+        .eq("user_id", user?.id as string)
+        .maybeSingle();
 
+      if (error) {
+        throw error;
+      }
+
+      return data;
+    },
+  });
+
+  const systemStep = getSystemStep(systemConfig);
+  const calibrated = isLightCalibrated(systemConfig);
+  const configured = isConfigurationComplete(systemConfig);
+  const isReady = systemStep === "READY";
   const shouldHighlightConfig = systemStep === "CONFIG";
   const shouldHighlightCalibrate = systemStep === "LIGHT";
   const shouldHighlightStart = systemStep === "READY";
-
-  const operatorDetails = useMemo(() => {
-    if (!user) return null;
-
-    return {
-      id: user.email ?? user.id,
-      name: user.email ?? "Operador",
-      role: "Operador",
-      verified: stats.totalVerified,
-      success: stats.totalSuccess,
-      failure: stats.totalFailure,
-      avgTime: formatMsToSecondsLabel(stats.averageTimeMs),
-      shift: "Não disponível",
-      errorBreakdown: stats.errorBreakdown,
-      recentAnalyses: stats.recentAnalyses,
-    };
-  }, [formatMsToSecondsLabel, stats.errorBreakdown, stats.recentAnalyses, stats.totalFailure, stats.totalSuccess, stats.totalVerified, user]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -143,7 +142,7 @@ const Index = () => {
   };
 
   const handleCalibrate = () => {
-    if (!podeCalibrarLuz) {
+    if (!configured) {
       toast.error("Pré-requisitos pendentes", {
         description: "Conclua as configurações antes de calibrar.",
       });
@@ -171,7 +170,11 @@ const Index = () => {
   const handleStart = () => {
     if (!isReady) {
       toast.error("Pré-requisitos pendentes", {
-        description: getStartBlockedDescription(systemConfig),
+        description: !calibrated && !configured
+          ? "Conclua as configurações e depois calibre a luz antes de iniciar."
+          : !calibrated
+          ? "Execute a calibração da luz antes de iniciar."
+          : "Conclua as configurações antes de iniciar.",
       });
       return;
     }
@@ -180,15 +183,19 @@ const Index = () => {
 
   const startDescription = isReady
     ? "Começar análise"
-    : !configuracaoConcluida
+    : !configured
     ? "Conclua as configurações"
-    : !luzCalibrada
+    : !calibrated
     ? "Calibre a luz primeiro"
     : "Pronto para iniciar";
 
   const totalLabel = dashboardLoading ? "..." : stats.totalVerified.toLocaleString("pt-BR");
   const successLabel = dashboardLoading ? "..." : `${stats.successRate}%`;
   const failureLabel = dashboardLoading ? "..." : `${stats.failureRate}%`;
+  const operatorName = profileQuery.data?.display_name ?? user?.email ?? "Funcionário";
+  const operatorCode = profileQuery.data?.employee_code ?? "Não informado";
+  const operatorShift = profileQuery.data?.shift ?? "Não informado";
+  const operatorRole = profileQuery.data?.job_title ?? "Operador";
 
 
   return (
@@ -208,7 +215,7 @@ const Index = () => {
               Meta
             </h1>
             <p className="text-[11px] tracking-[0.3em] text-muted-foreground uppercase">
-              Análise de cores de Tecidos
+              Análise de Cores de Tecidos
             </p>
           </div>
         </div>
@@ -227,10 +234,10 @@ const Index = () => {
           {user?.email && (
             <button
               type="button"
-              onClick={() => setEmployeeDetailsOpen(true)}
-              className="hidden md:inline text-[11px] text-muted-foreground tracking-wider uppercase hover:text-foreground transition"
+              onClick={() => setEmployeeInfoOpen(true)}
+              className="hidden md:inline px-3 py-1.5 rounded-full bg-muted/40 border border-border/30 hover:bg-muted/60 hover:border-foreground/30 transition-all text-[11px] text-muted-foreground tracking-wider"
             >
-              {user.email}
+              Funcionário: {operatorName}
             </button>
           )}
           <button
@@ -255,20 +262,20 @@ const Index = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
             <ActionCard
-              icon={configuracaoConcluida ? CheckCircle2 : Settings}
+              icon={configured ? CheckCircle2 : Settings}
               label="Configuração"
-              description={configuracaoConcluida ? "Configurações concluídas" : "Parâmetros do sistema"}
+              description={configured ? "Configurações concluídas" : "Parâmetros do sistema"}
               highlight={shouldHighlightConfig}
               onClick={() => router.push("/painel/config")}
             />
             <ActionCard
-              icon={luzCalibrada ? CheckCircle2 : Sun}
+              icon={calibrated ? CheckCircle2 : Sun}
               label="Calibrar Luz"
-              description={luzCalibrada ? "Calibração concluída" : "Ajustar iluminação"}
+              description={calibrated ? "Calibração concluída" : "Ajustar iluminação"}
               highlight={shouldHighlightCalibrate}
-              disabled={!podeCalibrarLuz}
+              disabled={!configured}
               onClick={handleCalibrate}
-              badge={!podeCalibrarLuz ? "Config" : !systemConfig.ambientLightConfigured ? "Luz base" : undefined}
+              badge={!configured ? "Config" : !systemConfig.ambientLightConfigured ? "Luz base" : undefined}
             />
             <ActionCard
               icon={Play}
@@ -282,7 +289,7 @@ const Index = () => {
             <ActionCard
               icon={Camera}
               label="Camera Ao Vivo"
-              description="Acessar stream em tempo real"
+              description="Apenas visualização da câmera"
               onClick={handleOpenCamera}
               bgImage={cameraImage.src}
             />
@@ -328,7 +335,7 @@ const Index = () => {
             </div>
             {isError && (
               <p className="text-xs text-destructive">
-                Nao foi possivel carregar os dados do painel. Verifique as policies e a tabela analysis_records.
+                Não foi possível carregar os dados do painel. Verifique as policies e a tabela analysis_records.
               </p>
             )}
           </div>
@@ -351,11 +358,21 @@ const Index = () => {
         recentAnalyses={stats.recentAnalyses}
       />
 
-      <EmployeeDetailsDialog
-        employee={operatorDetails}
-        open={employeeDetailsOpen}
-        onOpenChange={setEmployeeDetailsOpen}
-      />
+      <Dialog open={employeeInfoOpen} onOpenChange={setEmployeeInfoOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Informações do Funcionário</DialogTitle>
+            <DialogDescription>Dados do operador autenticado nesta sessão.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p><strong>Nome:</strong> {operatorName}</p>
+            <p><strong>Código:</strong> {operatorCode}</p>
+            <p><strong>Cargo:</strong> {operatorRole}</p>
+            <p><strong>Turno:</strong> {operatorShift}</p>
+            <p><strong>E-mail:</strong> {user?.email ?? "Não informado"}</p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

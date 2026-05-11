@@ -12,7 +12,7 @@ import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
 const PanelConfiguration = () => {
   const router = useRouter();
   const { user } = useAuth();
-  const { config, isLoading, persistPatch, loadSource } = useOperatorSystemConfig(user?.id);
+  const { config, isLoading, persistPatch } = useOperatorSystemConfig(user?.id);
 
   useEffect(() => {
     if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
@@ -31,7 +31,7 @@ const PanelConfiguration = () => {
       />
       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/95 to-background/70" />
 
-      <header className="relative z-10 flex items-center justify-between px-6 md:px-10 py-6 border-b border-border/20">
+      <header className="relative z-10 flex items-center px-6 md:px-10 py-6 border-b border-border/20">
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.push("/painel")}
@@ -47,10 +47,10 @@ const PanelConfiguration = () => {
             </div>
             <div>
               <h1 className="font-sansserief text-base tracking-[0.2em] uppercase text-foreground">
-                Configuracoes
+                Configurações
               </h1>
               <p className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground">
-                Persistencia por operador
+                Persistência por operador
               </p>
             </div>
           </div>

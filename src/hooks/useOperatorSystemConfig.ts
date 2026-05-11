@@ -26,6 +26,7 @@ type SupabaseErrorLike = {
 
 type OperatorConfigRow = {
   user_id: string;
+  active_tissue_code: string;
   delta_e: number;
   sample_points: number;
   sample_area_width_percent: number;
@@ -44,16 +45,9 @@ type OperatorConfigRow = {
 };
 
 const rowToSystemConfig = (row: OperatorConfigRow, localConfig: SystemConfig): SystemConfig => {
-  const hasCurrentLocalProgress =
-    localConfig.version === 2 &&
-    (localConfig.deltaConfigured ||
-      localConfig.analysisAreaConfigured ||
-      localConfig.colorConfigured ||
-      localConfig.configurationSaved);
-
   return sanitizeSystemConfig({
-    version: hasCurrentLocalProgress ? localConfig.version : undefined,
     systemStep: row.system_step ?? localConfig.systemStep,
+    activeTissueCode: row.active_tissue_code ?? localConfig.activeTissueCode,
     deltaE: row.delta_e as SystemConfig["deltaE"],
     samplePoints: row.sample_points as SystemConfig["samplePoints"],
     sampleAreaWidthPercent: row.sample_area_width_percent,
@@ -66,12 +60,11 @@ const rowToSystemConfig = (row: OperatorConfigRow, localConfig: SystemConfig): S
     },
     ambientLightReferenceHex: localConfig.ambientLightReferenceHex,
     ambientLightReferenceRgb: localConfig.ambientLightReferenceRgb,
-    ambientLightConfigured: hasCurrentLocalProgress ? localConfig.ambientLightConfigured : false,
-    deltaConfigured: hasCurrentLocalProgress ? row.delta_configured : false,
-    analysisAreaConfigured: hasCurrentLocalProgress ? row.analysis_area_configured : false,
-    colorConfigured: hasCurrentLocalProgress ? row.color_configured : false,
-    configurationSaved: hasCurrentLocalProgress ? localConfig.configurationSaved : false,
-    lightCalibrated: hasCurrentLocalProgress ? row.light_calibrated : false,
+    ambientLightConfigured: localConfig.ambientLightConfigured,
+    deltaConfigured: row.delta_configured,
+    analysisAreaConfigured: row.analysis_area_configured,
+    colorConfigured: row.color_configured,
+    lightCalibrated: row.light_calibrated,
     updatedAt: row.updated_at,
   });
 };
@@ -83,6 +76,7 @@ const systemConfigToRow = (
 ): Omit<OperatorConfigRow, "updated_at"> => {
   return {
     user_id: userId,
+    active_tissue_code: config.activeTissueCode,
     delta_e: config.deltaE,
     sample_points: config.samplePoints,
     sample_area_width_percent: config.sampleAreaWidthPercent,
@@ -114,8 +108,15 @@ const isMissingOperatorConfigurationsError = (error: unknown): boolean => {
     return true;
   }
 
+  if (candidate.code === "42703") {
+    return true;
+  }
+
   const message = candidate.message?.toLowerCase() ?? "";
-  return message.includes("operator_configurations") && message.includes("not found");
+  return (
+    (message.includes("operator_configurations") && message.includes("not found")) ||
+    message.includes("active_tissue_code")
+  );
 };
 
 export const useOperatorSystemConfig = (userId: string | null | undefined) => {
@@ -168,7 +169,7 @@ export const useOperatorSystemConfig = (userId: string | null | undefined) => {
       const { data, error } = await supabase
         .from("operator_configurations")
         .select(
-          "user_id, delta_e, sample_points, sample_area_width_percent, sample_area_height_percent, reference_color_hex, reference_color_r, reference_color_g, reference_color_b, delta_configured, analysis_area_configured, color_configured, light_calibrated, system_step, active_view, updated_at",
+          "user_id, active_tissue_code, delta_e, sample_points, sample_area_width_percent, sample_area_height_percent, reference_color_hex, reference_color_r, reference_color_g, reference_color_b, delta_configured, analysis_area_configured, color_configured, light_calibrated, system_step, active_view, updated_at",
         )
         .eq("user_id", userId)
         .maybeSingle();

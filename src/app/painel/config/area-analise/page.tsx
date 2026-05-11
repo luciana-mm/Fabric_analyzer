@@ -27,7 +27,7 @@ function ConfigAnalysisAreaContent() {
             analysisAreaConfigured: true,
           });
         }
-        toast.success("Area de analise salva");
+        toast.success("Área de análise salva");
       }}
       initialWidth={config.sampleAreaWidthPercent}
       initialHeight={config.sampleAreaHeightPercent}

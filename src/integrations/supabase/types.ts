@@ -70,6 +70,7 @@ export type Database = {
           reference_color_hex: string | null
           result: string
           required_precision_percent: number | null
+          tissue_batch_code: string | null
           tissue_type: string
         }
         Insert: {
@@ -88,6 +89,7 @@ export type Database = {
           reference_color_hex?: string | null
           result: string
           required_precision_percent?: number | null
+          tissue_batch_code?: string | null
           tissue_type: string
         }
         Update: {
@@ -106,12 +108,14 @@ export type Database = {
           reference_color_hex?: string | null
           result?: string
           required_precision_percent?: number | null
+          tissue_batch_code?: string | null
           tissue_type?: string
         }
         Relationships: []
       }
       operator_configurations: {
         Row: {
+          active_tissue_code: string
           active_view: string
           analysis_area_configured: boolean
           color_configured: boolean
@@ -132,6 +136,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          active_tissue_code?: string
           active_view?: string
           analysis_area_configured?: boolean
           color_configured?: boolean
@@ -152,6 +157,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          active_tissue_code?: string
           active_view?: string
           analysis_area_configured?: boolean
           color_configured?: boolean

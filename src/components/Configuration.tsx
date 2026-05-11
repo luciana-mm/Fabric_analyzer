@@ -32,7 +32,6 @@ export const Configuration = ({
   onPersistPatch,
 }: ConfigurationProps) => {
   const [config, setConfig] = useState<SystemConfig>(() => initialConfig ?? loadSystemConfig())
-  const configurationFieldsComplete = areConfigurationFieldsComplete(config)
 
   const router = useRouter();
 
@@ -45,11 +44,11 @@ export const Configuration = ({
     if (step === "LIGHT") {
       return "Configuracoes concluidas; falta calibracao da luz"
     }
-    if (configurationFieldsComplete) {
+    if (areConfigurationFieldsComplete(config)) {
       return "Configuracao pronta para salvar"
     }
     return "Configuracao pendente"
-  }, [config, configurationFieldsComplete])
+  }, [config])
 
 
   return(
@@ -85,7 +84,7 @@ export const Configuration = ({
 
         <button
           onClick={async () => {
-            if (!configurationFieldsComplete) {
+            if (!areConfigurationFieldsComplete(config)) {
               toast.error("Configuracao incompleta", {
                 description: "Configure area de analise, cor e Delta E antes de salvar.",
               })
@@ -95,7 +94,6 @@ export const Configuration = ({
             const patch = sanitizeSystemConfig({
               ...config,
               systemStep: "LIGHT",
-              configurationSaved: true,
               lightCalibrated: false,
               updatedAt: new Date().toISOString(),
             })
@@ -107,12 +105,7 @@ export const Configuration = ({
             toast.success("Configuracao geral salva")
             onClose?.()
           }}
-          disabled={!configurationFieldsComplete}
-          className={`bg-slate-800/50 p-6 rounded-lg text-xs col-start-1 border border-white/10 border-foreground/30 glow-box ${
-            configurationFieldsComplete
-              ? "hover:bg-slate-700 hover:bg-foreground/15"
-              : "opacity-50 cursor-not-allowed"
-          }`}
+          className="bg-slate-800/50 hover:bg-slate-700 p-6 rounded-lg text-xs col-start-1 border border-white/10  border-foreground/30 glow-box hover:bg-foreground/15"
         >
           <Save size={35} className="m-auto mb-2"/>
           Salvar Configuração

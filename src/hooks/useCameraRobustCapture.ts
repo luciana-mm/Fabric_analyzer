@@ -23,6 +23,11 @@ export interface UseCameraRobustCaptureReturn extends CameraRobustCaptureState {
   captureRobustSample: (
     sampleCount?: number,
     intervalMs?: number,
+    options?: {
+      areaWidthPercent?: number;
+      areaHeightPercent?: number;
+      samplePoints?: 4 | 9 | 18;
+    },
   ) => Promise<RgbColor8Bit | null>;
 }
 
@@ -40,7 +45,15 @@ export function useCameraRobustCapture(): UseCameraRobustCaptureReturn {
    * This method handles the communication with the camera proxy
    */
   const captureRobustSample = useCallback(
-    async (sampleCount: number = 5, intervalMs: number = 200): Promise<RgbColor8Bit | null> => {
+    async (
+      sampleCount: number = 5,
+      intervalMs: number = 200,
+      options?: {
+        areaWidthPercent?: number;
+        areaHeightPercent?: number;
+        samplePoints?: 4 | 9 | 18;
+      },
+    ): Promise<RgbColor8Bit | null> => {
       setState((prev) => ({
         ...prev,
         isCapturing: true,
@@ -48,8 +61,23 @@ export function useCameraRobustCapture(): UseCameraRobustCaptureReturn {
       }));
 
       try {
+        const query = new URLSearchParams({
+          sample_count: String(sampleCount),
+          interval_ms: String(intervalMs),
+        });
+
+        if (options?.areaWidthPercent !== undefined) {
+          query.set("area_width_percent", String(options.areaWidthPercent));
+        }
+        if (options?.areaHeightPercent !== undefined) {
+          query.set("area_height_percent", String(options.areaHeightPercent));
+        }
+        if (options?.samplePoints !== undefined) {
+          query.set("sample_points", String(options.samplePoints));
+        }
+
         const response = await fetch(
-          `${CAMERA_PROXY_URL}/capture-robust-sample?sample_count=${sampleCount}&interval_ms=${intervalMs}`,
+          `${CAMERA_PROXY_URL}/capture-robust-sample?${query.toString()}`,
           {
             method: 'POST',
             headers: {

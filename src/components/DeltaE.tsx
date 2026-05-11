@@ -35,6 +35,7 @@ export const DeltaE = ({ onBack, initialDelta, onSave }: DeltaEProps) => {
             <div className="absolute left-full ml-3 hidden group-hover:block w-64 p-3 bg-slate-800 text-xs text-white rounded shadow-lg border border-slate-700 glow-box z-50">
               <p className="mb-1">A tolerância de Delta E define o limite máximo aceitável para a diferença de cor.</p>
               <p className="mb-1">Quanto menor o valor, mais rigorosa é a correspondência de cor exigida.</p>
+              <p className="mb-1">Proximidade mínima exigida: nível 1 = 80%, nível 2 = 70%, nível 3 = 60%.</p>
               <ul className="space-y-1 text-[11px] text-slate-300">
                 <li><strong className="text-white">ΔE ≤ 1:</strong> Quase imperceptível, ideal para alta precisão.</li>
                 <li><strong className="text-white">ΔE ≤ 2:</strong> Perceptível apenas para olhos treinados.</li>
@@ -51,20 +52,20 @@ export const DeltaE = ({ onBack, initialDelta, onSave }: DeltaEProps) => {
           onClick={() => setSelectedDelta(1)}
           className={`${getPointStyle(1)} rounded-tl-[10px] rounded-bl-[10px] border-r border-slate-800`}>
           <LocateFixed />
-          <p>ΔE ≤ 1</p>
+          <p>1 · 80%</p>
         </section>
         <section
           onClick={() => setSelectedDelta(2)}
           className={`${getPointStyle(2)} border-r border-slate-800`}
         >
           <LocateFixed />
-          <p>ΔE ≤ 2</p>
+          <p>2 · 70%</p>
         </section>
         <section
           onClick={() => setSelectedDelta(3)}
           className={`${getPointStyle(3)} rounded-tr-[10px] rounded-br-[10px]`}>
           <LocateFixed />
-          <p>ΔE ≤ 3</p>
+          <p>3 · 60%</p>
         </section>
       </div>
       <div className="flex justify-end gap-5 mt-10 text-sm ">

@@ -24,12 +24,12 @@ export const CameraPreview = ({
   return (
     <div className={className ?? "relative w-full h-full overflow-hidden rounded-xl border border-border/30 bg-black"}>
       {isOnline ? (
-          <img
-            src={streamUrl}
-            alt="Video ao vivo da camera"
-            className={imageClassName ?? "w-full h-full object-cover bg-black"}
-            onError={markStreamError}
-          />
+        <img
+          src={streamUrl}
+          alt="Vídeo ao vivo da câmera"
+          className={imageClassName ?? "w-full h-full object-cover bg-black"}
+          onError={markStreamError}
+        />
       ) : (
         <div className={offlineClassName ?? "w-full h-full flex items-center justify-center p-6 bg-black/70"}>
           <div className="w-full max-w-lg rounded-2xl border border-border/30 bg-card/70 p-6 text-center space-y-4">
@@ -38,10 +38,10 @@ export const CameraPreview = ({
             </div>
             <div className="space-y-2">
               <h2 className="font-sansserief text-sm tracking-[0.18em] uppercase text-foreground">
-                Camera offline
+                Câmera offline
               </h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                {fallbackMessage ?? errorMessage ?? "O servidor local da camera nao respondeu."}
+                {fallbackMessage ?? errorMessage ?? "O servidor local da câmera não respondeu."}
               </p>
               {!checkedOnce && <p className="text-xs text-muted-foreground/80">Conectando...</p>}
             </div>

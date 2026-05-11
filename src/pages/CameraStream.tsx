@@ -1,19 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
 import { ArrowLeft, Camera } from "lucide-react";
 import { useRouter } from "next/navigation";
 import gridBg from "@/assets/grid-bg.jpg";
 import { CameraPreview } from "@/components/CameraPreview";
-import { useAuth } from "@/hooks/useAuth";
-import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
 
 const CameraStream = () => {
   const router = useRouter();
-  const { user } = useAuth();
-  const { config } = useOperatorSystemConfig(user?.id);
-
-  const toleranceLabel = useMemo(() => `ΔE <= ${config.deltaE}`, [config.deltaE]);
 
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden">
@@ -42,7 +35,7 @@ const CameraStream = () => {
             </div>
             <div>
               <h1 className="font-sansserief text-base tracking-[0.2em] uppercase text-foreground">
-                Camera
+                Câmera
               </h1>
               <p className="text-[10px] tracking-[0.25em] uppercase text-muted-foreground">
                 Stream em tempo real
@@ -54,20 +47,17 @@ const CameraStream = () => {
 
       <main className="relative z-10 flex-1 px-6 md:px-10 py-8">
         <div className="w-full max-w-6xl mx-auto space-y-4">
-          <div className="space-y-2 rounded-xl border border-border/30 bg-card/40 px-4 py-4">
-            <p className="text-xs tracking-wider text-muted-foreground">
-              Uso apenas para pré-visualizar a câmera. Esta tela não deve ser usada como análise final.
-            </p>
-            <p className="text-xs tracking-wider text-muted-foreground">
-              Fórmula ativa: <span className="text-foreground">CIEDE2000</span> · Tolerância ativa: <span className="text-foreground">{toleranceLabel}</span>
-            </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/30 bg-card/40 px-4 py-3">
+            <div className="text-xs tracking-wider text-muted-foreground">
+              Visualização ao vivo da câmera. Esta tela não executa análise.
+            </div>
           </div>
 
           <div className="rounded-2xl border border-border/30 bg-card/40 backdrop-blur-sm overflow-hidden">
             <CameraPreview
               className="w-full min-h-[55vh] max-h-[75vh]"
               imageClassName="w-full max-h-[75vh] object-contain bg-black"
-              fallbackMessage="O servidor local da camera nao respondeu."
+              fallbackMessage="O servidor local da câmera não respondeu."
             />
           </div>
         </div>

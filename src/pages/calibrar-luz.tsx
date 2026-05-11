@@ -2,32 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { useEffect, useRef } from "react";
 import gridBg from "@/assets/grid-bg.jpg";
 import { AmbientLightCalibration } from "@/components/AmbientLightCalibration";
 import { useAuth } from "@/hooks/useAuth";
 import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
-import { getSystemFlowState } from "@/lib/systemConfig";
 
 export default function CalibrarLuzPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { config: systemConfig, isLoading, persistPatch } = useOperatorSystemConfig(user?.id);
-  const hasShownBlockedToast = useRef(false);
-  const { podeCalibrarLuz } = getSystemFlowState(systemConfig);
-
-  useEffect(() => {
-    if (isLoading || podeCalibrarLuz || hasShownBlockedToast.current) {
-      return;
-    }
-
-    hasShownBlockedToast.current = true;
-    router.replace("/painel");
-  }, [isLoading, podeCalibrarLuz, router]);
-
-  if (isLoading || !podeCalibrarLuz) {
-    return null;
-  }
+  const { config: systemConfig, persistPatch } = useOperatorSystemConfig(user?.id);
 
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden">

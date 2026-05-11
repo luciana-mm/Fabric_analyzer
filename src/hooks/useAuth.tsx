@@ -4,6 +4,8 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
+const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+
 export type AppRole = "operador" | "gestor";
 
 interface AuthContextValue {
@@ -21,7 +23,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
-  const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 
   const fetchRole = async (userId: string) => {
     try {
@@ -82,28 +83,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    setRole(null);
-  };
-
   useEffect(() => {
-    if (!user || typeof window === "undefined") {
+    if (!user) {
       return;
     }
 
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    const resetInactivityTimer = () => {
-      if (timeoutId) {
-        window.clearTimeout(timeoutId);
+    const triggerInactivitySignOut = async () => {
+      await supabase.auth.signOut();
+      setRole(null);
+      if (typeof window !== "undefined") {
+        window.location.assign("/");
       }
-      timeoutId = window.setTimeout(() => {
-        void signOut();
+    };
+
+    const resetTimer = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(() => {
+        void triggerInactivitySignOut();
       }, INACTIVITY_TIMEOUT_MS);
     };
 
-    const activityEvents: Array<keyof DocumentEventMap> = [
+    const events: Array<keyof WindowEventMap> = [
       "mousemove",
       "mousedown",
       "keydown",
@@ -112,17 +116,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       "click",
     ];
 
-    activityEvents.forEach((eventName) => window.addEventListener(eventName, resetInactivityTimer, true));
+    events.forEach((eventName) => {
+      window.addEventListener(eventName, resetTimer, { passive: true });
+    });
 
-    resetInactivityTimer();
+    resetTimer();
 
     return () => {
       if (timeoutId) {
-        window.clearTimeout(timeoutId);
+        clearTimeout(timeoutId);
       }
-      activityEvents.forEach((eventName) => window.removeEventListener(eventName, resetInactivityTimer, true));
+      events.forEach((eventName) => {
+        window.removeEventListener(eventName, resetTimer);
+      });
     };
   }, [user]);
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setRole(null);
+  };
 
   return (
     <AuthContext.Provider value={{ session, user, role, loading, signOut }}>

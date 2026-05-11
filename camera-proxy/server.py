@@ -214,12 +214,10 @@ def _remove_color_outliers(colors: list) -> list:
 
     # Calculate distances
     distances = [_calculate_color_distance(c, mean_color) for c in colors]
-    distances.sort()
-
-    # Calculate Q3 and threshold
-    q3_index = int((3 * len(distances)) / 4)
-    q3 = distances[min(q3_index, len(distances) - 1)]
-    threshold = q3 * 1.5
+    q1 = float(np.percentile(distances, 25))
+    q3 = float(np.percentile(distances, 75))
+    iqr = q3 - q1
+    threshold = q3 + 1.5 * iqr
 
     # Filter outliers
     cleaned = [c for i, c in enumerate(colors) if distances[i] <= threshold]
@@ -269,8 +267,68 @@ def _calculate_luminance(rgb: tuple) -> float:
     return 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
 
 
+def _get_sampling_grid(sample_points: int) -> tuple[int, int]:
+    if sample_points == 4:
+        return (2, 2)
+    if sample_points == 9:
+        return (3, 3)
+    return (3, 6)  # 18 points
+
+
+def _collect_area_samples(
+    frame: np.ndarray,
+    area_width_percent: float,
+    area_height_percent: float,
+    sample_points: int,
+) -> list[tuple[float, float, float]]:
+    height, width = frame.shape[:2]
+    center_x = width // 2
+    center_y = height // 2
+
+    roi_width = max(2, int(width * (area_width_percent / 100.0)))
+    roi_height = max(2, int(height * (area_height_percent / 100.0)))
+
+    x0 = max(0, center_x - roi_width // 2)
+    x1 = min(width, center_x + roi_width // 2)
+    y0 = max(0, center_y - roi_height // 2)
+    y1 = min(height, center_y + roi_height // 2)
+
+    roi = frame[y0:y1, x0:x1]
+    if roi.size == 0:
+        return []
+
+    rows, cols = _get_sampling_grid(sample_points)
+    patch_radius = max(2, int(min(roi.shape[0], roi.shape[1]) * 0.04))
+
+    samples: list[tuple[float, float, float]] = []
+    for row in range(rows):
+        for col in range(cols):
+            px = int((col + 0.5) * roi.shape[1] / cols)
+            py = int((row + 0.5) * roi.shape[0] / rows)
+
+            sx0 = max(0, px - patch_radius)
+            sx1 = min(roi.shape[1], px + patch_radius)
+            sy0 = max(0, py - patch_radius)
+            sy1 = min(roi.shape[0], py + patch_radius)
+
+            patch = roi[sy0:sy1, sx0:sx1]
+            if patch.size == 0:
+                continue
+
+            b, g, r = patch.mean(axis=(0, 1))
+            samples.append((float(r), float(g), float(b)))
+
+    return samples
+
+
 @app.post("/capture-robust-sample")
-def capture_robust_sample(sample_count: int = 5, interval_ms: int = 200) -> JSONResponse:
+def capture_robust_sample(
+    sample_count: int = 5,
+    interval_ms: int = 200,
+    area_width_percent: float = 60,
+    area_height_percent: float = 50,
+    sample_points: int = 9,
+) -> JSONResponse:
     """
     Capture multiple color samples with robust processing
     Implements outlier removal and weighted averaging
@@ -279,35 +337,43 @@ def capture_robust_sample(sample_count: int = 5, interval_ms: int = 200) -> JSON
         raise HTTPException(status_code=400, detail="sample_count deve estar entre 1 e 20")
     if interval_ms < 50 or interval_ms > 5000:
         raise HTTPException(status_code=400, detail="interval_ms deve estar entre 50 e 5000ms")
+    if area_width_percent <= 0 or area_width_percent > 100:
+        raise HTTPException(status_code=400, detail="area_width_percent deve estar entre 0 e 100")
+    if area_height_percent <= 0 or area_height_percent > 100:
+        raise HTTPException(status_code=400, detail="area_height_percent deve estar entre 0 e 100")
+    if sample_points not in (4, 9, 18):
+        raise HTTPException(status_code=400, detail="sample_points deve ser 4, 9 ou 18")
 
     samples = []
     luminance_values = []
     successful_captures = 0
 
-    print(f"[server] Iniciando captura robusta: {sample_count} amostras com intervalo {interval_ms}ms")
+    print(
+        "[server] Iniciando captura robusta: "
+        f"{sample_count} amostras, intervalo {interval_ms}ms, "
+        f"area {area_width_percent:.1f}%x{area_height_percent:.1f}%, "
+        f"pontos {sample_points}"
+    )
 
     for i in range(sample_count):
         try:
             frame = _decode_latest_frame()
-            height, width = frame.shape[:2]
 
-            center_x = width // 2
-            center_y = height // 2
-            sample_size = 10
-
-            x0 = max(0, center_x - sample_size)
-            x1 = min(width, center_x + sample_size)
-            y0 = max(0, center_y - sample_size)
-            y1 = min(height, center_y + sample_size)
-
-            region = frame[y0:y1, x0:x1]
-            if region.size > 0:
-                b, g, r = region.mean(axis=(0, 1))
-                rgb = (r, g, b)
-                samples.append(rgb)
-                luminance_values.append(_calculate_luminance(rgb))
+            frame_samples = _collect_area_samples(
+                frame=frame,
+                area_width_percent=area_width_percent,
+                area_height_percent=area_height_percent,
+                sample_points=sample_points,
+            )
+            if frame_samples:
+                frame_mean = _calculate_robust_mean(frame_samples)
+                samples.append(frame_mean)
+                luminance_values.append(_calculate_luminance(frame_mean))
                 successful_captures += 1
-                print(f"[server] Sample {i + 1}: RGB({r:.1f}, {g:.1f}, {b:.1f})")
+                print(
+                    f"[server] Sample {i + 1}: RGB({frame_mean[0]:.1f}, {frame_mean[1]:.1f}, {frame_mean[2]:.1f}) "
+                    f"com {len(frame_samples)} subamostras"
+                )
         except Exception as e:
             print(f"[server] Erro na amostra {i + 1}: {e}")
 
@@ -344,6 +410,11 @@ def capture_robust_sample(sample_count: int = 5, interval_ms: int = 200) -> JSON
         "samples_used": len(clean_samples),
         "average_luminance": float(average_luminance) / 255.0,  # Normalized to 0-1
         "stability_score": max(0.0, 1.0 - mean_distance / 50.0),  # Rough metric
+        "sampling_config": {
+            "area_width_percent": area_width_percent,
+            "area_height_percent": area_height_percent,
+            "sample_points": sample_points,
+        },
     }
 
     print(f"[server] Captura robusta concluída: {result}")

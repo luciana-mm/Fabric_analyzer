@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Grip, Save,Eye, Info } from "lucide-react";
+import { Grip, Save, Eye, Info, ArrowLeft } from "lucide-react";
 import { MeasurementGridOverlay } from "./PreviewArea";
 import { CameraPreview } from "./CameraPreview";
 import type { SamplePointsValue } from "@/lib/systemConfig";
@@ -46,9 +46,18 @@ export const AnalysisArea = ({ onBack, onSave, initialWidth, initialHeight, init
       />
       {isVisible && (
         <div className="relative z-20 w-full max-w-2xl mx-auto bg-[#0a0c14]/90 backdrop-blur-sm p-8 rounded-xl border border-slate-800 text-white text-sm">
+          <div className="mb-6">
+            <button
+              onClick={onBack}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-700/70 hover:bg-slate-600 transition-colors"
+            >
+              <ArrowLeft size={14} />
+              Voltar
+            </button>
+          </div>
           <div className="relative flex items-center justify-center mb-10">
         <h2 className="text-xl font-bold cursor-default text-center">
-          Selecione o Nº de pontos e medidas da área
+          Selecione o n.º de pontos e medidas da área
         </h2>
         <div className="absolute right-0">
           <div className="group relative flex items-center justify-center">
@@ -155,6 +164,12 @@ export const AnalysisArea = ({ onBack, onSave, initialWidth, initialHeight, init
 
       {!isVisible && (
         <div className="absolute bottom-10 z-20 flex gap-10">
+          <button
+            onClick={onBack}
+            className="bg-slate-700 p-2 w-[120px] rounded-[10px] hover:bg-slate-600"
+          >
+            Voltar
+          </button>
           <div className="flex gap-3">
             <div className="flex flex-col gap-y-4 text-sm font-medium text-slate-300">
               <span className="h-6 flex items-center cursor-default">
