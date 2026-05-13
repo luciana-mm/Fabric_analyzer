@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Camera, Lightbulb, Save, CheckCircle, AlertCircle, Loader, Pipette, Info } from 'lucide-react';
+import { ArrowLeft, Camera, CheckCircle, Info, Lightbulb, Loader, Pipette, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { CameraPreview } from './CameraPreview';
 import { RgbScreen } from './RgbScreen';
 import { useCameraRobustCapture } from '@/hooks/useCameraRobustCapture';
 import { useRobustColorCalibration } from '@/hooks/useRobustColorCalibration';
+import { defaultSystemConfig } from '@/lib/systemConfig';
 
 interface ColorCaptureProps {
   onBack: () => void;
@@ -34,12 +35,22 @@ interface ColorCaptureProps {
       b: number;
     };
   }) => void;
+  initialSampleAreaWidthPercent?: number;
+  initialSampleAreaHeightPercent?: number;
 }
 
-// Default configuration
 const LIGHT_CALIBRATION_SAMPLES = 5;
 const COLOR_CAPTURE_SAMPLES = 5;
 const SAMPLE_INTERVAL_MS = 200;
+
+const clampCapturePercent = (value: number | undefined, fallback: number) => {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) {
+    return fallback;
+  }
+
+  return Math.min(100, Math.max(5, Math.round(numberValue)));
+};
 
 export const ColorCapture = ({
   onBack,
@@ -47,6 +58,8 @@ export const ColorCapture = ({
   initialColorRgb,
   initialLightCalibrated,
   onSave,
+  initialSampleAreaWidthPercent = defaultSystemConfig.sampleAreaWidthPercent,
+  initialSampleAreaHeightPercent = defaultSystemConfig.sampleAreaHeightPercent,
 }: ColorCaptureProps) => {
   const [displayColor, setDisplayColor] = useState({
     hex: initialColorHex,
@@ -54,9 +67,22 @@ export const ColorCapture = ({
   });
   const [isLightCalibrated, setIsLightCalibrated] = useState(initialLightCalibrated);
   const [isRgbPickerOpen, setIsRgbPickerOpen] = useState(false);
+  const captureAreaWidth = clampCapturePercent(
+    initialSampleAreaWidthPercent,
+    defaultSystemConfig.sampleAreaWidthPercent,
+  );
+  const captureAreaHeight = clampCapturePercent(
+    initialSampleAreaHeightPercent,
+    defaultSystemConfig.sampleAreaHeightPercent,
+  );
 
   const cameraCapture = useCameraRobustCapture();
   const colorCalibration = useRobustColorCalibration();
+
+  const captureAreaOptions = {
+    areaWidthPercent: captureAreaWidth,
+    areaHeightPercent: captureAreaHeight,
+  };
 
   const handleCalibrateLight = async () => {
     try {
@@ -65,7 +91,7 @@ export const ColorCapture = ({
           toast.loading(`Capturando amostra ${sampleIndex + 1}/${totalSamples}...`, {
             id: 'light-calibration-progress',
           });
-          return await cameraCapture.captureRobustSample(1, 100);
+          return await cameraCapture.captureRobustSample(1, 100, captureAreaOptions);
         },
         LIGHT_CALIBRATION_SAMPLES,
         SAMPLE_INTERVAL_MS,
@@ -74,19 +100,19 @@ export const ColorCapture = ({
       if (success) {
         setIsLightCalibrated(true);
 
-        toast.success('Calibração de luz concluída!', {
+        toast.success('Calibracao de luz concluida!', {
           id: 'light-calibration-progress',
-          description: 'Calibração salva como referência de luz base',
+          description: 'Calibracao salva como referencia de luz base',
         });
       } else {
-        toast.error('Falha na calibração', {
+        toast.error('Falha na calibracao', {
           id: 'light-calibration-progress',
           description: colorCalibration.error || 'Tente novamente',
         });
       }
     } catch (err) {
       console.error('Erro ao calibrar luz:', err);
-      toast.error('Erro na calibração');
+      toast.error('Erro na calibracao');
     }
   };
 
@@ -104,7 +130,7 @@ export const ColorCapture = ({
           toast.loading(`Capturando amostra ${sampleIndex + 1}/${totalSamples}...`, {
             id: 'color-capture-progress',
           });
-          return await cameraCapture.captureRobustSample(1, 100);
+          return await cameraCapture.captureRobustSample(1, 100, captureAreaOptions);
         },
         COLOR_CAPTURE_SAMPLES,
         SAMPLE_INTERVAL_MS,
@@ -137,8 +163,8 @@ export const ColorCapture = ({
 
   const handleSave = () => {
     if (!isLightCalibrated) {
-      toast.error('Luz não calibrada', {
-        description: 'Realize a calibração de luz antes de salvar',
+      toast.error('Luz nao calibrada', {
+        description: 'Realize a calibracao de luz antes de salvar',
       });
       return;
     }
@@ -161,175 +187,180 @@ export const ColorCapture = ({
     onBack();
   };
 
+  const isBusy = colorCalibration.isCalibrating || cameraCapture.isCapturing;
+
   return (
-    <div className="bg-[#0a0c14] p-8 rounded-xl border border-slate-800 text-white max-w-3xl mx-auto">
-      <div className="relative flex items-center justify-center mb-10">
-        <div>
-          <h2 className="text-xl font-bold cursor-default text-center">
-            Calibração de Luz (D65)
-          </h2>
-          <p className="text-center text-xs text-slate-400">
-            Sistema de calibração robusto com múltiplas amostras e validação de qualidade
-          </p>
-        </div>
-        <div className="absolute right-0">
-          <div className="group relative flex items-center justify-center">
-            <Info
-              size={20}
-              className="cursor-pointer text-slate-400 group-hover:text-slate-100 transition-colors"
-            />
-            <div className="absolute left-full ml-3 hidden group-hover:block w-64 p-3 bg-slate-800 text-xs text-white rounded shadow-lg border border-slate-700 glow-box z-50">
-              <h3 className="text-sm font-bold mb-2 border-b border-slate-700 pb-1">Procedimento de Medição</h3>
-              <p className="text-slate-300 mb-3 leading-relaxed">
-                Para garantir a precisão cromática, o sistema exige uma calibração prévia da luz ambiente antes da seleção de cores.
+    <div className="fixed inset-0 z-20 overflow-hidden bg-[#0a0c14] text-white">
+      <CameraPreview
+        className="absolute inset-0 z-0 rounded-none border-0 bg-black"
+        imageClassName="h-full w-full bg-black object-cover"
+        offlineClassName="absolute inset-0 flex items-center justify-center bg-black p-6"
+        fallbackMessage="Preview indisponivel durante calibracao"
+        showRetryButton={false}
+      />
+
+      <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black/55 via-transparent to-black/45" />
+
+      <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center px-6 pb-44 sm:pb-36 lg:pb-28">
+        <div
+          className="relative rounded-lg border-[6px] border-dashed border-white/95 shadow-[0_0_0_9999px_rgba(0,0,0,0.12),0_0_18px_rgba(0,0,0,0.9)] transition-all duration-150 ease-out"
+          style={{
+            width: `${captureAreaWidth}vw`,
+            height: `${captureAreaHeight}vh`,
+            maxWidth: '90vw',
+            maxHeight: '68vh',
+            minWidth: '140px',
+            minHeight: '100px',
+          }}
+        />
+      </div>
+
+      <div className="absolute left-4 right-4 top-4 z-30 flex items-start justify-between gap-4 md:left-8 md:right-8 md:top-6">
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/45 px-4 py-2 font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/85 backdrop-blur-md transition-all hover:bg-white/10 hover:text-white"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Voltar
+        </button>
+
+        <div className="flex items-start gap-3">
+          <div className="hidden rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-right backdrop-blur-md md:block">
+            <h2 className="font-sansserief text-sm uppercase tracking-[0.25em] text-white">
+              Calibracao de Luz (D65)
+            </h2>
+            <p className="mt-1 text-xs text-white/55">{colorCalibration.statusMessage}</p>
+          </div>
+          <div className="group relative flex items-center justify-center rounded-full border border-white/10 bg-black/40 p-2.5 backdrop-blur-md">
+            <Info size={18} className="cursor-pointer text-white/65 transition-colors group-hover:text-white" />
+            <div className="absolute right-0 top-full mt-3 hidden w-64 rounded-lg border border-white/10 bg-slate-950/95 p-3 text-xs text-white shadow-lg backdrop-blur-md group-hover:block">
+              <h3 className="mb-2 border-b border-white/10 pb-1 text-sm font-bold">Procedimento de Medicao</h3>
+              <p className="text-slate-300">
+                A amostra usa somente a regiao pontilhada central definida na area de analise.
               </p>
-              <span className="text-blue-400 font-semibold block mb-1">1. Calibração (Obrigatório)</span>
-              <p className="text-[10px] text-slate-400">
-                Ajusta os sensores ao iluminante padrão D65 para compensar variações de luz externa.
-              </p>
-              <span className="text-blue-400 font-semibold block mb-1">2. Captura e Seleção</span>
-              <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-300">
-                <li><strong className="text-white">Câmera:</strong> Captura a cor em tempo real através do sensor.</li>
-                <li><strong className="text-white">Manual:</strong> Insira valores precisos via código Hexadecimal ou RGB.</li>
-              </ul>
-              <div className="absolute top-1/2 -translate-y-1/2 right-full border-8 border-transparent border-r-slate-800"></div>
             </div>
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_3fr] gap-6 mb-6">
-        {/* Left Panel - Controls */}
-        <div className="flex flex-col gap-3">
-          {/* Light Calibration Button */}
-          <button
-            onClick={handleCalibrateLight}
-            disabled={colorCalibration.isCalibrating}
-            className={`flex flex-col items-center gap-2 p-4 rounded-lg font-medium transition-all ${isLightCalibrated
-                ? 'bg-green-900/40 border border-green-700 text-green-300'
-                : 'bg-blue-900/40 border border-blue-700 hover:bg-blue-800/40 text-blue-300'
-              } ${colorCalibration.isCalibrating ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
-          >
-            {colorCalibration.isCalibrating ? (
-              <>
-                <Loader className="w-5 h-5 animate-spin" />
-                <span className="text-xs">{colorCalibration.calibrationProgress.toFixed(0)}%</span>
-              </>
-            ) : isLightCalibrated ? (
-              <>
-                <CheckCircle className="w-5 h-5" />
-                <span className="text-xs">Calibrada</span>
-              </>
-            ) : (
-              <>
-                <Lightbulb className="w-5 h-5" />
-                <span className="text-xs">Calibrar Luz Ambiente</span>
-              </>
+
+      <RgbScreen
+        open={isRgbPickerOpen}
+        initialHex={displayColor.hex}
+        onOpenChange={setIsRgbPickerOpen}
+        onSelect={(color) => {
+          setDisplayColor(color);
+          setIsRgbPickerOpen(false);
+          toast.success('Cor atualizada', {
+            description: `${color.hex.toUpperCase()} selecionado`,
+          });
+        }}
+      />
+
+      <div className="absolute bottom-4 left-1/2 z-30 w-[calc(100%-2rem)] max-w-6xl -translate-x-1/2 md:bottom-6">
+        <div className="rounded-2xl border border-white/10 bg-black/50 p-4 shadow-2xl backdrop-blur-md">
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <div
+                className="h-11 w-16 rounded-lg border-2 border-white/20 shadow-lg"
+                style={{ backgroundColor: displayColor.hex }}
+              />
+              <div>
+                <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
+                  Cor selecionada
+                </p>
+                <p className="text-sm font-medium text-white">{displayColor.hex.toUpperCase()}</p>
+              </div>
+            </div>
+
+            {colorCalibration.error && (
+              <p className="max-w-md rounded-lg border border-red-500/30 bg-red-950/45 px-3 py-2 text-xs text-red-200">
+                {colorCalibration.error}
+              </p>
             )}
-          </button>
-
-          {/* Color Capture Button */}
-          <button
-            onClick={handleCaptureColor}
-            disabled={colorCalibration.isCalibrating || cameraCapture.isCapturing || !isLightCalibrated}
-            className={`flex flex-col items-center gap-2 p-4 rounded-lg font-medium transition-all ${!isLightCalibrated
-                ? 'bg-slate-900/40 border border-slate-700 text-slate-400 cursor-not-allowed'
-                : 'bg-purple-900/40 border border-purple-700 hover:bg-purple-800/40 text-purple-300'
-              } ${cameraCapture.isCapturing || colorCalibration.isCalibrating ? 'opacity-60' : ''}`}
-          >
-            {cameraCapture.isCapturing || colorCalibration.isCalibrating ? (
-              <>
-                <Loader className="w-5 h-5 animate-spin" />
-                <span className="text-xs">Capturando</span>
-              </>
-            ) : (
-              <>
-                <Camera className="w-5 h-5" />
-                <span className="text-xs">Capturar Cor</span>
-              </>
-            )}
-          </button>
-
-          {/* Save Button */}
-          <button
-            onClick={handleSave}
-            disabled={!isLightCalibrated}
-            className={`flex flex-col items-center gap-2 p-4 rounded-lg font-medium transition-all ${!isLightCalibrated
-                ? 'bg-slate-900/40 border border-slate-700 text-slate-400 cursor-not-allowed'
-                : 'bg-green-900/40 border border-green-700 hover:bg-green-800/40 text-green-300'
-              }`}
-          >
-            <Save className="w-5 h-5" />
-            <span className="text-xs">Salvar</span>
-          </button>
-
-          <button
-            onClick={() => isLightCalibrated && setIsRgbPickerOpen(true)}
-            disabled={!isLightCalibrated}
-            className={`flex flex-col items-center gap-2 p-4 rounded-lg border transition-all ${isLightCalibrated
-                ? 'border-slate-700 bg-slate-900/40 text-slate-200 hover:bg-slate-800/60'
-                : 'border-slate-800 bg-slate-950/50 text-slate-500 cursor-not-allowed'
-              }`}
-          >
-            <Pipette className="w-5 h-5" />
-            <span className="text-xs">Selecionar cor</span>
-          </button>
-        </div>
-        <RgbScreen
-          open={isRgbPickerOpen}
-          initialHex={displayColor.hex}
-          onOpenChange={setIsRgbPickerOpen}
-          onSelect={(color) => {
-            setDisplayColor(color);
-            setIsRgbPickerOpen(false);
-            toast.success('Cor atualizada', {
-              description: `${color.hex.toUpperCase()} selecionado`,
-            });
-          }}
-        />
-
-        {/* Right Panel - Preview and Info */}
-        <div className="space-y-4">
-          {/* Camera Preview */}
-          <div className="rounded-lg overflow-hidden border border-slate-700/70">
-            <CameraPreview
-              className="w-full h-[200px] border-0 rounded-none"
-              imageClassName="w-full h-full object-cover"
-              fallbackMessage="Preview indisponível durante calibração"
-              showRetryButton={false}
-            />
           </div>
 
-          {/* Color Display */}
-          <div className="flex gap-3 items-center">
-            <div className="flex-1">
-              <p className="text-sm font-medium mb-1">Cor Selecionada</p>
-              <p className="text-xs text-slate-400">{displayColor.hex.toUpperCase()}</p>
-            </div>
-            <div
-              className="w-[80px] h-[50px] rounded-lg border-2 border-slate-600 shadow-lg"
-              style={{ backgroundColor: displayColor.hex }}
-            />
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <button
+              onClick={handleCalibrateLight}
+              disabled={colorCalibration.isCalibrating}
+              className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${
+                isLightCalibrated
+                  ? 'border-emerald-500/45 bg-emerald-950/45 text-emerald-200'
+                  : 'border-blue-500/45 bg-blue-950/45 text-blue-200 hover:bg-blue-900/55'
+              } ${colorCalibration.isCalibrating ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+            >
+              {colorCalibration.isCalibrating ? (
+                <>
+                  <Loader className="h-5 w-5 animate-spin" />
+                  <span>{colorCalibration.calibrationProgress.toFixed(0)}%</span>
+                </>
+              ) : isLightCalibrated ? (
+                <>
+                  <CheckCircle className="h-5 w-5" />
+                  <span>Calibrada</span>
+                </>
+              ) : (
+                <>
+                  <Lightbulb className="h-5 w-5" />
+                  <span>Calibrar Luz Ambiente</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={handleCaptureColor}
+              disabled={isBusy || !isLightCalibrated}
+              className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${
+                !isLightCalibrated
+                  ? 'cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500'
+                  : 'border-violet-500/45 bg-violet-950/45 text-violet-200 hover:bg-violet-900/55'
+              } ${isBusy ? 'opacity-60' : ''}`}
+            >
+              {isBusy ? (
+                <>
+                  <Loader className="h-5 w-5 animate-spin" />
+                  <span>Capturando</span>
+                </>
+              ) : (
+                <>
+                  <Camera className="h-5 w-5" />
+                  <span>Capturar Cor</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={handleSave}
+              disabled={!isLightCalibrated}
+              className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${
+                !isLightCalibrated
+                  ? 'cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500'
+                  : 'border-emerald-500/45 bg-emerald-950/45 text-emerald-200 hover:bg-emerald-900/55'
+              }`}
+            >
+              <Save className="h-5 w-5" />
+              <span>Salvar</span>
+            </button>
+
+            <button
+              onClick={() => isLightCalibrated && setIsRgbPickerOpen(true)}
+              disabled={!isLightCalibrated}
+              className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${
+                isLightCalibrated
+                  ? 'border-white/15 bg-white/10 text-slate-100 hover:bg-white/15'
+                  : 'cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500'
+              }`}
+            >
+              <Pipette className="h-5 w-5" />
+              <span>Selecionar cor</span>
+            </button>
           </div>
-
-          {/* Quality Score */}
-          {/* Quality score hidden in configuration context (base definition). */}
-
-          {/* Status Message intentionally hidden here:
-              this flow defines base calibration, so we avoid showing similarity/quality percentages. */}
-
-          {/* Error Message */}
-          {colorCalibration.error && (
-            <div className="p-3 bg-red-900/30 rounded-lg border border-red-700/50">
-              <p className="text-xs text-red-300">{colorCalibration.error}</p>
-            </div>
-          )}
         </div>
       </div>
     </div>
   );
 };
 
-// Helper functions
 function rgbToHex(rgb: { r: number; g: number; b: number }): string {
   const toHex = (n: number) => {
     const hex = Math.round(Math.max(0, Math.min(1, n)) * 255).toString(16);

@@ -37,6 +37,8 @@ function ConfigCaptureColorContent() {
             initialColorHex={config.referenceColorHex}
             initialColorRgb={config.referenceColorRgb}
             initialLightCalibrated={config.ambientLightConfigured}
+            initialSampleAreaWidthPercent={config.sampleAreaWidthPercent}
+            initialSampleAreaHeightPercent={config.sampleAreaHeightPercent}
             onSave={async (payload) => {
               if (persistPatch) {
                 await persistPatch(payload);
