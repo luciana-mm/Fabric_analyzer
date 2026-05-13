@@ -41,8 +41,8 @@ const formatRelativeTime = (value: string) => {
 export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: EmployeeDetailsDialogProps) => {
   if (!employee) return null;
 
-  const successRate = ((employee.success / employee.verified) * 100).toFixed(1);
-  const failureRate = ((employee.failure / employee.verified) * 100).toFixed(1);
+  const successRate = employee.verified === 0 ? "0.0" : ((employee.success / employee.verified) * 100).toFixed(1);
+  const failureRate = employee.verified === 0 ? "0.0" : ((employee.failure / employee.verified) * 100).toFixed(1);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -54,7 +54,7 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
             </div>
             <div>
               <DialogTitle className="font-sansserief tracking-[0.2em] uppercase text-lg">
-                {employee.name}
+                Detalhes de {employee.name}
               </DialogTitle>
               <DialogDescription className="text-[11px] tracking-[0.25em] uppercase">
                 {employee.id} · {employee.role} · Turno {employee.shift}

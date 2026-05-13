@@ -17,9 +17,11 @@ import {
 import { LucideIcon } from "lucide-react";
 import gridBg from "@/assets/grid-bg.jpg";
 import { GlobalStatsDialog } from "@/components/GlobalStatsDialog";
+import { EmployeeDetailsDialog } from "@/components/EmployeeDetailsDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { useManagerDashboardData } from "@/hooks/useDashboardData";
+import type { ManagerEmployeeRow } from "@/hooks/useDashboardData";
 
 interface OverviewCardProps {
   icon: LucideIcon;
@@ -72,6 +74,8 @@ const OverviewCard = ({
 
 const Manager = () => {
   const [search, setSearch] = useState("");
+  const [selectedEmployee, setSelectedEmployee] = useState<ManagerEmployeeRow | null>(null);
+  const [isEmployeeDetailsOpen, setIsEmployeeDetailsOpen] = useState(false);
   const { signOut, user } = useAuth();
   const { employees, loading, isError } = useManagerDashboardData();
   const router = useRouter();
@@ -79,6 +83,11 @@ const Manager = () => {
   const handleSignOut = async () => {
     await signOut();
     router.replace("/");
+  };
+
+  const handleOpenEmployeeDetails = (employee: ManagerEmployeeRow) => {
+    setSelectedEmployee(employee);
+    setIsEmployeeDetailsOpen(true);
   };
 
   const [isGlobalStatsOpen, setIsGlobalStatsOpen] = useState(false);
@@ -248,7 +257,8 @@ const Manager = () => {
                   return (
                     <div
                       key={emp.id}
-                      className={`w-full grid grid-cols-12 gap-4 px-5 py-4 items-center text-left transition-colors hover:bg-muted/30 ${
+                      onClick={() => handleOpenEmployeeDetails(emp)}
+                      className={`w-full grid grid-cols-12 gap-4 px-5 py-4 items-center text-left transition-colors hover:bg-muted/30 cursor-pointer ${
                         i !== previewEmployees.length - 1
                           ? "border-b border-border/20"
                           : ""
@@ -289,7 +299,18 @@ const Manager = () => {
                         {emp.failure}
                       </div>
                       <div className="col-span-1 flex justify-end">
-                        <BarChart3 className="w-4 h-4 text-muted-foreground" />
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleOpenEmployeeDetails(emp);
+                          }}
+                          className="flex h-8 w-8 items-center justify-center rounded-full bg-muted/40 border border-border/30 text-muted-foreground transition-all hover:bg-muted/60 hover:border-foreground/30 hover:text-foreground"
+                          aria-label={`Ver detalhes de ${emp.name}`}
+                          title={`Ver detalhes de ${emp.name}`}
+                        >
+                          <BarChart3 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                   );
@@ -359,6 +380,12 @@ const Manager = () => {
           failure: totalFailure,
           avgTime: "2.4s", // Valor fixo ou calculado
         }}
+      />
+
+      <EmployeeDetailsDialog
+        employee={selectedEmployee}
+        open={isEmployeeDetailsOpen}
+        onOpenChange={setIsEmployeeDetailsOpen}
       />
     </div>
   );
