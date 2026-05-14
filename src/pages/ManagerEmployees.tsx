@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, Search, Users } from "lucide-react";
+import { ArrowLeft, MoreHorizontal, Plus, Search, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import gridBg from "@/assets/grid-bg.jpg";
 import { useManagerDashboardData } from "@/hooks/useDashboardData";
+import AddUser from "@/components/AddUser";
 
 const ManagerEmployees = () => {
   const router = useRouter();
@@ -21,6 +22,8 @@ const ManagerEmployees = () => {
     [employees, search],
   );
 
+  const [isOpen, setIsOpen] = useState(false)
+    
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden">
       <img
@@ -48,14 +51,26 @@ const ManagerEmployees = () => {
 
       <main className="relative z-10 flex-1 p-6 md:p-10">
         <div className="max-w-6xl mx-auto space-y-4">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-full bg-muted/40 border border-border/30 w-fit">
-            <Search className="w-3 h-3 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Buscar funcionario..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="bg-transparent outline-none text-xs text-foreground placeholder:text-muted-foreground w-48"
+          <div className="flex justify-between">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-full bg-muted/40 border border-border/30 w-fit">
+              <Search className="w-3 h-3 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Buscar funcionario..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="bg-transparent outline-none text-xs text-foreground placeholder:text-muted-foreground w-48"
+              />
+            </div>
+            <button 
+              onClick={() => setIsOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-full border border-border/30 bg-transparent outline-none text-xs text-muted-foreground w-48">
+              <Plus size={15}/>
+              Adicionar Funcionário
+            </button>
+             <AddUser
+              isOpen = {isOpen}
+              isClosed = {() => setIsOpen(false)}
             />
           </div>
 
