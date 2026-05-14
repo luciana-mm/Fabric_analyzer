@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle, Layers, Clock, TrendingUp, AlertTriangle, BarChart3 } from "lucide-react";
+import { Layers, Clock, TrendingUp, AlertTriangle, BarChart3 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 

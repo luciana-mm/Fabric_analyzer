@@ -23,7 +23,7 @@ export const AnalysisArea = ({ onBack, onSave, initialWidth, initialHeight, init
   const [widthRangeValue, setWidthRangeValue] = useState(initialWidth);
   const [selectedPoints, setSelectedPoints] = useState<SamplePointsValue>(initialPoints);
 
-  const getPointStyle = (value) => {
+  const getPointStyle = (value: SamplePointsValue) => {
     const baseClasses =
       "flex flex-col text-xs justify-center items-center w-full h-full cursor-pointer transition-colors";
     const activeClasses = "bg-blue-600 text-white";

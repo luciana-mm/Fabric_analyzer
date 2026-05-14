@@ -11,8 +11,8 @@ export interface Employee {
   failure: number;
   avgTime: string;
   shift: string;
-  errorBreakdown: Array<{ label: string; percentage: number }>;
-  recentAnalyses: Array<{ id: string; type: string; result: "ok" | "fail"; analyzedAt: string }>;
+  errorBreakdown: { label: string; percentage: number }[];
+  recentAnalyses: { id: string; type: string; result: "ok" | "fail"; analyzedAt: string }[];
 }
 
 interface EmployeeDetailsDialogProps {

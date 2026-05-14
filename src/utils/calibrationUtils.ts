@@ -8,7 +8,6 @@ import {
   RgbColor,
   RgbColor8Bit,
   LabColor,
-  rgb8BitToNormalized,
   normalizedToRgb8Bit,
   rgbToLab,
   calculateDeltaE2000,

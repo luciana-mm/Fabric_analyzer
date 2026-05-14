@@ -1,9 +1,27 @@
 import { useState } from "react"
 import { Eye, EyeOff } from "lucide-react"
 
-export default function CreateAccountPage({
-    aberto, isClosed
-}) {
+interface CreateAccountPageProps {
+    aberto: boolean;
+    isClosed: () => void;
+}
+
+interface SavedField {
+    id: string;
+    nome: string;
+    email: string;
+    senha: string;
+}
+
+interface ErrosState {
+    id: string;
+    nome: string;
+    email: string;
+    senha: string;
+    confirmarSenha: string;
+}
+
+export default function CreateAccountPage({ aberto, isClosed }: CreateAccountPageProps) {
     const [mostrarSenha, setMostrarSenha] = useState(false)
     const [mostrarConfirmarSenha, setMostrarConfirmarSenha] = useState(false)
 
@@ -15,8 +33,8 @@ export default function CreateAccountPage({
     const [nomeSalvo, setNomeSalvo] = useState('')
     const [emailSalvo, setEamilSalvo] = useState('')
 
-    const [savedField, setSavedField] = useState([])
-    const [erros, setErros] = useState({
+    const [savedField, setSavedField] = useState<SavedField[]>([])
+    const [erros, setErros] = useState<ErrosState>({
         id: "",
         nome: "",
         email: "",

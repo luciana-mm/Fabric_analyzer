@@ -1,0 +1,269 @@
+﻿
+> meta-web-next@0.0.0 build
+> next build
+
+node.exe :  ÔÜá Warning: Next.js inferred your workspace root, but it may not 
+be correct.
+No linha:1 caractere:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( ÔÜá Warning: N...not be correct. 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ We detected multiple lockfiles and selected the directory of 
+C:\Users\unesc\package-lock.json as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, 
+or consider removing one of the lockfiles if it's not needed.
+   See 
+https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats 
+for more information.
+ Detected additional lockfiles: 
+   * C:\Users\unesc\Documents\keven\fabric-analyzer-interface\package-lock.json
+
+   Ôû▓ Next.js 15.5.15
+   - Environments: .env.local, .env
+
+   Creating an optimized production build ...
+Browserslist: browsers data (caniuse-lite) is 11 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: 
+https://github.com/browserslist/update-db#readme
+ Ô£ô Compiled successfully in 7.0s
+   Linting and checking validity of types ...
+
+ ÔÜá The Next.js plugin was not detected in your ESLint configuration. See http
+s://nextjs.org/docs/app/api-reference/config/eslint#migrating-existing-config
+
+Failed to compile.
+
+./src/app/layout.tsx
+6:14  Warning: Fast refresh only works when a file only exports components. 
+Use a new file to share constants or functions between components.  
+react-refresh/only-export-components
+
+./src/components/ui/badge.tsx
+29:17  Warning: Fast refresh only works when a file only exports components. 
+Use a new file to share constants or functions between components.  
+react-refresh/only-export-components
+
+./src/components/ui/button.tsx
+47:18  Warning: Fast refresh only works when a file only exports components. 
+Use a new file to share constants or functions between components.  
+react-refresh/only-export-components
+
+./src/components/ui/form.tsx
+129:10  Warning: Fast refresh only works when a file only exports components. 
+Use a new file to share constants or functions between components.  
+react-refresh/only-export-components
+
+./src/components/ui/navigation-menu.tsx
+111:3  Warning: Fast refresh only works when a file only exports components. 
+Use a new file to share constants or functions between components.  
+react-refresh/only-export-components
+
+./src/components/ui/sidebar.tsx
+636:3  Warning: Fast refresh only works when a file only exports components. 
+Use a new file to share constants or functions between components.  
+react-refresh/only-export-components
+
+./src/components/ui/sonner.tsx
+27:19  Warning: Fast refresh only works when a file only exports components. 
+Use a new file to share constants or functions between components.  
+react-refresh/only-export-components
+
+./src/components/ui/toggle.tsx
+37:18  Warning: Fast refresh only works when a file only exports components. 
+Use a new file to share constants or functions between components.  
+react-refresh/only-export-components
+
+./src/hooks/use-toast.ts
+15:7  Error: 'actionTypes' is assigned a value but only used as a type. 
+Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/hooks/useAuth.tsx
+130:6  Warning: React Hook useEffect has a missing dependency: 
+'fetchRoleWithRetry'. Either include it or remove the dependency array.  
+react-hooks/exhaustive-deps
+208:14  Warning: Fast refresh only works when a file only exports components. 
+Use a new file to share constants or functions between components.  
+react-refresh/only-export-components
+
+./src/hooks/useCameraRobustCapture.ts
+121:9  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+
+./src/hooks/useRobustColorCalibration.ts
+122:15  Error: 'successfulCaptures' is assigned a value but never used. 
+Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+124:15  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+180:11  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+241:15  Error: 'successfulCaptures' is assigned a value but never used. 
+Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+290:9  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+
+./src/pages/CreateAccount.tsx
+112:5  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+
+./src/utils/calibrationUtils.ts
+104:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+
+./src/utils/colorConversionTests.ts
+9:3  Error: 'normalizedToRgb8Bit' is defined but never used. Allowed unused 
+vars must match /^_/u.  @typescript-eslint/no-unused-vars
+32:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+39:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+43:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+47:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+51:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+58:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+59:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+66:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+67:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+74:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+78:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+80:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+87:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+94:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+95:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+102:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+106:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+113:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+117:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+121:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+125:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+127:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+134:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+140:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+144:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+156:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+160:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+164:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+168:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+174:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+178:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+182:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+183:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+185:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+192:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+199:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+203:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+207:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+211:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+216:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+217:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+224:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+231:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+232:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+233:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+236:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+237:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+238:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+240:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+247:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+250:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+254:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+257:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+261:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+264:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+268:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+270:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+277:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+280:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+284:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+287:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+291:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+294:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+298:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+300:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+307:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+308:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+309:3  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+320:5  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+321:5  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+322:5  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+323:5  Warning: Unexpected console statement. Only these console methods are 
+allowed: warn, error, info.  no-console
+
+./src/utils/colorSpaceConversion.ts
+50:7  Error: 'XYZ_CUBE_ROOT_THRESHOLD' is assigned a value but never used. 
+Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+info  - Need to disable some ESLint rules? Learn more here: 
+https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules

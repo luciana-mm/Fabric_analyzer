@@ -22,7 +22,7 @@ interface ConfigurationProps {
   onClose?: () => void;
   onSaveComplete?: (config: SystemConfig) => void;
   initialConfig?: SystemConfig;
-  onPersistPatch?: (patch: Partial<SystemConfig>) => Promise<PersistPatchResult | void> | PersistPatchResult | void;
+  onPersistPatch?: (patch: Partial<SystemConfig>) => Promise<PersistPatchResult | undefined> | PersistPatchResult | undefined;
 }
 
 export const Configuration = ({
