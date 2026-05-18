@@ -91,8 +91,6 @@ export default function CreateAccountPage({
         })
     }
 
-    console.log('id:' + idSalvo + 'nome' + nomeSalvo + 'email' + emailSalvo)
-
     if (!aberto) return null
 
     return (

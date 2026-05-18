@@ -15,7 +15,7 @@ import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
 import { useOperatorDashboardData } from "@/hooks/useDashboardData";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  getSystemStep,
+  getSystemFlowState,
   isConfigurationComplete,
   isLightCalibrated,
 } from "@/lib/systemConfig";
@@ -128,7 +128,7 @@ const Index = () => {
     },
   });
 
-  const systemStep = getSystemStep(systemConfig);
+  const systemStep = getSystemFlowState(systemConfig).systemStep;
   const calibrated = isLightCalibrated(systemConfig);
   const configured = isConfigurationComplete(systemConfig);
   const isReady = systemStep === "READY";

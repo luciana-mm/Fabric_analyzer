@@ -1,11 +1,11 @@
 "use client"
 
-import { Scan, SwatchBook, Triangle, Save } from "lucide-react"
+import { CheckCircle2, Circle, Scan, SwatchBook, Triangle, Save } from "lucide-react"
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   areConfigurationFieldsComplete,
-  getSystemStep,
+  getSystemFlowState,
   loadSystemConfig,
   sanitizeSystemConfig,
   saveSystemConfig,
@@ -36,7 +36,7 @@ export const Configuration = ({
   const router = useRouter();
 
   const configurationStatusLabel = useMemo(() => {
-    const step = getSystemStep(config)
+    const step = getSystemFlowState(config).systemStep
 
     if (step === "READY") {
       return "Configuracoes e calibracao concluidas"
@@ -50,11 +50,36 @@ export const Configuration = ({
     return "Configuracao pendente"
   }, [config])
 
+  const configSteps = [
+    { label: "Área de análise", done: config.analysisAreaConfigured },
+    { label: "Cor e luz base", done: config.colorConfigured && config.ambientLightConfigured },
+    { label: "Tolerância Delta E", done: config.deltaConfigured },
+    { label: "Configuração salva", done: config.configurationSaved },
+  ]
+
 
   return(
     <div className="bg-[#0a0c14] p-8 rounded-xl border border-slate-800 text-white max-w-2xl mx-auto">
       <h2 className="text-center text-xl font-bold mb-6">Painel de configuração</h2>
       <p className="text-center text-xs text-slate-300 mb-6">{configurationStatusLabel}</p>
+
+      <div className="mb-6 grid gap-2 rounded-lg border border-white/10 bg-white/5 p-3 sm:grid-cols-2">
+        {configSteps.map((step) => {
+          const Icon = step.done ? CheckCircle2 : Circle
+
+          return (
+            <div
+              key={step.label}
+              className={`flex items-center gap-2 rounded-md px-3 py-2 text-xs ${
+                step.done ? "text-emerald-200" : "text-slate-400"
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {step.label}
+            </div>
+          )
+        })}
+      </div>
       
       <div className="grid grid-cols-3 gap-4">
         <button 
@@ -94,6 +119,7 @@ export const Configuration = ({
             const patch = sanitizeSystemConfig({
               ...config,
               systemStep: "LIGHT",
+              configurationSaved: true,
               lightCalibrated: false,
               updatedAt: new Date().toISOString(),
             })

@@ -26,17 +26,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchRole = async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (error) {
-        console.error("Erro ao buscar papel:", error);
+      const [roleResult, profileResult] = await Promise.all([
+        supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .maybeSingle(),
+        supabase
+          .from("profiles")
+          .select("active")
+          .eq("user_id", userId)
+          .maybeSingle(),
+      ]);
+
+      if (roleResult.error) {
+        console.error("Erro ao buscar papel:", roleResult.error);
         setRole(null);
         return;
       }
-      setRole((data?.role as AppRole) ?? null);
+
+      if (profileResult.error) {
+        console.error("Erro ao buscar perfil:", profileResult.error);
+      }
+
+      if (profileResult.data?.active === false) {
+        await supabase.auth.signOut();
+        setSession(null);
+        setUser(null);
+        setRole(null);
+        if (typeof window !== "undefined") {
+          window.location.assign("/");
+        }
+        return;
+      }
+
+      setRole((roleResult.data?.role as AppRole) ?? null);
     } finally {
       setLoading(false);
     }

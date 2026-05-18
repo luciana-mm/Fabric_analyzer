@@ -95,8 +95,16 @@ const Manager = () => {
   const totalVerified = employees.reduce((s, e) => s + e.verified, 0);
   const totalSuccess = employees.reduce((s, e) => s + e.success, 0);
   const totalFailure = employees.reduce((s, e) => s + e.failure, 0);
+  const activeEmployeesCount = employees.filter((employee) => employee.active).length;
   const successRate = totalVerified === 0 ? "0.0" : ((totalSuccess / totalVerified) * 100).toFixed(1);
   const failureRate = totalVerified === 0 ? "0.0" : ((totalFailure / totalVerified) * 100).toFixed(1);
+  const averageTimeMs =
+    totalVerified === 0
+      ? 0
+      : Math.round(
+          employees.reduce((sum, employee) => sum + employee.avgTimeMs * employee.verified, 0) / totalVerified,
+        );
+  const averageTimeLabel = `${(averageTimeMs / 1000).toFixed(1).replace(".", ",")}s`;
 
   const highestVolume = employees[0] ?? null;
   const bestRate =
@@ -180,7 +188,7 @@ const Manager = () => {
               <OverviewCard
                 icon={Users}
                 label="Funcionários Ativos"
-                value={String(employees.length)}
+                value={String(activeEmployeesCount)}
                 sublabel="hoje"
               />
               <OverviewCard
@@ -378,7 +386,7 @@ const Manager = () => {
           verified: totalVerified,
           success: totalSuccess,
           failure: totalFailure,
-          avgTime: "2.4s", // Valor fixo ou calculado
+          avgTime: averageTimeLabel,
         }}
       />
 

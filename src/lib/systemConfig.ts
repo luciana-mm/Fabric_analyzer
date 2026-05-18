@@ -27,8 +27,17 @@ export interface SystemConfig {
   deltaConfigured: boolean;
   analysisAreaConfigured: boolean;
   colorConfigured: boolean;
+  configurationSaved: boolean;
   lightCalibrated: boolean;
   updatedAt: string;
+}
+
+export interface SystemFlowState {
+  systemStep: SystemStep;
+  configuracaoConcluida: boolean;
+  luzCalibrada: boolean;
+  podeCalibrarLuz: boolean;
+  podeIniciar: boolean;
 }
 
 export const SYSTEM_CONFIG_STORAGE_KEY = "fabric-analyzer-system-config";
@@ -50,6 +59,7 @@ export const defaultSystemConfig: SystemConfig = {
   deltaConfigured: false,
   analysisAreaConfigured: false,
   colorConfigured: false,
+  configurationSaved: false,
   lightCalibrated: false,
   updatedAt: new Date().toISOString(),
 };
@@ -84,11 +94,46 @@ export const areConfigurationFieldsComplete = (config: SystemConfig): boolean =>
 };
 
 export const isConfigurationComplete = (config: SystemConfig): boolean => {
-  return getSystemStep(config) !== "CONFIG";
+  return getSystemFlowState(config).configuracaoConcluida;
 };
 
 export const isLightCalibrated = (config: SystemConfig): boolean => {
-  return getSystemStep(config) === "READY";
+  return getSystemFlowState(config).luzCalibrada;
+};
+
+const areRequiredCoreFieldsComplete = (config: SystemConfig): boolean => {
+  return config.deltaConfigured && config.analysisAreaConfigured && config.colorConfigured;
+};
+
+export const getSystemFlowState = (config: SystemConfig): SystemFlowState => {
+  const normalized = sanitizeSystemConfig(config);
+  const savedConfiguration =
+    (normalized.configurationSaved && areRequiredCoreFieldsComplete(normalized)) ||
+    (getSystemStep(normalized) !== "CONFIG" && areConfigurationFieldsComplete(normalized));
+  const calibrated = savedConfiguration && normalized.lightCalibrated && getSystemStep(normalized) === "READY";
+  const systemStep: SystemStep = calibrated ? "READY" : savedConfiguration ? "LIGHT" : "CONFIG";
+
+  return {
+    systemStep,
+    configuracaoConcluida: savedConfiguration,
+    luzCalibrada: calibrated,
+    podeCalibrarLuz: savedConfiguration,
+    podeIniciar: calibrated,
+  };
+};
+
+export const getStartBlockedDescription = (config: SystemConfig): string => {
+  const flow = getSystemFlowState(config);
+
+  if (!flow.configuracaoConcluida) {
+    return "Conclua e salve as configurações antes de iniciar.";
+  }
+
+  if (!flow.luzCalibrada) {
+    return "Execute a calibração da luz antes de iniciar.";
+  }
+
+  return "Sistema pronto para iniciar.";
 };
 
 const configurationPatchKeys: Array<keyof SystemConfig> = [
@@ -105,6 +150,7 @@ const configurationPatchKeys: Array<keyof SystemConfig> = [
   "deltaConfigured",
   "analysisAreaConfigured",
   "colorConfigured",
+  "configurationSaved",
 ];
 
 const patchTouchesConfiguration = (value: Partial<SystemConfig>): boolean => {
@@ -129,43 +175,48 @@ const normalizeSamplePoints = (value: unknown): SamplePointsValue => {
 
 export const sanitizeSystemConfig = (value: Partial<SystemConfig> | null | undefined): SystemConfig => {
   const source = value ?? {};
-  const systemStep = normalizeSystemStep(source.systemStep);
+  const sourceConfig = source as Partial<SystemConfig> & { configurationSaved?: unknown };
+  const systemStep = normalizeSystemStep(sourceConfig.systemStep);
 
   return {
     version: 1,
     systemStep,
     activeTissueCode:
-      typeof source.activeTissueCode === "string" && source.activeTissueCode.trim().length > 0
-        ? source.activeTissueCode.trim()
+      typeof sourceConfig.activeTissueCode === "string" && sourceConfig.activeTissueCode.trim().length > 0
+        ? sourceConfig.activeTissueCode.trim()
         : createTissueBatchCode(),
-    deltaE: normalizeDeltaE(source.deltaE),
-    samplePoints: normalizeSamplePoints(source.samplePoints),
-    sampleAreaWidthPercent: normalizeNumber(source.sampleAreaWidthPercent, defaultSystemConfig.sampleAreaWidthPercent),
-    sampleAreaHeightPercent: normalizeNumber(source.sampleAreaHeightPercent, defaultSystemConfig.sampleAreaHeightPercent),
+    deltaE: normalizeDeltaE(sourceConfig.deltaE),
+    samplePoints: normalizeSamplePoints(sourceConfig.samplePoints),
+    sampleAreaWidthPercent: normalizeNumber(sourceConfig.sampleAreaWidthPercent, defaultSystemConfig.sampleAreaWidthPercent),
+    sampleAreaHeightPercent: normalizeNumber(sourceConfig.sampleAreaHeightPercent, defaultSystemConfig.sampleAreaHeightPercent),
     referenceColorHex:
-      typeof source.referenceColorHex === "string" && /^#[0-9a-fA-F]{6}$/.test(source.referenceColorHex)
-        ? source.referenceColorHex
+      typeof sourceConfig.referenceColorHex === "string" && /^#[0-9a-fA-F]{6}$/.test(sourceConfig.referenceColorHex)
+        ? sourceConfig.referenceColorHex
         : defaultSystemConfig.referenceColorHex,
     referenceColorRgb: {
-      r: normalizeNumber(source.referenceColorRgb?.r, defaultSystemConfig.referenceColorRgb.r, 0, 255),
-      g: normalizeNumber(source.referenceColorRgb?.g, defaultSystemConfig.referenceColorRgb.g, 0, 255),
-      b: normalizeNumber(source.referenceColorRgb?.b, defaultSystemConfig.referenceColorRgb.b, 0, 255),
+      r: normalizeNumber(sourceConfig.referenceColorRgb?.r, defaultSystemConfig.referenceColorRgb.r, 0, 255),
+      g: normalizeNumber(sourceConfig.referenceColorRgb?.g, defaultSystemConfig.referenceColorRgb.g, 0, 255),
+      b: normalizeNumber(sourceConfig.referenceColorRgb?.b, defaultSystemConfig.referenceColorRgb.b, 0, 255),
     },
     ambientLightReferenceHex:
-      typeof source.ambientLightReferenceHex === "string" && /^#[0-9a-fA-F]{6}$/.test(source.ambientLightReferenceHex)
-        ? source.ambientLightReferenceHex
+      typeof sourceConfig.ambientLightReferenceHex === "string" && /^#[0-9a-fA-F]{6}$/.test(sourceConfig.ambientLightReferenceHex)
+        ? sourceConfig.ambientLightReferenceHex
         : defaultSystemConfig.ambientLightReferenceHex,
     ambientLightReferenceRgb: {
-      r: normalizeNumber(source.ambientLightReferenceRgb?.r, defaultSystemConfig.ambientLightReferenceRgb.r, 0, 255),
-      g: normalizeNumber(source.ambientLightReferenceRgb?.g, defaultSystemConfig.ambientLightReferenceRgb.g, 0, 255),
-      b: normalizeNumber(source.ambientLightReferenceRgb?.b, defaultSystemConfig.ambientLightReferenceRgb.b, 0, 255),
+      r: normalizeNumber(sourceConfig.ambientLightReferenceRgb?.r, defaultSystemConfig.ambientLightReferenceRgb.r, 0, 255),
+      g: normalizeNumber(sourceConfig.ambientLightReferenceRgb?.g, defaultSystemConfig.ambientLightReferenceRgb.g, 0, 255),
+      b: normalizeNumber(sourceConfig.ambientLightReferenceRgb?.b, defaultSystemConfig.ambientLightReferenceRgb.b, 0, 255),
     },
-    ambientLightConfigured: Boolean(source.ambientLightConfigured),
-    deltaConfigured: Boolean(source.deltaConfigured),
-    analysisAreaConfigured: Boolean(source.analysisAreaConfigured),
-    colorConfigured: Boolean(source.colorConfigured),
-    lightCalibrated: systemStep === "READY",
-    updatedAt: typeof source.updatedAt === "string" ? source.updatedAt : new Date().toISOString(),
+    ambientLightConfigured: Boolean(sourceConfig.ambientLightConfigured),
+    deltaConfigured: Boolean(sourceConfig.deltaConfigured),
+    analysisAreaConfigured: Boolean(sourceConfig.analysisAreaConfigured),
+    colorConfigured: Boolean(sourceConfig.colorConfigured),
+    configurationSaved:
+      Boolean(sourceConfig.configurationSaved) &&
+      typeof sourceConfig.activeTissueCode === "string" &&
+      sourceConfig.activeTissueCode.trim().length > 0,
+    lightCalibrated: Boolean(sourceConfig.lightCalibrated) && systemStep === "READY",
+    updatedAt: typeof sourceConfig.updatedAt === "string" ? sourceConfig.updatedAt : new Date().toISOString(),
   };
 };
 
@@ -173,15 +224,21 @@ export const mergeSystemConfigPatch = (
   currentConfig: SystemConfig,
   value: Partial<SystemConfig>,
 ): SystemConfig => {
+  const touchesConfiguration = patchTouchesConfiguration(value);
   const systemStep = value.systemStep
     ? normalizeSystemStep(value.systemStep)
-    : patchTouchesConfiguration(value)
+    : touchesConfiguration
     ? "CONFIG"
     : currentConfig.systemStep;
+  const configurationSaved =
+    touchesConfiguration && !Object.prototype.hasOwnProperty.call(value, "configurationSaved")
+      ? false
+      : value.configurationSaved ?? currentConfig.configurationSaved;
 
   return sanitizeSystemConfig({
     ...currentConfig,
     ...value,
+    configurationSaved,
     systemStep,
     updatedAt: new Date().toISOString(),
   });
