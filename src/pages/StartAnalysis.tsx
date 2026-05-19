@@ -8,7 +8,7 @@ import gridBg from "@/assets/grid-bg.jpg";
 import { CameraPreview } from "@/components/CameraPreview";
 import { useAuth } from "@/hooks/useAuth";
 import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
-import { defaultSystemConfig, getStartBlockedDescription, getSystemStep } from "@/lib/systemConfig";
+import { defaultSystemConfig, getStartBlockedDescription, getSystemFlowState } from "@/lib/systemConfig";
 
 const StartAnalysis = () => {
   const router = useRouter();
@@ -18,7 +18,7 @@ const StartAnalysis = () => {
   const hasShownBlockedToast = useRef(false);
   const hasFinishedAnalysis = useRef(false);
 
-  const isReady = getSystemStep(systemConfig) === "READY";
+  const isReady = getSystemFlowState(systemConfig).podeIniciar;
 
   useEffect(() => {
     if (isLoading || isReady || hasShownBlockedToast.current || hasFinishedAnalysis.current) {

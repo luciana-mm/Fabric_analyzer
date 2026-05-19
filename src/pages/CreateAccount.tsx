@@ -109,8 +109,6 @@ export default function CreateAccountPage({ aberto, isClosed }: CreateAccountPag
         })
     }
 
-    console.log('id:' + idSalvo + 'nome' + nomeSalvo + 'email' + emailSalvo)
-
     if (!aberto) return null
 
     return (

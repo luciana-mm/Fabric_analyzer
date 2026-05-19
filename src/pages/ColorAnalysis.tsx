@@ -8,7 +8,7 @@ import { CameraPreview } from "@/components/CameraPreview";
 import { useAuth } from "@/hooks/useAuth";
 import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
 import { useCameraRobustCapture } from "@/hooks/useCameraRobustCapture";
-import { createTissueBatchCode, defaultSystemConfig } from "@/lib/systemConfig";
+import { createTissueBatchCode, defaultSystemConfig, getSystemFlowState } from "@/lib/systemConfig";
 import { evaluateColorMatch } from "@/utils/calibrationUtils";
 import { rgb8BitToNormalized, rgbToHex } from "@/utils/colorSpaceConversion";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,6 +42,7 @@ const ColorAnalysis = () => {
   }, [config.deltaE]);
 
   const activeTissueCode = config.activeTissueCode;
+  const flowState = getSystemFlowState(config);
   const captureAreaWidth = clampCapturePercent(
     config.sampleAreaWidthPercent,
     defaultSystemConfig.sampleAreaWidthPercent,
@@ -67,7 +68,7 @@ const ColorAnalysis = () => {
   }, []);
 
   const handleAnalyze = async () => {
-    if (!config.colorConfigured || !config.lightCalibrated) {
+    if (!config.colorConfigured || !flowState.podeIniciar) {
       toast.error("Configuracao incompleta", {
         description: "Defina a cor base e calibre a luz antes de iniciar a analise.",
       });
@@ -147,6 +148,7 @@ const ColorAnalysis = () => {
         colorConfigured: false,
         ambientLightConfigured: false,
         lightCalibrated: false,
+        configurationSaved: false,
       });
     }
 

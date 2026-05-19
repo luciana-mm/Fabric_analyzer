@@ -33,34 +33,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchRoleWithRetry = async (userId: string, attempt = 1): Promise<void> => {
     try {
-      const { data, error: fetchError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .maybeSingle();
+      const [roleResult, profileResult] = await Promise.all([
+        supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .maybeSingle(),
+        supabase
+          .from("profiles")
+          .select("active")
+          .eq("user_id", userId)
+          .maybeSingle(),
+      ]);
 
-      if (fetchError) {
-        if (attempt < ROLE_FETCH_MAX_RETRIES) {
-          await delay(ROLE_FETCH_RETRY_DELAY_MS * attempt);
-          return fetchRoleWithRetry(userId, attempt + 1);
-        }
-
-        console.error(`Erro ao buscar role após ${attempt} tentativas:`, fetchError);
-        setError("Falha ao carregar papel do usuário");
+      if (roleResult.error) {
+        console.error("Erro ao buscar papel:", roleResult.error);
         setRole(null);
         return;
       }
 
-      setRole((data?.role as AppRole) ?? null);
-      setError(null);
-    } catch (err) {
-      console.error("Exceção ao buscar role:", err);
-      if (attempt < ROLE_FETCH_MAX_RETRIES) {
-        await delay(ROLE_FETCH_RETRY_DELAY_MS * attempt);
-        return fetchRoleWithRetry(userId, attempt + 1);
+      if (profileResult.error) {
+        console.error("Erro ao buscar perfil:", profileResult.error);
       }
-      setError("Erro inesperado ao carregar papel");
-      setRole(null);
+
+      if (profileResult.data?.active === false) {
+        await supabase.auth.signOut();
+        setSession(null);
+        setUser(null);
+        setRole(null);
+        if (typeof window !== "undefined") {
+          window.location.assign("/");
+        }
+        return;
+      }
+
+      setRole((roleResult.data?.role as AppRole) ?? null);
+    } finally {
+      setLoading(false);
     }
   };
 

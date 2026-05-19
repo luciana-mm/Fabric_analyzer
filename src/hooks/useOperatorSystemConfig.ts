@@ -64,6 +64,13 @@ const rowToSystemConfig = (row: OperatorConfigRow, localConfig: SystemConfig): S
     deltaConfigured: row.delta_configured,
     analysisAreaConfigured: row.analysis_area_configured,
     colorConfigured: row.color_configured,
+    configurationSaved:
+      localConfig.configurationSaved ||
+      (row.system_step !== "CONFIG" &&
+        row.delta_configured &&
+        row.analysis_area_configured &&
+        row.color_configured &&
+        localConfig.ambientLightConfigured),
     lightCalibrated: row.light_calibrated,
     updatedAt: row.updated_at,
   });

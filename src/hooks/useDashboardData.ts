@@ -50,8 +50,10 @@ export type OperatorDashboardStats = {
 
 export type ManagerEmployeeRow = {
   id: string;
+  userId: string;
   name: string;
   role: string;
+  active: boolean;
   verified: number;
   success: number;
   failure: number;
@@ -151,7 +153,7 @@ export const useOperatorDashboardData = (userId: string | null | undefined) => {
   };
 };
 
-export const useManagerDashboardData = () => {
+export const useManagerDashboardData = (options?: { includeManagers?: boolean }) => {
   const analysesQuery = useQuery({
     queryKey: ["manager-dashboard", "analyses"],
     queryFn: async () => {
@@ -174,7 +176,6 @@ export const useManagerDashboardData = () => {
       const { data, error } = await supabase
         .from("profiles")
         .select("user_id, display_name, employee_code, shift, job_title, active")
-        .eq("active", true);
 
       if (error) {
         throw error;
@@ -203,11 +204,11 @@ export const useManagerDashboardData = () => {
     const profiles = profilesQuery.data ?? [];
     const records = analysesQuery.data ?? [];
     const roles = rolesQuery.data ?? [];
-    const employeeIds = new Set(
-      roles
-        .filter((item) => item.role !== "gestor")
-        .map((item) => item.user_id),
-    );
+    const visibleRoles = options?.includeManagers
+      ? roles
+      : roles.filter((item) => item.role !== "gestor");
+    const visibleUserIds = new Set(visibleRoles.map((item) => item.user_id));
+    const roleByUserId = new Map(roles.map((item) => [item.user_id, item.role]));
 
     const groupedRecords = records.reduce<Record<string, AnalysisRecord[]>>((acc, item) => {
       if (!acc[item.operator_user_id]) {
@@ -218,8 +219,9 @@ export const useManagerDashboardData = () => {
     }, {});
 
     return profiles
-      .filter((profile) => employeeIds.has(profile.user_id))
+      .filter((profile) => visibleUserIds.has(profile.user_id))
       .map((profile) => {
+        const appRole = roleByUserId.get(profile.user_id);
         const items = groupedRecords[profile.user_id] ?? [];
         const verified = items.length;
         const success = items.filter((item) => item.result === "ok").length;
@@ -241,8 +243,10 @@ export const useManagerDashboardData = () => {
 
         return {
           id: profile.employee_code ?? profile.user_id.slice(0, 8).toUpperCase(),
+          userId: profile.user_id,
           name: profile.display_name ?? "Sem nome",
-          role: profile.job_title ?? "Funcionario (Operador)",
+          role: profile.job_title ?? (appRole === "gestor" ? "Gestor" : "Funcionario (Operador)"),
+          active: profile.active,
           verified,
           success,
           failure,
@@ -254,16 +258,24 @@ export const useManagerDashboardData = () => {
         };
       })
       .sort((a, b) => b.verified - a.verified);
-  }, [profilesQuery.data, analysesQuery.data, rolesQuery.data]);
+  }, [options?.includeManagers, profilesQuery.data, analysesQuery.data, rolesQuery.data]);
 
   const loading = analysesQuery.isLoading || profilesQuery.isLoading || rolesQuery.isLoading;
   const isError = analysesQuery.isError || profilesQuery.isError || rolesQuery.isError;
   const error = analysesQuery.error ?? profilesQuery.error ?? rolesQuery.error;
+  const refresh = async () => {
+    await Promise.all([
+      analysesQuery.refetch(),
+      profilesQuery.refetch(),
+      rolesQuery.refetch(),
+    ]);
+  };
 
   return {
     employees,
     loading,
     isError,
     error,
+    refresh,
   };
 };
