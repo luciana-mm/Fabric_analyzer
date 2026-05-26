@@ -72,7 +72,122 @@ export type ManagerEmployeeRow = {
   }>;
 };
 
+export type GlobalReportPeriod = "daily" | "weekly" | "monthly" | "semester" | "yearly" | "custom";
+
+export type GlobalReportCustomRange = {
+  startDate: string;
+  endDate: string;
+};
+
+export type GlobalReportStats = {
+  verified: number;
+  success: number;
+  failure: number;
+  avgTime: string;
+  employeePerformance: Array<{
+    userId: string;
+    id: string;
+    name: string;
+    role: string;
+    shift: string;
+    verified: number;
+    success: number;
+    failure: number;
+    avgTime: string;
+  }>;
+  errorBreakdown: Array<{
+    label: string;
+    percentage: number;
+  }>;
+};
+
 const formatMsToSecondsLabel = (ms: number) => `${(ms / 1000).toFixed(1).replace(".", ",")}s`;
+
+const normalizeFailureReason = (value: string | null) => {
+  const label = value?.trim() || "Sem motivo informado";
+  return {
+    label,
+    key: label
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .toLowerCase(),
+  };
+};
+
+const createLocalDateFromInput = (date: string) => {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const getDateRangeByPeriod = (period: GlobalReportPeriod, customRange?: GlobalReportCustomRange) => {
+  if (period === "custom") {
+    if (!customRange?.startDate || !customRange.endDate) {
+      return null;
+    }
+
+    const start = createLocalDateFromInput(customRange.startDate);
+    const end = createLocalDateFromInput(customRange.endDate);
+
+    if (end < start) {
+      return null;
+    }
+
+    end.setDate(end.getDate() + 1);
+
+    return {
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
+    };
+  }
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const day = now.getDay();
+
+  if (period === "daily") {
+    return {
+      startDate: new Date(year, month, now.getDate()).toISOString(),
+      endDate: new Date(year, month, now.getDate() + 1).toISOString(),
+    };
+  }
+
+  if (period === "weekly") {
+    const start = new Date(year, month, now.getDate());
+    const daysSinceMonday = day === 0 ? 6 : day - 1;
+    start.setDate(start.getDate() - daysSinceMonday);
+
+    const end = new Date(start);
+    end.setDate(start.getDate() + 7);
+
+    return {
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
+    };
+  }
+
+  if (period === "monthly") {
+    return {
+      startDate: new Date(year, month, 1).toISOString(),
+      endDate: new Date(year, month + 1, 1).toISOString(),
+    };
+  }
+
+  if (period === "semester") {
+    const semesterStartMonth = month < 6 ? 0 : 6;
+
+    return {
+      startDate: new Date(year, semesterStartMonth, 1).toISOString(),
+      endDate: new Date(year, semesterStartMonth + 6, 1).toISOString(),
+    };
+  }
+
+  return {
+    startDate: new Date(year, 0, 1).toISOString(),
+    endDate: new Date(year + 1, 0, 1).toISOString(),
+  };
+};
 
 const buildErrorBreakdown = (records: AnalysisRecord[]) => {
   const failed = records.filter((record) => record.result === "fail");
@@ -80,14 +195,17 @@ const buildErrorBreakdown = (records: AnalysisRecord[]) => {
     return [] as Array<{ label: string; count: number; percentage: number }>;
   }
 
-  const grouped = failed.reduce<Record<string, number>>((acc, item) => {
-    const label = item.failure_reason?.trim() || "Sem motivo informado";
-    acc[label] = (acc[label] ?? 0) + 1;
+  const grouped = failed.reduce<Record<string, { label: string; count: number }>>((acc, item) => {
+    const { key, label } = normalizeFailureReason(item.failure_reason);
+    acc[key] = {
+      label: acc[key]?.label ?? label,
+      count: (acc[key]?.count ?? 0) + 1,
+    };
     return acc;
   }, {});
 
-  return Object.entries(grouped)
-    .map(([label, count]) => ({
+  return Object.values(grouped)
+    .map(({ label, count }) => ({
       label,
       count,
       percentage: Number(((count / failed.length) * 100).toFixed(1)),
@@ -150,6 +268,133 @@ export const useOperatorDashboardData = (userId: string | null | undefined) => {
     ...query,
     stats,
     formatMsToSecondsLabel,
+  };
+};
+
+const emptyGlobalReportStats: GlobalReportStats = {
+  verified: 0,
+  success: 0,
+  failure: 0,
+  avgTime: formatMsToSecondsLabel(0),
+  employeePerformance: [],
+  errorBreakdown: [],
+};
+
+export const useGlobalReportData = (period: GlobalReportPeriod, customRange?: GlobalReportCustomRange) => {
+  const customStartDate = customRange?.startDate;
+  const customEndDate = customRange?.endDate;
+  const dateRange = useMemo(
+    () => getDateRangeByPeriod(
+      period,
+      customStartDate && customEndDate
+        ? { startDate: customStartDate, endDate: customEndDate }
+        : undefined,
+    ),
+    [customEndDate, customStartDate, period],
+  );
+  const query = useQuery({
+    queryKey: ["global-report", period, customStartDate, customEndDate],
+    enabled: Boolean(dateRange),
+    queryFn: async () => {
+      if (!dateRange) {
+        return [] as AnalysisRecord[];
+      }
+
+      const { data, error } = await supabase
+        .from("analysis_records")
+        .select("operator_user_id, reference_code, tissue_type, result, failure_reason, processing_time_ms, analyzed_at")
+        .gte("analyzed_at", dateRange.startDate)
+        .lt("analyzed_at", dateRange.endDate)
+        .order("analyzed_at", { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      return (data ?? []) as AnalysisRecord[];
+    },
+  });
+
+  const profilesQuery = useQuery({
+    queryKey: ["global-report", "profiles"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, display_name, employee_code, shift, job_title, active");
+
+      if (error) {
+        throw error;
+      }
+
+      return (data ?? []) as ProfileSummary[];
+    },
+  });
+
+  const stats = useMemo<GlobalReportStats>(() => {
+    if (!dateRange) {
+      return emptyGlobalReportStats;
+    }
+
+    const records = query.data ?? [];
+    const profiles = profilesQuery.data ?? [];
+    const profileByUserId = new Map(profiles.map((profile) => [profile.user_id, profile]));
+    const verified = records.length;
+    const success = records.filter((record) => record.result === "ok").length;
+    const failure = verified - success;
+    const averageTimeMs =
+      verified === 0
+        ? 0
+        : Math.round(records.reduce((sum, record) => sum + record.processing_time_ms, 0) / verified);
+    const groupedRecords = records.reduce<Record<string, AnalysisRecord[]>>((acc, item) => {
+      if (!acc[item.operator_user_id]) {
+        acc[item.operator_user_id] = [];
+      }
+      acc[item.operator_user_id].push(item);
+      return acc;
+    }, {});
+    const employeePerformance = Object.entries(groupedRecords)
+      .map(([userId, items]) => {
+        const profile = profileByUserId.get(userId);
+        const employeeVerified = items.length;
+        const employeeSuccess = items.filter((item) => item.result === "ok").length;
+        const employeeFailure = employeeVerified - employeeSuccess;
+        const employeeAvgTimeMs =
+          employeeVerified === 0
+            ? 0
+            : Math.round(items.reduce((sum, item) => sum + item.processing_time_ms, 0) / employeeVerified);
+
+        return {
+          userId,
+          id: profile?.employee_code ?? userId.slice(0, 8).toUpperCase(),
+          name: profile?.display_name ?? "Sem nome",
+          role: profile?.job_title ?? "Funcionario",
+          shift: profile?.shift ?? "Nao informado",
+          verified: employeeVerified,
+          success: employeeSuccess,
+          failure: employeeFailure,
+          avgTime: formatMsToSecondsLabel(employeeAvgTimeMs),
+        };
+      })
+      .sort((a, b) => b.verified - a.verified);
+
+    return {
+      verified,
+      success,
+      failure,
+      avgTime: formatMsToSecondsLabel(averageTimeMs),
+      employeePerformance,
+      errorBreakdown: buildErrorBreakdown(records).map((entry) => ({
+        label: entry.label,
+        percentage: entry.percentage,
+      })),
+    };
+  }, [dateRange, profilesQuery.data, query.data]);
+
+  return {
+    ...query,
+    isError: query.isError || profilesQuery.isError,
+    isLoading: query.isLoading || profilesQuery.isLoading,
+    stats,
   };
 };
 

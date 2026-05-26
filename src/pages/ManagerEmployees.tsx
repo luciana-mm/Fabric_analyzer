@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Power, Search, ShieldCheck, SlidersHorizontal, User } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Plus, Power, Search, ShieldCheck, User } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
@@ -30,6 +31,8 @@ type Employee = {
 
 type StatusFilter = "all" | "active" | "inactive";
 type NewEmployeeRole = "FUNCIONARIO (OPERADOR)" | "GESTOR";
+type SortKey = "name" | "shift" | "status" | "verified" | "success" | "fails" | "rate";
+type SortDirection = "asc" | "desc";
 
 type NewEmployeeForm = {
   name: string;
@@ -127,13 +130,21 @@ const getSuccessRate = (employee: Employee) => {
   return ((employee.success / employee.verified) * 100).toFixed(1);
 };
 
+const getSuccessRateValue = (employee: Employee) => {
+  if (employee.verified === 0) return 0;
+  return employee.success / employee.verified;
+};
+
 const ManagerEmployees = () => {
+  const router = useRouter();
   const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
   const [pending, setPending] = useState<Employee | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newEmployee, setNewEmployee] = useState<NewEmployeeForm>(emptyNewEmployeeForm);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const counts = useMemo(
     () => ({
@@ -144,9 +155,8 @@ const ManagerEmployees = () => {
     [employees],
   );
 
-  const filteredEmployees = useMemo(
-    () =>
-      employees.filter((employee) => {
+  const filteredEmployees = useMemo(() => {
+    const filtered = employees.filter((employee) => {
         const matchesSearch = employee.name.toLowerCase().includes(search.trim().toLowerCase());
         const matchesFilter =
           filter === "all" ||
@@ -154,9 +164,45 @@ const ManagerEmployees = () => {
           (filter === "inactive" && !employee.active);
 
         return matchesSearch && matchesFilter;
-      }),
-    [employees, filter, search],
-  );
+      });
+
+    const sorted = [...filtered].sort((a, b) => {
+      const direction = sortDirection === "asc" ? 1 : -1;
+
+      if (sortKey === "name") {
+        return a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }) * direction;
+      }
+      if (sortKey === "shift") {
+        return a.shift.localeCompare(b.shift, "pt-BR", { sensitivity: "base" }) * direction;
+      }
+      if (sortKey === "status") {
+        return (Number(a.active) - Number(b.active)) * direction;
+      }
+      if (sortKey === "verified") {
+        return (a.verified - b.verified) * direction;
+      }
+      if (sortKey === "success") {
+        return (a.success - b.success) * direction;
+      }
+      if (sortKey === "fails") {
+        return (a.fails - b.fails) * direction;
+      }
+
+      return (getSuccessRateValue(a) - getSuccessRateValue(b)) * direction;
+    });
+
+    return sorted;
+  }, [employees, filter, search, sortDirection, sortKey]);
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortKey(key);
+    setSortDirection("asc");
+  };
 
   const toggleActive = (id: string) => {
     setEmployees((prev) =>
@@ -218,6 +264,17 @@ const ManagerEmployees = () => {
   return (
     <div className="min-h-screen bg-[#0a0a0f] p-6 text-white">
       <div className="mx-auto max-w-7xl space-y-6">
+        <div className="flex">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 text-xs font-semibold text-slate-300 transition-colors hover:bg-white/[0.07] hover:text-white"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
+          </button>
+        </div>
+
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-3">
             <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>
@@ -233,23 +290,14 @@ const ManagerEmployees = () => {
         </div>
 
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-full min-w-0 items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-4 md:w-80">
-              <Search className="h-4 w-4 text-slate-500" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar funcionario..."
-                className="w-full bg-transparent text-sm text-slate-200 outline-none placeholder:text-slate-500"
-              />
-            </div>
-            <button
-              type="button"
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-slate-400 transition-colors hover:text-white"
-              aria-label="Filtros"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-            </button>
+          <div className="flex h-11 w-full min-w-0 items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-4 md:w-80">
+            <Search className="h-4 w-4 text-slate-500" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar funcionario..."
+              className="w-full bg-transparent text-sm text-slate-200 outline-none placeholder:text-slate-500"
+            />
           </div>
 
           <button
@@ -277,13 +325,66 @@ const ManagerEmployees = () => {
               </colgroup>
               <thead>
                 <tr className="border-b border-white/10 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">
-                  <th className="whitespace-nowrap px-6 py-4 text-left">Funcionario</th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left">Turno</th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left">Status</th>
-                  <th className="whitespace-nowrap px-4 py-4 text-right">Verificados</th>
-                  <th className="whitespace-nowrap px-4 py-4 text-right">Sucesso</th>
-                  <th className="whitespace-nowrap px-4 py-4 text-right">Falhas</th>
-                  <th className="whitespace-nowrap px-4 py-4 text-right">Taxa</th>
+                  <SortableHeader
+                    label="Funcionario"
+                    sortKey="name"
+                    activeKey={sortKey}
+                    direction={sortDirection}
+                    onSort={handleSort}
+                    className="px-6 text-left"
+                  />
+                  <SortableHeader
+                    label="Turno"
+                    sortKey="shift"
+                    activeKey={sortKey}
+                    direction={sortDirection}
+                    onSort={handleSort}
+                    className="px-4 text-left"
+                  />
+                  <SortableHeader
+                    label="Status"
+                    sortKey="status"
+                    activeKey={sortKey}
+                    direction={sortDirection}
+                    onSort={handleSort}
+                    className="px-4 text-left"
+                  />
+                  <SortableHeader
+                    label="Verificados"
+                    sortKey="verified"
+                    activeKey={sortKey}
+                    direction={sortDirection}
+                    onSort={handleSort}
+                    align="right"
+                    className="px-4"
+                  />
+                  <SortableHeader
+                    label="Sucesso"
+                    sortKey="success"
+                    activeKey={sortKey}
+                    direction={sortDirection}
+                    onSort={handleSort}
+                    align="right"
+                    className="px-4"
+                  />
+                  <SortableHeader
+                    label="Falhas"
+                    sortKey="fails"
+                    activeKey={sortKey}
+                    direction={sortDirection}
+                    onSort={handleSort}
+                    align="right"
+                    className="px-4"
+                  />
+                  <SortableHeader
+                    label="Taxa"
+                    sortKey="rate"
+                    activeKey={sortKey}
+                    direction={sortDirection}
+                    onSort={handleSort}
+                    align="right"
+                    className="px-4"
+                  />
                   <th className="whitespace-nowrap px-6 py-4 text-right">Acao</th>
                 </tr>
               </thead>
@@ -537,6 +638,46 @@ interface FilterChipProps {
   onClick: () => void;
   tone?: "neutral" | "emerald" | "rose";
 }
+
+interface SortableHeaderProps {
+  label: string;
+  sortKey: SortKey;
+  activeKey: SortKey;
+  direction: SortDirection;
+  onSort: (key: SortKey) => void;
+  align?: "left" | "right";
+  className?: string;
+}
+
+const SortableHeader = ({
+  label,
+  sortKey,
+  activeKey,
+  direction,
+  onSort,
+  align = "left",
+  className = "",
+}: SortableHeaderProps) => {
+  const active = sortKey === activeKey;
+  const Icon = direction === "asc" ? ChevronUp : ChevronDown;
+
+  return (
+    <th className={`whitespace-nowrap py-4 ${className}`}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={`inline-flex w-full items-center gap-1.5 transition-colors hover:text-slate-200 ${
+          align === "right" ? "justify-end text-right" : "justify-start text-left"
+        } ${active ? "text-white" : "text-slate-500"}`}
+      >
+        <span>{label}</span>
+        <span className="inline-flex h-3.5 w-3.5 items-center justify-center">
+          {active && <Icon className="h-3.5 w-3.5" />}
+        </span>
+      </button>
+    </th>
+  );
+};
 
 const FilterChip = ({ active, children, onClick, tone = "neutral" }: FilterChipProps) => {
   const dotClass =

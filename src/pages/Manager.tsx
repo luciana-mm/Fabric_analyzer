@@ -382,12 +382,6 @@ const Manager = () => {
       <GlobalStatsDialog
         open={isGlobalStatsOpen}
         onOpenChange={setIsGlobalStatsOpen}
-        totals={{
-          verified: totalVerified,
-          success: totalSuccess,
-          failure: totalFailure,
-          avgTime: averageTimeLabel,
-        }}
       />
 
       <EmployeeDetailsDialog
