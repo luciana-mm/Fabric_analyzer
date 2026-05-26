@@ -122,7 +122,7 @@ export const getSystemFlowState = (config: SystemConfig): SystemFlowState => {
   };
 };
 
-export const getStartBlockedDescription = (config: SystemConfig): string => {
+export const getStartBlockedDescriptionFromFlow = (config: SystemConfig): string => {
   const flow = getSystemFlowState(config);
 
   if (!flow.configuracaoConcluida) {

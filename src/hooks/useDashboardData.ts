@@ -73,6 +73,16 @@ export type ManagerEmployeeRow = {
 };
 
 export type GlobalReportPeriod = "daily" | "weekly" | "monthly" | "semester" | "yearly" | "custom";
+export type ManagerPerformancePeriod = Exclude<GlobalReportPeriod, "custom">;
+
+export type ManagerDailyStats = {
+  activeEmployeesToday: number;
+  totalVerified: number;
+  totalSuccess: number;
+  totalFailure: number;
+  successRate: number;
+  failureRate: number;
+};
 
 export type GlobalReportCustomRange = {
   startDate: string;
@@ -211,6 +221,20 @@ const buildErrorBreakdown = (records: AnalysisRecord[]) => {
       percentage: Number(((count / failed.length) * 100).toFixed(1)),
     }))
     .sort((a, b) => b.count - a.count);
+};
+
+const filterRecordsByRange = (records: AnalysisRecord[], range: { startDate: string; endDate: string } | null) => {
+  if (!range) {
+    return records;
+  }
+
+  const start = new Date(range.startDate).getTime();
+  const end = new Date(range.endDate).getTime();
+
+  return records.filter((record) => {
+    const analyzedAt = new Date(record.analyzed_at).getTime();
+    return analyzedAt >= start && analyzedAt < end;
+  });
 };
 
 export const useOperatorDashboardData = (userId: string | null | undefined) => {
@@ -398,7 +422,13 @@ export const useGlobalReportData = (period: GlobalReportPeriod, customRange?: Gl
   };
 };
 
-export const useManagerDashboardData = (options?: { includeManagers?: boolean }) => {
+export const useManagerDashboardData = (options?: {
+  includeManagers?: boolean;
+  period?: ManagerPerformancePeriod;
+}) => {
+  const period = options?.period ?? "daily";
+  const periodRange = useMemo(() => getDateRangeByPeriod(period), [period]);
+  const dailyRange = useMemo(() => getDateRangeByPeriod("daily"), []);
   const analysesQuery = useQuery({
     queryKey: ["manager-dashboard", "analyses"],
     queryFn: async () => {
@@ -447,7 +477,7 @@ export const useManagerDashboardData = (options?: { includeManagers?: boolean })
 
   const employees = useMemo<ManagerEmployeeRow[]>(() => {
     const profiles = profilesQuery.data ?? [];
-    const records = analysesQuery.data ?? [];
+    const records = filterRecordsByRange(analysesQuery.data ?? [], periodRange);
     const roles = rolesQuery.data ?? [];
     const visibleRoles = options?.includeManagers
       ? roles
@@ -464,7 +494,7 @@ export const useManagerDashboardData = (options?: { includeManagers?: boolean })
     }, {});
 
     return profiles
-      .filter((profile) => visibleUserIds.has(profile.user_id))
+      .filter((profile) => visibleUserIds.has(profile.user_id) && profile.active)
       .map((profile) => {
         const appRole = roleByUserId.get(profile.user_id);
         const items = groupedRecords[profile.user_id] ?? [];
@@ -503,7 +533,35 @@ export const useManagerDashboardData = (options?: { includeManagers?: boolean })
         };
       })
       .sort((a, b) => b.verified - a.verified);
-  }, [options?.includeManagers, profilesQuery.data, analysesQuery.data, rolesQuery.data]);
+  }, [options?.includeManagers, periodRange, profilesQuery.data, analysesQuery.data, rolesQuery.data]);
+
+  const dailyStats = useMemo<ManagerDailyStats>(() => {
+    const profiles = profilesQuery.data ?? [];
+    const records = filterRecordsByRange(analysesQuery.data ?? [], dailyRange);
+    const roles = rolesQuery.data ?? [];
+    const visibleRoles = options?.includeManagers
+      ? roles
+      : roles.filter((item) => item.role !== "gestor");
+    const visibleUserIds = new Set(visibleRoles.map((item) => item.user_id));
+    const activeUserIds = new Set(
+      profiles
+        .filter((profile) => profile.active && visibleUserIds.has(profile.user_id))
+        .map((profile) => profile.user_id),
+    );
+    const activeRecords = records.filter((record) => activeUserIds.has(record.operator_user_id));
+    const totalVerified = activeRecords.length;
+    const totalSuccess = activeRecords.filter((record) => record.result === "ok").length;
+    const totalFailure = totalVerified - totalSuccess;
+
+    return {
+      activeEmployeesToday: new Set(activeRecords.map((record) => record.operator_user_id)).size,
+      totalVerified,
+      totalSuccess,
+      totalFailure,
+      successRate: totalVerified === 0 ? 0 : Number(((totalSuccess / totalVerified) * 100).toFixed(1)),
+      failureRate: totalVerified === 0 ? 0 : Number(((totalFailure / totalVerified) * 100).toFixed(1)),
+    };
+  }, [analysesQuery.data, dailyRange, options?.includeManagers, profilesQuery.data, rolesQuery.data]);
 
   const loading = analysesQuery.isLoading || profilesQuery.isLoading || rolesQuery.isLoading;
   const isError = analysesQuery.isError || profilesQuery.isError || rolesQuery.isError;
@@ -518,6 +576,7 @@ export const useManagerDashboardData = (options?: { includeManagers?: boolean })
 
   return {
     employees,
+    dailyStats,
     loading,
     isError,
     error,

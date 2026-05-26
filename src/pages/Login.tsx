@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { ArrowRight, Lock, Mail, Microscope } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -69,8 +70,8 @@ const Login = () => {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden p-6">
-      <img
-        src={gridBg.src}
+      <Image
+        src={gridBg}
         alt=""
         fill
         className="absolute inset-0 object-cover opacity-20"
