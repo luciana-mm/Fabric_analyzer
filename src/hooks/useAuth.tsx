@@ -1,10 +1,12 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+const ROLE_FETCH_MAX_RETRIES = 3;
+const ROLE_FETCH_RETRY_DELAY_MS = 1000;
 
 export type AppRole = "operador" | "gestor";
 
@@ -13,6 +15,7 @@ interface AuthContextValue {
   user: User | null;
   role: AppRole | null;
   loading: boolean;
+  error: string | null;
   signOut: () => Promise<void>;
 }
 
@@ -23,8 +26,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
-  const fetchRole = async (userId: string) => {
+  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const fetchRoleWithRetry = async (userId: string, attempt = 1): Promise<void> => {
     try {
       const [roleResult, profileResult] = await Promise.all([
         supabase
@@ -70,40 +77,64 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     let mounted = true;
 
     const loadSession = async () => {
-      const { data: { session: existing } } = await supabase.auth.getSession();
-      if (!mounted) return;
+      try {
+        const {
+          data: { session: existing },
+          error: sessionError,
+        } = await supabase.auth.getSession();
 
-      setSession(existing);
-      setUser(existing?.user ?? null);
+        if (!mounted) return;
 
-      if (existing?.user) {
-        setLoading(true);
-        await fetchRole(existing.user.id);
-      } else {
-        setRole(null);
+        if (sessionError) {
+          console.error("Erro ao carregar sessão:", sessionError);
+          setError("Falha ao restaurar sessão");
+          setLoading(false);
+          return;
+        }
+
+        setSession(existing);
+        setUser(existing?.user ?? null);
+
+        if (existing?.user) {
+          await fetchRoleWithRetry(existing.user.id);
+        } else {
+          setRole(null);
+        }
+      } catch (err) {
+        console.error("Erro crítico ao carregar sessão:", err);
+        setError("Erro ao inicializar autenticação");
+      } finally {
         setLoading(false);
       }
     };
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: authData } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (!mounted) return;
+
       setSession(newSession);
       setUser(newSession?.user ?? null);
       setLoading(true);
+      setError(null);
+
       if (newSession?.user) {
-        setTimeout(() => {
-          void fetchRole(newSession.user.id);
-        }, 0);
+        void fetchRoleWithRetry(newSession.user.id).finally(() => {
+          if (mounted) setLoading(false);
+        });
       } else {
         setRole(null);
         setLoading(false);
       }
     });
 
+    unsubscribeRef.current = () => {
+      authData.subscription.unsubscribe();
+    };
+
     void loadSession();
 
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
+      unsubscribeRef.current?.();
     };
   }, []);
 
@@ -115,10 +146,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const triggerInactivitySignOut = async () => {
-      await supabase.auth.signOut();
-      setRole(null);
-      if (typeof window !== "undefined") {
-        window.location.assign("/");
+      try {
+        await supabase.auth.signOut();
+        setRole(null);
+        if (typeof window !== "undefined") {
+          window.location.assign("/");
+        }
+      } catch (err) {
+        console.error("Erro ao fazer logout por inatividade:", err);
+        if (typeof window !== "undefined") {
+          window.location.assign("/");
+        }
       }
     };
 
@@ -157,12 +195,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [user]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setRole(null);
+    try {
+      unsubscribeRef.current?.();
+      await supabase.auth.signOut();
+      setRole(null);
+      setError(null);
+    } catch (err) {
+      console.error("Erro ao fazer logout:", err);
+      setError("Falha ao fazer logout");
+      throw err;
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, role, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, role, loading, error, signOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -136,6 +136,22 @@ export const getStartBlockedDescription = (config: SystemConfig): string => {
   return "Sistema pronto para iniciar.";
 };
 
+export const getStartBlockedDescription = (config: Partial<SystemConfig> | null | undefined): string => {
+  const systemStep = getSystemStep(config);
+  const configured = systemStep !== "CONFIG";
+  const calibrated = systemStep === "READY";
+
+  if (!configured && !calibrated) {
+    return "Conclua as configurações e depois calibre a luz antes de iniciar.";
+  }
+
+  if (!calibrated) {
+    return "Execute a calibração da luz antes de iniciar.";
+  }
+
+  return "Conclua as configurações antes de iniciar.";
+};
+
 const configurationPatchKeys: Array<keyof SystemConfig> = [
   "activeTissueCode",
   "deltaE",

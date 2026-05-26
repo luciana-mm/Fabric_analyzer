@@ -11,7 +11,6 @@ import {
   removeColorOutliers,
   calculateRobustColorMean,
   calculateColorStandardDeviation,
-  calculateLightVariation,
   validateLightCalibration,
   applyColorCorrection,
   calculateColorQualityMetrics,

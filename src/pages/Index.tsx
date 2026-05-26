@@ -1,7 +1,7 @@
 "use client";
 
 import cameraImage from "@/assets/camera-bg.jpg";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Play, Sun, Settings, Microscope, Layers, CheckCircle2, XCircle, Lock, BarChart3, LogOut, Camera } from "lucide-react";
 import { LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";

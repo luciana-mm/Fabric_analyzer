@@ -12,7 +12,7 @@ export const DeltaE = ({ onBack, initialDelta, onSave }: DeltaEProps) => {
 
   const [selectedDelta, setSelectedDelta] = useState<DeltaEValue>(initialDelta)
 
-  const getPointStyle = (value) => {
+  const getPointStyle = (value: DeltaEValue) => {
     const baseClasses = "flex flex-col text-xs justify-center items-center w-full h-full cursor-pointer transition-colors";
     const activeClasses = "bg-blue-600 text-white";
     const hoverClasses = "hover:bg-slate-700";

@@ -72,9 +72,11 @@ const Login = () => {
       <img
         src={gridBg.src}
         alt=""
-        className="absolute inset-0 w-full h-full object-cover opacity-20"
-        width={1920}
-        height={1080}
+        fill
+        className="absolute inset-0 object-cover opacity-20"
+        sizes="100vw"
+        quality={85}
+        priority
       />
       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/95 to-background/70" />
 
