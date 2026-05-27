@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle, Layers, Clock, TrendingUp, AlertTriangle, User } from "lucide-react";
+import { CheckCircle2, XCircle, Layers, Clock, TrendingUp, User, Printer } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 
@@ -43,10 +43,13 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
 
   const successRate = employee.verified === 0 ? "0.0" : ((employee.success / employee.verified) * 100).toFixed(1);
   const failureRate = employee.verified === 0 ? "0.0" : ((employee.failure / employee.verified) * 100).toFixed(1);
+  const handlePrint = () => {
+    window.print();
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+      <DialogContent data-report-print className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-foreground/10 flex items-center justify-center">
@@ -61,6 +64,15 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
               </DialogDescription>
             </div>
           </div>
+          <button
+            data-no-print
+            type="button"
+            onClick={handlePrint}
+            className="mt-4 inline-flex h-10 items-center gap-2 rounded-lg border border-border/40 bg-card/50 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <Printer className="h-4 w-4" />
+            Imprimir / PDF
+          </button>
         </DialogHeader>
 
         <div className="space-y-6 mt-4">
@@ -100,29 +112,6 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
                 <Progress value={parseFloat(failureRate)} className="mt-2 h-1.5" />
                 <p className="text-xs text-muted-foreground mt-1">{failureRate}% de rejeição</p>
               </div>
-            </div>
-          </section>
-
-          {/* Causas de Erro */}
-          <section>
-            <h3 className="font-sansserief text-[11px] tracking-[0.3em] uppercase text-muted-foreground mb-3 flex items-center gap-2">
-              <AlertTriangle className="w-3.5 h-3.5" /> Principais Causas de Falha
-            </h3>
-            <div className="space-y-3 p-4 rounded-lg border border-border/40 bg-card/50">
-              {employee.errorBreakdown.length === 0 && (
-                <p className="text-xs text-muted-foreground">Sem falhas registradas.</p>
-              )}
-              {employee.errorBreakdown.map((item) => (
-                <div key={item.label}>
-                  <div className="flex justify-between text-xs mb-1.5">
-                    <span className="text-foreground/80">{item.label}</span>
-                    <span className="font-sansserief tracking-wider text-muted-foreground">
-                      {item.percentage}%
-                    </span>
-                  </div>
-                  <Progress value={item.percentage} className="h-1" />
-                </div>
-              ))}
             </div>
           </section>
 

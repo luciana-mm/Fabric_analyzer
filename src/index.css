@@ -87,3 +87,70 @@
     @apply bg-card/60 backdrop-blur-xl border border-border/50;
   }
 }
+
+@media print {
+  @page {
+    margin: 16mm;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  [data-report-print],
+  [data-report-print] * {
+    visibility: visible !important;
+  }
+
+  [data-report-print] {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    transform: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    box-shadow: none !important;
+  }
+
+  [data-report-print] [data-no-print],
+  [data-report-print] [data-no-print] * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  [data-report-print] section,
+  [data-report-print] div {
+    break-inside: avoid;
+  }
+
+  [data-report-print] .bg-slate-900\/50,
+  [data-report-print] .bg-slate-900\/30,
+  [data-report-print] .bg-slate-900,
+  [data-report-print] .bg-card\/50,
+  [data-report-print] .bg-foreground\/10,
+  [data-report-print] .bg-\[\#0a0c14\] {
+    background: #ffffff !important;
+  }
+
+  [data-report-print] .text-white,
+  [data-report-print] .text-foreground,
+  [data-report-print] .text-foreground\/80,
+  [data-report-print] .text-muted-foreground,
+  [data-report-print] .text-slate-200,
+  [data-report-print] .text-slate-300,
+  [data-report-print] .text-slate-400,
+  [data-report-print] .text-slate-500 {
+    color: #111827 !important;
+  }
+
+  [data-report-print] .border-slate-800,
+  [data-report-print] .border-border\/40,
+  [data-report-print] .border-border\/30 {
+    border-color: #d1d5db !important;
+  }
+}

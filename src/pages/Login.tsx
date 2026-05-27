@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { ArrowRight, Lock, Mail, Microscope } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
