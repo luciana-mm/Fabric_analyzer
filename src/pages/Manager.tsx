@@ -243,6 +243,13 @@ const Manager = () => {
                 <ExternalLink className="w-3 h-3" />
                 Detalhes
               </button>
+              <button
+                onClick={() => router.push("/gestor/historico")}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/40 border border-border/30 hover:bg-muted/60 hover:border-foreground/30 transition-all text-xs text-foreground/80"
+              >
+                <BarChart3 className="w-3 h-3" />
+                Histórico
+              </button>
             </div>
 
             <div className="rounded-xl border border-border/30 bg-card/40 backdrop-blur-sm overflow-hidden">

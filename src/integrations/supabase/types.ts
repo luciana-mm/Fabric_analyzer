@@ -205,6 +205,42 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_batch_details: {
+        Args: {
+          p_batch_id: string
+        }
+        Returns: Array<{
+          approved_count: number
+          batch_code: string
+          batch_id: string
+          first_analyzed_at: string
+          last_analyzed_at: string
+          operators: Json
+          rejected_count: number
+          total_fabrics: number
+        }>
+      }
+      get_batch_history: {
+        Args: {
+          p_end: string | null
+          p_limit: number
+          p_offset: number
+          p_search: string | null
+          p_start: string | null
+          p_user_id: string | null
+        }
+        Returns: Array<{
+          approved_count: number
+          batch_code: string
+          batch_id: string
+          first_analyzed_at: string
+          last_analyzed_at: string
+          operator_user_ids: string[] | null
+          rejected_count: number
+          total_fabrics: number
+          total_rows: number
+        }>
+      }
       get_current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]

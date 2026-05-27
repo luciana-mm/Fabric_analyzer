@@ -41,7 +41,8 @@ export interface SystemFlowState {
 }
 
 export const SYSTEM_CONFIG_STORAGE_KEY = "fabric-analyzer-system-config";
-export const SYSTEM_CONFIG_VIEW_STORAGE_KEY = "fabric-analyzer-system-config-view";
+export const SYSTEM_CONFIG_VIEW_STORAGE_KEY =
+  "fabric-analyzer-system-config-view";
 
 export const defaultSystemConfig: SystemConfig = {
   version: 1,
@@ -75,16 +76,24 @@ export const createTissueBatchCode = (): string => {
 };
 
 export const normalizeSystemStep = (value: unknown): SystemStep => {
-  return systemSteps.includes(value as SystemStep) ? (value as SystemStep) : "CONFIG";
+  return systemSteps.includes(value as SystemStep)
+    ? (value as SystemStep)
+    : "CONFIG";
 };
 
 export const getSystemStep = (
-  config: Pick<SystemConfig, "systemStep"> | Partial<SystemConfig> | null | undefined,
+  config:
+    | Pick<SystemConfig, "systemStep">
+    | Partial<SystemConfig>
+    | null
+    | undefined,
 ): SystemStep => {
   return normalizeSystemStep(config?.systemStep);
 };
 
-export const areConfigurationFieldsComplete = (config: SystemConfig): boolean => {
+export const areConfigurationFieldsComplete = (
+  config: SystemConfig,
+): boolean => {
   return (
     config.deltaConfigured &&
     config.analysisAreaConfigured &&
@@ -102,16 +111,29 @@ export const isLightCalibrated = (config: SystemConfig): boolean => {
 };
 
 const areRequiredCoreFieldsComplete = (config: SystemConfig): boolean => {
-  return config.deltaConfigured && config.analysisAreaConfigured && config.colorConfigured;
+  return (
+    config.deltaConfigured &&
+    config.analysisAreaConfigured &&
+    config.colorConfigured
+  );
 };
 
 export const getSystemFlowState = (config: SystemConfig): SystemFlowState => {
   const normalized = sanitizeSystemConfig(config);
   const savedConfiguration =
-    (normalized.configurationSaved && areRequiredCoreFieldsComplete(normalized)) ||
-    (getSystemStep(normalized) !== "CONFIG" && areConfigurationFieldsComplete(normalized));
-  const calibrated = savedConfiguration && normalized.lightCalibrated && getSystemStep(normalized) === "READY";
-  const systemStep: SystemStep = calibrated ? "READY" : savedConfiguration ? "LIGHT" : "CONFIG";
+    (normalized.configurationSaved &&
+      areRequiredCoreFieldsComplete(normalized)) ||
+    (getSystemStep(normalized) !== "CONFIG" &&
+      areConfigurationFieldsComplete(normalized));
+  const calibrated =
+    savedConfiguration &&
+    normalized.lightCalibrated &&
+    getSystemStep(normalized) === "READY";
+  const systemStep: SystemStep = calibrated
+    ? "READY"
+    : savedConfiguration
+      ? "LIGHT"
+      : "CONFIG";
 
   return {
     systemStep,
@@ -136,22 +158,6 @@ export const getStartBlockedDescription = (config: SystemConfig): string => {
   return "Sistema pronto para iniciar.";
 };
 
-export const getStartBlockedDescription = (config: Partial<SystemConfig> | null | undefined): string => {
-  const systemStep = getSystemStep(config);
-  const configured = systemStep !== "CONFIG";
-  const calibrated = systemStep === "READY";
-
-  if (!configured && !calibrated) {
-    return "Conclua as configurações e depois calibre a luz antes de iniciar.";
-  }
-
-  if (!calibrated) {
-    return "Execute a calibração da luz antes de iniciar.";
-  }
-
-  return "Conclua as configurações antes de iniciar.";
-};
-
 const configurationPatchKeys: Array<keyof SystemConfig> = [
   "activeTissueCode",
   "deltaE",
@@ -170,10 +176,17 @@ const configurationPatchKeys: Array<keyof SystemConfig> = [
 ];
 
 const patchTouchesConfiguration = (value: Partial<SystemConfig>): boolean => {
-  return configurationPatchKeys.some((key) => Object.prototype.hasOwnProperty.call(value, key));
+  return configurationPatchKeys.some((key) =>
+    Object.prototype.hasOwnProperty.call(value, key),
+  );
 };
 
-const normalizeNumber = (value: unknown, fallback: number, min = 0, max = 100): number => {
+const normalizeNumber = (
+  value: unknown,
+  fallback: number,
+  min = 0,
+  max = 100,
+): number => {
   const numberValue = Number(value);
   if (!Number.isFinite(numberValue)) return fallback;
   return Math.min(max, Math.max(min, numberValue));
@@ -189,39 +202,82 @@ const normalizeSamplePoints = (value: unknown): SamplePointsValue => {
   return defaultSystemConfig.samplePoints;
 };
 
-export const sanitizeSystemConfig = (value: Partial<SystemConfig> | null | undefined): SystemConfig => {
+export const sanitizeSystemConfig = (
+  value: Partial<SystemConfig> | null | undefined,
+): SystemConfig => {
   const source = value ?? {};
-  const sourceConfig = source as Partial<SystemConfig> & { configurationSaved?: unknown };
+  const sourceConfig = source as Partial<SystemConfig> & {
+    configurationSaved?: unknown;
+  };
   const systemStep = normalizeSystemStep(sourceConfig.systemStep);
 
   return {
     version: 1,
     systemStep,
     activeTissueCode:
-      typeof sourceConfig.activeTissueCode === "string" && sourceConfig.activeTissueCode.trim().length > 0
+      typeof sourceConfig.activeTissueCode === "string" &&
+      sourceConfig.activeTissueCode.trim().length > 0
         ? sourceConfig.activeTissueCode.trim()
         : createTissueBatchCode(),
     deltaE: normalizeDeltaE(sourceConfig.deltaE),
     samplePoints: normalizeSamplePoints(sourceConfig.samplePoints),
-    sampleAreaWidthPercent: normalizeNumber(sourceConfig.sampleAreaWidthPercent, defaultSystemConfig.sampleAreaWidthPercent),
-    sampleAreaHeightPercent: normalizeNumber(sourceConfig.sampleAreaHeightPercent, defaultSystemConfig.sampleAreaHeightPercent),
+    sampleAreaWidthPercent: normalizeNumber(
+      sourceConfig.sampleAreaWidthPercent,
+      defaultSystemConfig.sampleAreaWidthPercent,
+    ),
+    sampleAreaHeightPercent: normalizeNumber(
+      sourceConfig.sampleAreaHeightPercent,
+      defaultSystemConfig.sampleAreaHeightPercent,
+    ),
     referenceColorHex:
-      typeof sourceConfig.referenceColorHex === "string" && /^#[0-9a-fA-F]{6}$/.test(sourceConfig.referenceColorHex)
+      typeof sourceConfig.referenceColorHex === "string" &&
+      /^#[0-9a-fA-F]{6}$/.test(sourceConfig.referenceColorHex)
         ? sourceConfig.referenceColorHex
         : defaultSystemConfig.referenceColorHex,
     referenceColorRgb: {
-      r: normalizeNumber(sourceConfig.referenceColorRgb?.r, defaultSystemConfig.referenceColorRgb.r, 0, 255),
-      g: normalizeNumber(sourceConfig.referenceColorRgb?.g, defaultSystemConfig.referenceColorRgb.g, 0, 255),
-      b: normalizeNumber(sourceConfig.referenceColorRgb?.b, defaultSystemConfig.referenceColorRgb.b, 0, 255),
+      r: normalizeNumber(
+        sourceConfig.referenceColorRgb?.r,
+        defaultSystemConfig.referenceColorRgb.r,
+        0,
+        255,
+      ),
+      g: normalizeNumber(
+        sourceConfig.referenceColorRgb?.g,
+        defaultSystemConfig.referenceColorRgb.g,
+        0,
+        255,
+      ),
+      b: normalizeNumber(
+        sourceConfig.referenceColorRgb?.b,
+        defaultSystemConfig.referenceColorRgb.b,
+        0,
+        255,
+      ),
     },
     ambientLightReferenceHex:
-      typeof sourceConfig.ambientLightReferenceHex === "string" && /^#[0-9a-fA-F]{6}$/.test(sourceConfig.ambientLightReferenceHex)
+      typeof sourceConfig.ambientLightReferenceHex === "string" &&
+      /^#[0-9a-fA-F]{6}$/.test(sourceConfig.ambientLightReferenceHex)
         ? sourceConfig.ambientLightReferenceHex
         : defaultSystemConfig.ambientLightReferenceHex,
     ambientLightReferenceRgb: {
-      r: normalizeNumber(sourceConfig.ambientLightReferenceRgb?.r, defaultSystemConfig.ambientLightReferenceRgb.r, 0, 255),
-      g: normalizeNumber(sourceConfig.ambientLightReferenceRgb?.g, defaultSystemConfig.ambientLightReferenceRgb.g, 0, 255),
-      b: normalizeNumber(sourceConfig.ambientLightReferenceRgb?.b, defaultSystemConfig.ambientLightReferenceRgb.b, 0, 255),
+      r: normalizeNumber(
+        sourceConfig.ambientLightReferenceRgb?.r,
+        defaultSystemConfig.ambientLightReferenceRgb.r,
+        0,
+        255,
+      ),
+      g: normalizeNumber(
+        sourceConfig.ambientLightReferenceRgb?.g,
+        defaultSystemConfig.ambientLightReferenceRgb.g,
+        0,
+        255,
+      ),
+      b: normalizeNumber(
+        sourceConfig.ambientLightReferenceRgb?.b,
+        defaultSystemConfig.ambientLightReferenceRgb.b,
+        0,
+        255,
+      ),
     },
     ambientLightConfigured: Boolean(sourceConfig.ambientLightConfigured),
     deltaConfigured: Boolean(sourceConfig.deltaConfigured),
@@ -231,8 +287,12 @@ export const sanitizeSystemConfig = (value: Partial<SystemConfig> | null | undef
       Boolean(sourceConfig.configurationSaved) &&
       typeof sourceConfig.activeTissueCode === "string" &&
       sourceConfig.activeTissueCode.trim().length > 0,
-    lightCalibrated: Boolean(sourceConfig.lightCalibrated) && systemStep === "READY",
-    updatedAt: typeof sourceConfig.updatedAt === "string" ? sourceConfig.updatedAt : new Date().toISOString(),
+    lightCalibrated:
+      Boolean(sourceConfig.lightCalibrated) && systemStep === "READY",
+    updatedAt:
+      typeof sourceConfig.updatedAt === "string"
+        ? sourceConfig.updatedAt
+        : new Date().toISOString(),
   };
 };
 
@@ -244,12 +304,13 @@ export const mergeSystemConfigPatch = (
   const systemStep = value.systemStep
     ? normalizeSystemStep(value.systemStep)
     : touchesConfiguration
-    ? "CONFIG"
-    : currentConfig.systemStep;
+      ? "CONFIG"
+      : currentConfig.systemStep;
   const configurationSaved =
-    touchesConfiguration && !Object.prototype.hasOwnProperty.call(value, "configurationSaved")
+    touchesConfiguration &&
+    !Object.prototype.hasOwnProperty.call(value, "configurationSaved")
       ? false
-      : value.configurationSaved ?? currentConfig.configurationSaved;
+      : (value.configurationSaved ?? currentConfig.configurationSaved);
 
   return sanitizeSystemConfig({
     ...currentConfig,
@@ -260,7 +321,10 @@ export const mergeSystemConfigPatch = (
   });
 };
 
-const getScopedStorageKey = (baseKey: string, scopeKey?: string | null): string => {
+const getScopedStorageKey = (
+  baseKey: string,
+  scopeKey?: string | null,
+): string => {
   return scopeKey ? `${baseKey}:${scopeKey}` : baseKey;
 };
 
@@ -268,7 +332,9 @@ export const getSystemConfigStorageKey = (scopeKey?: string | null): string => {
   return getScopedStorageKey(SYSTEM_CONFIG_STORAGE_KEY, scopeKey);
 };
 
-export const getSystemConfigViewStorageKey = (scopeKey?: string | null): string => {
+export const getSystemConfigViewStorageKey = (
+  scopeKey?: string | null,
+): string => {
   return getScopedStorageKey(SYSTEM_CONFIG_VIEW_STORAGE_KEY, scopeKey);
 };
 
@@ -290,23 +356,35 @@ export const loadSystemConfig = (scopeKey?: string | null): SystemConfig => {
   }
 };
 
-export const saveSystemConfig = (value: Partial<SystemConfig>, scopeKey?: string | null): SystemConfig => {
+export const saveSystemConfig = (
+  value: Partial<SystemConfig>,
+  scopeKey?: string | null,
+): SystemConfig => {
   const currentConfig = loadSystemConfig(scopeKey);
   const nextConfig = mergeSystemConfigPatch(currentConfig, value);
 
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(getSystemConfigStorageKey(scopeKey), JSON.stringify(nextConfig));
+    window.localStorage.setItem(
+      getSystemConfigStorageKey(scopeKey),
+      JSON.stringify(nextConfig),
+    );
   }
 
   return nextConfig;
 };
 
-export const cacheSystemConfig = (config: SystemConfig, scopeKey?: string | null): void => {
+export const cacheSystemConfig = (
+  config: SystemConfig,
+  scopeKey?: string | null,
+): void => {
   if (typeof window === "undefined") {
     return;
   }
 
-  window.localStorage.setItem(getSystemConfigStorageKey(scopeKey), JSON.stringify(sanitizeSystemConfig(config)));
+  window.localStorage.setItem(
+    getSystemConfigStorageKey(scopeKey),
+    JSON.stringify(sanitizeSystemConfig(config)),
+  );
 };
 
 export const loadSystemConfigView = (scopeKey?: string | null): ConfigView => {
@@ -314,7 +392,9 @@ export const loadSystemConfigView = (scopeKey?: string | null): ConfigView => {
     return "home";
   }
 
-  const value = window.localStorage.getItem(getSystemConfigViewStorageKey(scopeKey));
+  const value = window.localStorage.getItem(
+    getSystemConfigViewStorageKey(scopeKey),
+  );
   if (
     value === "home" ||
     value === "analysis" ||
@@ -328,7 +408,10 @@ export const loadSystemConfigView = (scopeKey?: string | null): ConfigView => {
   return "home";
 };
 
-export const saveSystemConfigView = (view: ConfigView, scopeKey?: string | null): void => {
+export const saveSystemConfigView = (
+  view: ConfigView,
+  scopeKey?: string | null,
+): void => {
   if (typeof window === "undefined") {
     return;
   }

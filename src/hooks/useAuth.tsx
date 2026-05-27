@@ -1,6 +1,13 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  ReactNode,
+} from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -29,9 +36,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
-  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  const delay = (ms: number) =>
+    new Promise((resolve) => setTimeout(resolve, ms));
 
-  const fetchRoleWithRetry = async (userId: string, attempt = 1): Promise<void> => {
+  const fetchRoleWithRetry = async (
+    userId: string,
+    attempt = 1,
+  ): Promise<void> => {
     try {
       const [roleResult, profileResult] = await Promise.all([
         supabase
@@ -78,6 +89,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const loadSession = async () => {
       try {
+        // Verify supabase client is initialized
+        if (!supabase) {
+          console.error("Supabase client not initialized");
+          setError("Serviço de autenticação indisponível");
+          setLoading(false);
+          return;
+        }
+
         const {
           data: { session: existing },
           error: sessionError,
@@ -99,32 +118,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           await fetchRoleWithRetry(existing.user.id);
         } else {
           setRole(null);
+          setLoading(false);
         }
       } catch (err) {
         console.error("Erro crítico ao carregar sessão:", err);
-        setError("Erro ao inicializar autenticação");
-      } finally {
-        setLoading(false);
+        if (mounted) {
+          setError("Erro ao inicializar autenticação");
+          setLoading(false);
+        }
       }
     };
 
-    const { data: authData } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      if (!mounted) return;
+    const { data: authData } = supabase.auth.onAuthStateChange(
+      (_event, newSession) => {
+        if (!mounted) return;
 
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
-      setLoading(true);
-      setError(null);
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
+        setLoading(true);
+        setError(null);
 
-      if (newSession?.user) {
-        void fetchRoleWithRetry(newSession.user.id).finally(() => {
-          if (mounted) setLoading(false);
-        });
-      } else {
-        setRole(null);
-        setLoading(false);
-      }
-    });
+        if (newSession?.user) {
+          void fetchRoleWithRetry(newSession.user.id).finally(() => {
+            if (mounted) setLoading(false);
+          });
+        } else {
+          setRole(null);
+          setLoading(false);
+        }
+      },
+    );
 
     unsubscribeRef.current = () => {
       authData.subscription.unsubscribe();
@@ -139,59 +162,59 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    if (!user) {
-      return;
+    if (user) {
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+      const triggerInactivitySignOut = async () => {
+        try {
+          await supabase.auth.signOut();
+          setRole(null);
+          if (typeof window !== "undefined") {
+            window.location.assign("/");
+          }
+        } catch (err) {
+          console.error("Erro ao fazer logout por inatividade:", err);
+          if (typeof window !== "undefined") {
+            window.location.assign("/");
+          }
+        }
+      };
+
+      const resetTimer = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        timeoutId = setTimeout(() => {
+          void triggerInactivitySignOut();
+        }, INACTIVITY_TIMEOUT_MS);
+      };
+
+      const events: Array<keyof WindowEventMap> = [
+        "mousemove",
+        "mousedown",
+        "keydown",
+        "scroll",
+        "touchstart",
+        "click",
+      ];
+
+      events.forEach((eventName) => {
+        window.addEventListener(eventName, resetTimer, { passive: true });
+      });
+
+      resetTimer();
+
+      return () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        events.forEach((eventName) => {
+          window.removeEventListener(eventName, resetTimer);
+        });
+      };
     }
 
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-    const triggerInactivitySignOut = async () => {
-      try {
-        await supabase.auth.signOut();
-        setRole(null);
-        if (typeof window !== "undefined") {
-          window.location.assign("/");
-        }
-      } catch (err) {
-        console.error("Erro ao fazer logout por inatividade:", err);
-        if (typeof window !== "undefined") {
-          window.location.assign("/");
-        }
-      }
-    };
-
-    const resetTimer = () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      timeoutId = setTimeout(() => {
-        void triggerInactivitySignOut();
-      }, INACTIVITY_TIMEOUT_MS);
-    };
-
-    const events: Array<keyof WindowEventMap> = [
-      "mousemove",
-      "mousedown",
-      "keydown",
-      "scroll",
-      "touchstart",
-      "click",
-    ];
-
-    events.forEach((eventName) => {
-      window.addEventListener(eventName, resetTimer, { passive: true });
-    });
-
-    resetTimer();
-
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      events.forEach((eventName) => {
-        window.removeEventListener(eventName, resetTimer);
-      });
-    };
+    return undefined;
   }, [user]);
 
   const signOut = async () => {
@@ -208,7 +231,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, role, loading, error, signOut }}>
+    <AuthContext.Provider
+      value={{ session, user, role, loading, error, signOut }}
+    >
       {children}
     </AuthContext.Provider>
   );

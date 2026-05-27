@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Lock, Mail, Microscope } from "lucide-react";
+import Image from "next/image";
 import { toast } from "sonner";
 import { z } from "zod";
 import gridBg from "@/assets/grid-bg.jpg";
@@ -48,17 +49,28 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log("Iniciando login...", { email: parsed.data.email });
+
+      const { error, data } = await supabase.auth.signInWithPassword({
         email: parsed.data.email,
         password: parsed.data.password,
       });
-      if (error) throw error;
+
+      if (error) {
+        console.error("Erro de autenticação:", error);
+        throw error;
+      }
+
+      console.log("Login bem-sucedido:", data);
       toast.success("Bem-vindo de volta");
     } catch (err: unknown) {
+      console.error("Erro no handleSubmit:", err);
       const message = err instanceof Error ? err.message : "Erro desconhecido";
       const friendly = message.includes("Invalid login credentials")
         ? "E-mail ou senha incorretos"
-        : message;
+        : message.includes("Failed to fetch")
+          ? "Erro de conexão com servidor. Verifique sua internet."
+          : message;
       toast.error("Erro no login", {
         description: friendly,
       });
@@ -69,8 +81,8 @@ const Login = () => {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden p-6">
-      <img
-        src={gridBg.src}
+      <Image
+        src={gridBg}
         alt=""
         fill
         className="absolute inset-0 object-cover opacity-20"
