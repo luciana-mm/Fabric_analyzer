@@ -196,7 +196,11 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
   );
 
   useEffect(() => {
-    if (!isAutoAnalysisEnabled || cameraCapture.isCapturing || analysisType === "pecas") {
+    if (
+      !isAutoAnalysisEnabled ||
+      cameraCapture.isCapturing ||
+      analysisType === "pecas"
+    ) {
       return;
     }
 
@@ -207,7 +211,12 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
     return () => {
       window.clearTimeout(timerId);
     };
-  }, [cameraCapture.isCapturing, handleAnalyze, isAutoAnalysisEnabled, analysisType]);
+  }, [
+    cameraCapture.isCapturing,
+    handleAnalyze,
+    isAutoAnalysisEnabled,
+    analysisType,
+  ]);
 
   const handleAutoAnalysisToggle = (enabled: boolean) => {
     if (enabled && (!config.colorConfigured || !flowState.podeIniciar)) {
@@ -239,10 +248,13 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
 
     setResult(null);
     setIsAutoAnalysisEnabled(false);
-    toast.success(`${analysisType === "tecido" ? "Tecido" : "Peça"} finalizado`, {
-      description:
-        "Novo lote iniciado. Refaca as configuracoes e a calibracao de luz.",
-    });
+    toast.success(
+      `${analysisType === "tecido" ? "Tecido" : "Peça"} finalizado`,
+      {
+        description:
+          "Novo lote iniciado. Refaca as configuracoes e a calibracao de luz.",
+      },
+    );
     router.push("/painel");
   };
 
@@ -286,14 +298,14 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
             Analise de Cores
           </h2>
           <div className="mt-2 flex items-center justify-end gap-2">
-            <span className="text-xs text-white/55">
-              Tipo:
-            </span>
-            <span className={`px-2 py-1 rounded text-xs font-medium uppercase tracking-widest ${
-              analysisType === "tecido"
-                ? "bg-blue-500/20 text-blue-200 border border-blue-500/30"
-                : "bg-purple-500/20 text-purple-200 border border-purple-500/30"
-            }`}>
+            <span className="text-xs text-white/55">Tipo:</span>
+            <span
+              className={`px-2 py-1 rounded text-xs font-medium uppercase tracking-widest ${
+                analysisType === "tecido"
+                  ? "bg-blue-500/20 text-blue-200 border border-blue-500/30"
+                  : "bg-purple-500/20 text-purple-200 border border-purple-500/30"
+              }`}
+            >
               {analysisType === "tecido" ? "Tecido" : "Peças"}
             </span>
           </div>

@@ -96,8 +96,8 @@ const SelectAnalysisType = () => {
 
           <div className="mt-10 p-4 rounded-xl border border-border/30 bg-muted/20">
             <p className="text-xs text-muted-foreground text-center leading-relaxed">
-              A análise será configurada de acordo com o tipo selecionado. Você poderá mudar entre tipos
-              na próxima sessão.
+              A análise será configurada de acordo com o tipo selecionado. Você
+              poderá mudar entre tipos na próxima sessão.
             </p>
           </div>
         </div>

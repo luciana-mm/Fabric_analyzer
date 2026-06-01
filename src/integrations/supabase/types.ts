@@ -4,287 +4,290 @@ export type Json =
   | boolean
   | null
   | { [key: string]: Json | undefined }
-  | Json[]
+  | Json[];
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
+    PostgrestVersion: "14.5";
+  };
   public: {
     Tables: {
       profiles: {
         Row: {
-          active: boolean
-          created_at: string
-          department: string | null
-          display_name: string | null
-          employee_code: string | null
-          id: string
-          job_title: string | null
-          shift: string | null
-          updated_at: string
-          user_id: string
-        }
+          active: boolean;
+          created_at: string;
+          department: string | null;
+          display_name: string | null;
+          employee_code: string | null;
+          id: string;
+          job_title: string | null;
+          shift: string | null;
+          updated_at: string;
+          user_id: string;
+        };
         Insert: {
-          active?: boolean
-          created_at?: string
-          department?: string | null
-          display_name?: string | null
-          employee_code?: string | null
-          id?: string
-          job_title?: string | null
-          shift?: string | null
-          updated_at?: string
-          user_id: string
-        }
+          active?: boolean;
+          created_at?: string;
+          department?: string | null;
+          display_name?: string | null;
+          employee_code?: string | null;
+          id?: string;
+          job_title?: string | null;
+          shift?: string | null;
+          updated_at?: string;
+          user_id: string;
+        };
         Update: {
-          active?: boolean
-          created_at?: string
-          department?: string | null
-          display_name?: string | null
-          employee_code?: string | null
-          id?: string
-          job_title?: string | null
-          shift?: string | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
+          active?: boolean;
+          created_at?: string;
+          department?: string | null;
+          display_name?: string | null;
+          employee_code?: string | null;
+          id?: string;
+          job_title?: string | null;
+          shift?: string | null;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       analysis_records: {
         Row: {
-          analyzed_at: string
-          analysis_type: string
-          comparison_method: string | null
-          created_at: string
-          delta_e_measured: number | null
-          delta_e_threshold: number | null
-          failure_reason: string | null
-          id: string
-          measured_color_hex: string | null
-          operator_user_id: string
-          processing_time_ms: number
-          precision_percent: number | null
-          reference_code: string
-          reference_color_hex: string | null
-          result: string
-          required_precision_percent: number | null
-          tissue_batch_code: string | null
-          tissue_type: string
-        }
+          analyzed_at: string;
+          analysis_type: string;
+          comparison_method: string | null;
+          created_at: string;
+          delta_e_measured: number | null;
+          delta_e_threshold: number | null;
+          failure_reason: string | null;
+          id: string;
+          measured_color_hex: string | null;
+          operator_user_id: string;
+          processing_time_ms: number;
+          precision_percent: number | null;
+          reference_code: string;
+          reference_color_hex: string | null;
+          result: string;
+          required_precision_percent: number | null;
+          tissue_batch_code: string | null;
+          tissue_type: string;
+        };
         Insert: {
-          analyzed_at?: string
-          analysis_type?: string
-          comparison_method?: string | null
-          created_at?: string
-          delta_e_measured?: number | null
-          delta_e_threshold?: number | null
-          failure_reason?: string | null
-          id?: string
-          measured_color_hex?: string | null
-          operator_user_id: string
-          processing_time_ms: number
-          precision_percent?: number | null
-          reference_code: string
-          reference_color_hex?: string | null
-          result: string
-          required_precision_percent?: number | null
-          tissue_batch_code?: string | null
-          tissue_type: string
-        }
+          analyzed_at?: string;
+          analysis_type?: string;
+          comparison_method?: string | null;
+          created_at?: string;
+          delta_e_measured?: number | null;
+          delta_e_threshold?: number | null;
+          failure_reason?: string | null;
+          id?: string;
+          measured_color_hex?: string | null;
+          operator_user_id: string;
+          processing_time_ms: number;
+          precision_percent?: number | null;
+          reference_code: string;
+          reference_color_hex?: string | null;
+          result: string;
+          required_precision_percent?: number | null;
+          tissue_batch_code?: string | null;
+          tissue_type: string;
+        };
         Update: {
-          analyzed_at?: string
-          analysis_type?: string
-          comparison_method?: string | null
-          created_at?: string
-          delta_e_measured?: number | null
-          delta_e_threshold?: number | null
-          failure_reason?: string | null
-          id?: string
-          measured_color_hex?: string | null
-          operator_user_id?: string
-          processing_time_ms?: number
-          precision_percent?: number | null
-          reference_code?: string
-          reference_color_hex?: string | null
-          result?: string
-          required_precision_percent?: number | null
-          tissue_batch_code?: string | null
-          tissue_type?: string
-        }
-        Relationships: []
-      }
+          analyzed_at?: string;
+          analysis_type?: string;
+          comparison_method?: string | null;
+          created_at?: string;
+          delta_e_measured?: number | null;
+          delta_e_threshold?: number | null;
+          failure_reason?: string | null;
+          id?: string;
+          measured_color_hex?: string | null;
+          operator_user_id?: string;
+          processing_time_ms?: number;
+          precision_percent?: number | null;
+          reference_code?: string;
+          reference_color_hex?: string | null;
+          result?: string;
+          required_precision_percent?: number | null;
+          tissue_batch_code?: string | null;
+          tissue_type?: string;
+        };
+        Relationships: [];
+      };
       operator_configurations: {
         Row: {
-          active_tissue_code: string
-          active_view: string
-          analysis_area_configured: boolean
-          color_configured: boolean
-          created_at: string
-          delta_configured: boolean
-          delta_e: number
-          id: string
-          light_calibrated: boolean
-          system_step: string
-          reference_color_b: number
-          reference_color_g: number
-          reference_color_hex: string
-          reference_color_r: number
-          sample_area_height_percent: number
-          sample_area_width_percent: number
-          sample_points: number
-          updated_at: string
-          user_id: string
-        }
+          active_tissue_code: string;
+          active_view: string;
+          analysis_area_configured: boolean;
+          color_configured: boolean;
+          created_at: string;
+          delta_configured: boolean;
+          delta_e: number;
+          id: string;
+          light_calibrated: boolean;
+          system_step: string;
+          reference_color_b: number;
+          reference_color_g: number;
+          reference_color_hex: string;
+          reference_color_r: number;
+          sample_area_height_percent: number;
+          sample_area_width_percent: number;
+          sample_points: number;
+          updated_at: string;
+          user_id: string;
+        };
         Insert: {
-          active_tissue_code?: string
-          active_view?: string
-          analysis_area_configured?: boolean
-          color_configured?: boolean
-          created_at?: string
-          delta_configured?: boolean
-          delta_e?: number
-          id?: string
-          light_calibrated?: boolean
-          system_step?: string
-          reference_color_b?: number
-          reference_color_g?: number
-          reference_color_hex?: string
-          reference_color_r?: number
-          sample_area_height_percent?: number
-          sample_area_width_percent?: number
-          sample_points?: number
-          updated_at?: string
-          user_id: string
-        }
+          active_tissue_code?: string;
+          active_view?: string;
+          analysis_area_configured?: boolean;
+          color_configured?: boolean;
+          created_at?: string;
+          delta_configured?: boolean;
+          delta_e?: number;
+          id?: string;
+          light_calibrated?: boolean;
+          system_step?: string;
+          reference_color_b?: number;
+          reference_color_g?: number;
+          reference_color_hex?: string;
+          reference_color_r?: number;
+          sample_area_height_percent?: number;
+          sample_area_width_percent?: number;
+          sample_points?: number;
+          updated_at?: string;
+          user_id: string;
+        };
         Update: {
-          active_tissue_code?: string
-          active_view?: string
-          analysis_area_configured?: boolean
-          color_configured?: boolean
-          created_at?: string
-          delta_configured?: boolean
-          delta_e?: number
-          id?: string
-          light_calibrated?: boolean
-          system_step?: string
-          reference_color_b?: number
-          reference_color_g?: number
-          reference_color_hex?: string
-          reference_color_r?: number
-          sample_area_height_percent?: number
-          sample_area_width_percent?: number
-          sample_points?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
+          active_tissue_code?: string;
+          active_view?: string;
+          analysis_area_configured?: boolean;
+          color_configured?: boolean;
+          created_at?: string;
+          delta_configured?: boolean;
+          delta_e?: number;
+          id?: string;
+          light_calibrated?: boolean;
+          system_step?: string;
+          reference_color_b?: number;
+          reference_color_g?: number;
+          reference_color_hex?: string;
+          reference_color_r?: number;
+          sample_area_height_percent?: number;
+          sample_area_width_percent?: number;
+          sample_points?: number;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       user_roles: {
         Row: {
-          created_at: string
-          id: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
+          created_at: string;
+          id: string;
+          role: Database["public"]["Enums"]["app_role"];
+          user_id: string;
+        };
         Insert: {
-          created_at?: string
-          id?: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
+          created_at?: string;
+          id?: string;
+          role: Database["public"]["Enums"]["app_role"];
+          user_id: string;
+        };
         Update: {
-          created_at?: string
-          id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          user_id?: string
-        }
-        Relationships: []
-      }
-    }
+          created_at?: string;
+          id?: string;
+          role?: Database["public"]["Enums"]["app_role"];
+          user_id?: string;
+        };
+        Relationships: [];
+      };
+    };
     Views: {
-      [_ in never]: never
-    }
+      [_ in never]: never;
+    };
     Functions: {
       get_batch_details: {
         Args: {
-          p_batch_id: string
-        }
+          p_batch_id: string;
+        };
         Returns: Array<{
-          approved_count: number
-          batch_code: string
-          batch_id: string
-          first_analyzed_at: string
-          last_analyzed_at: string
-          operators: Json
-          rejected_count: number
-          total_fabrics: number
-        }>
-      }
+          approved_count: number;
+          batch_code: string;
+          batch_id: string;
+          first_analyzed_at: string;
+          last_analyzed_at: string;
+          operators: Json;
+          rejected_count: number;
+          total_fabrics: number;
+        }>;
+      };
       get_batch_history: {
         Args: {
-          p_end: string | null
-          p_limit: number
-          p_offset: number
-          p_search: string | null
-          p_start: string | null
-          p_user_id: string | null
-        }
+          p_end: string | null;
+          p_limit: number;
+          p_offset: number;
+          p_search: string | null;
+          p_start: string | null;
+          p_user_id: string | null;
+        };
         Returns: Array<{
-          approved_count: number
-          batch_code: string
-          batch_id: string
-          first_analyzed_at: string
-          last_analyzed_at: string
-          operator_user_ids: string[] | null
-          rejected_count: number
-          total_fabrics: number
-          total_rows: number
-        }>
-      }
+          approved_count: number;
+          batch_code: string;
+          batch_id: string;
+          first_analyzed_at: string;
+          last_analyzed_at: string;
+          operator_user_ids: string[] | null;
+          rejected_count: number;
+          total_fabrics: number;
+          total_rows: number;
+        }>;
+      };
       get_current_user_role: {
-        Args: never
-        Returns: Database["public"]["Enums"]["app_role"]
-      }
+        Args: never;
+        Returns: Database["public"]["Enums"]["app_role"];
+      };
       has_role: {
         Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
-    }
+          _role: Database["public"]["Enums"]["app_role"];
+          _user_id: string;
+        };
+        Returns: boolean;
+      };
+    };
     Enums: {
-      app_role: "operador" | "gestor"
-    }
+      app_role: "operador" | "gestor";
+    };
     CompositeTypes: {
-      [_ in never]: never
-    }
-  }
-}
+      [_ in never]: never;
+    };
+  };
+};
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">;
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+type DefaultSchema = DatabaseWithoutInternals[Extract<
+  keyof Database,
+  "public"
+>];
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
       DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R
+      Row: infer R;
     }
     ? R
     : never
@@ -292,95 +295,95 @@ export type Tables<
         DefaultSchema["Views"])
     ? (DefaultSchema["Tables"] &
         DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
+        Row: infer R;
       }
       ? R
       : never
-    : never
+    : never;
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
+      Insert: infer I;
     }
     ? I
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
     ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
+        Insert: infer I;
       }
       ? I
       : never
-    : never
+    : never;
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
+      Update: infer U;
     }
     ? U
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
     ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
+        Update: infer U;
       }
       ? U
       : never
-    : never
+    : never;
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
+    : never;
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
+    : never;
 
 export const Constants = {
   public: {
@@ -388,4 +391,4 @@ export const Constants = {
       app_role: ["operador", "gestor"],
     },
   },
-} as const
+} as const;
