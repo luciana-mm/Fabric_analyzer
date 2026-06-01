@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Package, Tshirt } from "lucide-react";
+import { ArrowLeft, Package, Shirt } from "lucide-react";
 import gridBg from "@/assets/grid-bg.jpg";
 
 const SelectAnalysisType = () => {
@@ -63,7 +63,7 @@ const SelectAnalysisType = () => {
               className="group relative flex flex-col items-center justify-center gap-4 p-8 rounded-2xl border border-border/30 bg-card/40 backdrop-blur-sm hover:border-foreground/30 hover:bg-card/60 transition-all duration-300 active:scale-[0.98]"
             >
               <div className="w-20 h-20 rounded-xl bg-foreground/10 flex items-center justify-center group-hover:bg-foreground/15 transition-all duration-300">
-                <Tshirt className="w-10 h-10 text-foreground" />
+                <Shirt className="w-10 h-10 text-foreground" />
               </div>
               <div className="text-center">
                 <h2 className="font-sansserief text-lg tracking-[0.2em] uppercase text-foreground/90">

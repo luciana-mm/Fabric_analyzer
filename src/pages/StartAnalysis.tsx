@@ -8,12 +8,21 @@ import gridBg from "@/assets/grid-bg.jpg";
 import { CameraPreview } from "@/components/CameraPreview";
 import { useAuth } from "@/hooks/useAuth";
 import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
-import { defaultSystemConfig, getStartBlockedDescription, getSystemFlowState } from "@/lib/systemConfig";
+import {
+  defaultSystemConfig,
+  getStartBlockedDescriptionFromFlow,
+  getSystemFlowState,
+} from "@/lib/systemConfig";
 
 const StartAnalysis = () => {
   const router = useRouter();
   const { user } = useAuth();
-  const { config: systemConfig, isLoading, persistPatch, setActiveView } = useOperatorSystemConfig(user?.id);
+  const {
+    config: systemConfig,
+    isLoading,
+    persistPatch,
+    setActiveView,
+  } = useOperatorSystemConfig(user?.id);
   const [isFinishing, setIsFinishing] = useState(false);
   const hasShownBlockedToast = useRef(false);
   const hasFinishedAnalysis = useRef(false);
@@ -21,13 +30,18 @@ const StartAnalysis = () => {
   const isReady = getSystemFlowState(systemConfig).podeIniciar;
 
   useEffect(() => {
-    if (isLoading || isReady || hasShownBlockedToast.current || hasFinishedAnalysis.current) {
+    if (
+      isLoading ||
+      isReady ||
+      hasShownBlockedToast.current ||
+      hasFinishedAnalysis.current
+    ) {
       return;
     }
 
     hasShownBlockedToast.current = true;
     toast.error("Pré-requisitos pendentes", {
-      description: getStartBlockedDescription(systemConfig),
+      description: getStartBlockedDescriptionFromFlow(systemConfig),
     });
     router.replace("/painel");
   }, [isLoading, isReady, router, systemConfig]);
@@ -115,10 +129,11 @@ const StartAnalysis = () => {
           </div>
         </div>
         <div className="flex justify-end mt-6">
-          <button 
+          <button
             onClick={handleFinishAnalysis}
             disabled={isFinishing}
-            className="flex items-center gap-2 px-5 py-3 rounded-full bg-muted/40 border border-border/30 hover:bg-muted/60 hover:border-foreground/30 transition-all font-sansserief text-[10px] tracking-[0.25em] uppercase text-foreground/80 disabled:opacity-50 disabled:cursor-not-allowed ">
+            className="flex items-center gap-2 px-5 py-3 rounded-full bg-muted/40 border border-border/30 hover:bg-muted/60 hover:border-foreground/30 transition-all font-sansserief text-[10px] tracking-[0.25em] uppercase text-foreground/80 disabled:opacity-50 disabled:cursor-not-allowed "
+          >
             {isFinishing ? "Finalizando..." : "Finalizar analise"}
           </button>
         </div>
