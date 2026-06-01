@@ -3,8 +3,8 @@
  * Handles robust color capture with multiple samples
  */
 
-import { useState, useCallback } from 'react';
-import { RgbColor8Bit } from '@/utils/colorSpaceConversion';
+import { useState, useCallback } from "react";
+import { RgbColor8Bit } from "@/utils/colorSpaceConversion";
 
 export interface CameraRobustCaptureState {
   isCapturing: boolean;
@@ -31,7 +31,8 @@ export interface UseCameraRobustCaptureReturn extends CameraRobustCaptureState {
   ) => Promise<RgbColor8Bit | null>;
 }
 
-const CAMERA_PROXY_URL = process.env.NEXT_PUBLIC_CAMERA_PROXY_URL || 'http://localhost:8090';
+const CAMERA_PROXY_URL =
+  process.env.NEXT_PUBLIC_CAMERA_PROXY_URL || "http://localhost:8090";
 
 export function useCameraRobustCapture(): UseCameraRobustCaptureReturn {
   const [state, setState] = useState<CameraRobustCaptureState>({
@@ -79,9 +80,9 @@ export function useCameraRobustCapture(): UseCameraRobustCaptureReturn {
         const response = await fetch(
           `${CAMERA_PROXY_URL}/capture-robust-sample?${query.toString()}`,
           {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
           },
         );
@@ -89,14 +90,15 @@ export function useCameraRobustCapture(): UseCameraRobustCaptureReturn {
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(
-            errorData.detail || `Camera error: ${response.status} ${response.statusText}`,
+            errorData.detail ||
+              `Camera error: ${response.status} ${response.statusText}`,
           );
         }
 
         const data = await response.json();
 
         if (!data.success || !data.rgb) {
-          throw new Error('Invalid response from camera proxy');
+          throw new Error("Invalid response from camera proxy");
         }
 
         const capture = {
@@ -118,11 +120,10 @@ export function useCameraRobustCapture(): UseCameraRobustCaptureReturn {
           lastCapture: capture,
         }));
 
-        console.log('[useCameraRobustCapture] Capture successful:', capture);
         return capture.rgb;
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-        console.error('[useCameraRobustCapture] Capture error:', errorMessage);
+        const errorMessage =
+          err instanceof Error ? err.message : "Unknown error";
 
         setState((prev) => ({
           ...prev,
