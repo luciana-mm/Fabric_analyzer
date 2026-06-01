@@ -1,10 +1,10 @@
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import ColorAnalysis from "@/pages/ColorAnalysis";
+import SelectAnalysisType from "@/pages/SelectAnalysisType";
 
 export default function AnalysisPage() {
   return (
     <ProtectedRoute requireRole="operador">
-      <ColorAnalysis />
+      <SelectAnalysisType />
     </ProtectedRoute>
   );
 }

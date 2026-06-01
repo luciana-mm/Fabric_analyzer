@@ -56,6 +56,7 @@ export type Database = {
       analysis_records: {
         Row: {
           analyzed_at: string
+          analysis_type: string
           comparison_method: string | null
           created_at: string
           delta_e_measured: number | null
@@ -75,6 +76,7 @@ export type Database = {
         }
         Insert: {
           analyzed_at?: string
+          analysis_type?: string
           comparison_method?: string | null
           created_at?: string
           delta_e_measured?: number | null
@@ -94,6 +96,7 @@ export type Database = {
         }
         Update: {
           analyzed_at?: string
+          analysis_type?: string
           comparison_method?: string | null
           created_at?: string
           delta_e_measured?: number | null

@@ -35,7 +35,11 @@ const clampCapturePercent = (value: number | undefined, fallback: number) => {
 
 const AUTO_ANALYSIS_INTERVAL_MS = 2500;
 
-const ColorAnalysis = () => {
+interface ColorAnalysisProps {
+  analysisType?: "tecido" | "pecas";
+}
+
+const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
   const router = useRouter();
   const { user } = useAuth();
   const { config, persistPatch } = useOperatorSystemConfig(user?.id);
@@ -148,6 +152,7 @@ const ColorAnalysis = () => {
         reference_code: `${activeTissueCode}-${Date.now()}`,
         tissue_type: activeTissueCode,
         tissue_batch_code: activeTissueCode,
+        analysis_type: analysisType,
         result: success ? "ok" : "fail",
         failure_reason: success
           ? null
@@ -191,7 +196,7 @@ const ColorAnalysis = () => {
   );
 
   useEffect(() => {
-    if (!isAutoAnalysisEnabled || cameraCapture.isCapturing) {
+    if (!isAutoAnalysisEnabled || cameraCapture.isCapturing || analysisType === "pecas") {
       return;
     }
 
@@ -202,7 +207,7 @@ const ColorAnalysis = () => {
     return () => {
       window.clearTimeout(timerId);
     };
-  }, [cameraCapture.isCapturing, handleAnalyze, isAutoAnalysisEnabled]);
+  }, [cameraCapture.isCapturing, handleAnalyze, isAutoAnalysisEnabled, analysisType]);
 
   const handleAutoAnalysisToggle = (enabled: boolean) => {
     if (enabled && (!config.colorConfigured || !flowState.podeIniciar)) {
@@ -234,7 +239,7 @@ const ColorAnalysis = () => {
 
     setResult(null);
     setIsAutoAnalysisEnabled(false);
-    toast.success("Tecido finalizado", {
+    toast.success(`${analysisType === "tecido" ? "Tecido" : "Peça"} finalizado`, {
       description:
         "Novo lote iniciado. Refaca as configuracoes e a calibracao de luz.",
     });
@@ -280,9 +285,18 @@ const ColorAnalysis = () => {
           <h2 className="font-sansserief text-sm uppercase tracking-[0.25em] text-white">
             Analise de Cores
           </h2>
-          <p className="mt-1 text-xs text-white/55">
-            Area definida na etapa de analise
-          </p>
+          <div className="mt-2 flex items-center justify-end gap-2">
+            <span className="text-xs text-white/55">
+              Tipo:
+            </span>
+            <span className={`px-2 py-1 rounded text-xs font-medium uppercase tracking-widest ${
+              analysisType === "tecido"
+                ? "bg-blue-500/20 text-blue-200 border border-blue-500/30"
+                : "bg-purple-500/20 text-purple-200 border border-purple-500/30"
+            }`}>
+              {analysisType === "tecido" ? "Tecido" : "Peças"}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -357,7 +371,7 @@ const ColorAnalysis = () => {
           {!isPanelExpanded && (
             <div className="mb-3 pr-10">
               <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
-                Analise de tecidos
+                Analise de {analysisType === "tecido" ? "tecidos" : "pecas"}
               </p>
               {result && (
                 <p className="mt-1 text-xs text-white/70">
@@ -369,28 +383,30 @@ const ColorAnalysis = () => {
           )}
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-              <div>
-                <p className="text-sm font-medium text-white">
-                  Analise automatica
-                </p>
-                <p className="text-xs text-white/65">
-                  Executa uma nova analise a cada 2,5 segundos.
-                </p>
+            {analysisType === "tecido" && (
+              <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-white">
+                    Analise automatica
+                  </p>
+                  <p className="text-xs text-white/65">
+                    Executa uma nova analise a cada 2,5 segundos.
+                  </p>
+                </div>
+                <Switch
+                  checked={isAutoAnalysisEnabled}
+                  onCheckedChange={handleAutoAnalysisToggle}
+                  disabled={cameraCapture.isCapturing}
+                  aria-label="Ativar analise automatica"
+                />
               </div>
-              <Switch
-                checked={isAutoAnalysisEnabled}
-                onCheckedChange={handleAutoAnalysisToggle}
-                disabled={cameraCapture.isCapturing}
-                aria-label="Ativar analise automatica"
-              />
-            </div>
+            )}
 
             <button
               onClick={handleFinishTissue}
               className="flex min-h-[64px] items-center justify-center rounded-xl border border-rose-500/35 bg-rose-950/35 px-4 py-3 text-center text-sm font-medium text-rose-200 transition hover:bg-rose-900/45"
             >
-              Finalizar Tecido
+              Finalizar {analysisType === "tecido" ? "Tecido" : "Peça"}
             </button>
             <button
               onClick={() => void handleAnalyze("manual")}
