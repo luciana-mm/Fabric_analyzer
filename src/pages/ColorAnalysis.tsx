@@ -1,14 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ChevronDown, ChevronUp, Loader2, ScanLine } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  ScanLine,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CameraPreview } from "@/components/CameraPreview";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
 import { useCameraRobustCapture } from "@/hooks/useCameraRobustCapture";
-import { createTissueBatchCode, defaultSystemConfig, getSystemFlowState } from "@/lib/systemConfig";
+import {
+  createTissueBatchCode,
+  defaultSystemConfig,
+  getSystemFlowState,
+} from "@/lib/systemConfig";
 import { evaluateColorMatch } from "@/utils/calibrationUtils";
 import { rgb8BitToNormalized, rgbToHex } from "@/utils/colorSpaceConversion";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +33,8 @@ const clampCapturePercent = (value: number | undefined, fallback: number) => {
   return Math.min(100, Math.max(5, Math.round(numberValue)));
 };
 
+const AUTO_ANALYSIS_INTERVAL_MS = 2500;
+
 const ColorAnalysis = () => {
   const router = useRouter();
   const { user } = useAuth();
@@ -34,6 +47,7 @@ const ColorAnalysis = () => {
     success: boolean;
   } | null>(null);
   const [isPanelExpanded, setIsPanelExpanded] = useState(false);
+  const [isAutoAnalysisEnabled, setIsAutoAnalysisEnabled] = useState(false);
 
   const requiredPrecision = useMemo(() => {
     if (config.deltaE === 1) return 80;
@@ -67,73 +81,139 @@ const ColorAnalysis = () => {
     };
   }, []);
 
-  const handleAnalyze = async () => {
-    if (!config.colorConfigured || !flowState.podeIniciar) {
+  const handleAnalyze = useCallback(
+    async (trigger: "manual" | "auto" = "manual") => {
+      if (cameraCapture.isCapturing) {
+        return;
+      }
+
+      if (!config.colorConfigured || !flowState.podeIniciar) {
+        if (trigger === "auto") {
+          setIsAutoAnalysisEnabled(false);
+          toast.warning("Analise automatica pausada", {
+            description:
+              "Finalize a configuracao para retomar a analise automatica.",
+          });
+          return;
+        }
+
+        toast.error("Configuracao incompleta", {
+          description:
+            "Defina a cor base e calibre a luz antes de iniciar a analise.",
+        });
+        return;
+      }
+
+      const rgbSample = await cameraCapture.captureRobustSample(5, 200, {
+        areaWidthPercent: captureAreaWidth,
+        areaHeightPercent: captureAreaHeight,
+        samplePoints: config.samplePoints,
+      });
+      if (!rgbSample) {
+        if (trigger === "manual") {
+          toast.error("Nao foi possivel capturar amostra da camera.");
+        }
+        return;
+      }
+
+      const measured = rgb8BitToNormalized(rgbSample);
+      const reference = {
+        r: config.referenceColorRgb.r / 255,
+        g: config.referenceColorRgb.g / 255,
+        b: config.referenceColorRgb.b / 255,
+      };
+
+      const evaluation = evaluateColorMatch(measured, reference, config.deltaE);
+      const precision = Math.max(0, Math.min(100, 100 - evaluation.deltaE * 2));
+      const success = precision >= requiredPrecision;
+      const measuredHex = rgbToHex(measured);
+
+      setResult({
+        precision,
+        deltaE: evaluation.deltaE,
+        success,
+      });
+
+      if (!user?.id) {
+        if (trigger === "manual") {
+          toast.warning(
+            "Analise concluida sem usuario autenticado para salvar historico.",
+          );
+        }
+        return;
+      }
+
+      const { error } = await supabase.from("analysis_records").insert({
+        operator_user_id: user.id,
+        reference_code: `${activeTissueCode}-${Date.now()}`,
+        tissue_type: activeTissueCode,
+        tissue_batch_code: activeTissueCode,
+        result: success ? "ok" : "fail",
+        failure_reason: success
+          ? null
+          : "Precisao abaixo do minimo configurado",
+        processing_time_ms: 1000,
+        delta_e_measured: Number(evaluation.deltaE.toFixed(4)),
+        delta_e_threshold: config.deltaE,
+        precision_percent: Number(precision.toFixed(2)),
+        required_precision_percent: Number(requiredPrecision.toFixed(2)),
+        comparison_method: "CIEDE2000",
+        reference_color_hex: config.referenceColorHex,
+        measured_color_hex: measuredHex,
+      });
+
+      if (error) {
+        console.error("Erro ao salvar analise:", error);
+        if (trigger === "manual") {
+          toast.warning(
+            "Analise concluida, mas nao foi possivel salvar no historico.",
+          );
+        }
+        return;
+      }
+
+      if (trigger === "manual") {
+        toast.success(success ? "Sucesso na analise" : "Falha na analise", {
+          description: `Precisao ${precision.toFixed(1)}% | Minimo ${requiredPrecision.toFixed(1)}%`,
+        });
+      }
+    },
+    [
+      activeTissueCode,
+      cameraCapture,
+      captureAreaHeight,
+      captureAreaWidth,
+      config,
+      flowState.podeIniciar,
+      requiredPrecision,
+      user?.id,
+    ],
+  );
+
+  useEffect(() => {
+    if (!isAutoAnalysisEnabled || cameraCapture.isCapturing) {
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      void handleAnalyze("auto");
+    }, AUTO_ANALYSIS_INTERVAL_MS);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [cameraCapture.isCapturing, handleAnalyze, isAutoAnalysisEnabled]);
+
+  const handleAutoAnalysisToggle = (enabled: boolean) => {
+    if (enabled && (!config.colorConfigured || !flowState.podeIniciar)) {
       toast.error("Configuracao incompleta", {
-        description: "Defina a cor base e calibre a luz antes de iniciar a analise.",
+        description:
+          "Defina a cor base e calibre a luz antes de ativar a analise automatica.",
       });
       return;
     }
 
-    const rgbSample = await cameraCapture.captureRobustSample(5, 200, {
-      areaWidthPercent: captureAreaWidth,
-      areaHeightPercent: captureAreaHeight,
-      samplePoints: config.samplePoints,
-    });
-    if (!rgbSample) {
-      toast.error("Nao foi possivel capturar amostra da camera.");
-      return;
-    }
-
-    const measured = rgb8BitToNormalized(rgbSample);
-    const reference = {
-      r: config.referenceColorRgb.r / 255,
-      g: config.referenceColorRgb.g / 255,
-      b: config.referenceColorRgb.b / 255,
-    };
-
-    const evaluation = evaluateColorMatch(measured, reference, config.deltaE);
-    const precision = Math.max(0, Math.min(100, 100 - evaluation.deltaE * 2));
-    const success = precision >= requiredPrecision;
-    const measuredHex = rgbToHex(measured);
-
-    setResult({
-      precision,
-      deltaE: evaluation.deltaE,
-      success,
-    });
-
-    if (!user?.id) {
-      toast.warning("Analise concluida sem usuario autenticado para salvar historico.");
-      return;
-    }
-
-    const { error } = await supabase.from("analysis_records").insert({
-      operator_user_id: user.id,
-      reference_code: `${activeTissueCode}-${Date.now()}`,
-      tissue_type: activeTissueCode,
-      tissue_batch_code: activeTissueCode,
-      result: success ? "ok" : "fail",
-      failure_reason: success ? null : "Precisao abaixo do minimo configurado",
-      processing_time_ms: 1000,
-      delta_e_measured: Number(evaluation.deltaE.toFixed(4)),
-      delta_e_threshold: config.deltaE,
-      precision_percent: Number(precision.toFixed(2)),
-      required_precision_percent: Number(requiredPrecision.toFixed(2)),
-      comparison_method: "CIEDE2000",
-      reference_color_hex: config.referenceColorHex,
-      measured_color_hex: measuredHex,
-    });
-
-    if (error) {
-      console.error("Erro ao salvar analise:", error);
-      toast.warning("Analise concluida, mas nao foi possivel salvar no historico.");
-      return;
-    }
-
-    toast.success(success ? "Sucesso na analise" : "Falha na analise", {
-      description: `Precisao ${precision.toFixed(1)}% | Minimo ${requiredPrecision.toFixed(1)}%`,
-    });
+    setIsAutoAnalysisEnabled(enabled);
   };
 
   const handleFinishTissue = async () => {
@@ -153,8 +233,10 @@ const ColorAnalysis = () => {
     }
 
     setResult(null);
+    setIsAutoAnalysisEnabled(false);
     toast.success("Tecido finalizado", {
-      description: "Novo lote iniciado. Refaca as configuracoes e a calibracao de luz.",
+      description:
+        "Novo lote iniciado. Refaca as configuracoes e a calibracao de luz.",
     });
     router.push("/painel");
   };
@@ -198,7 +280,9 @@ const ColorAnalysis = () => {
           <h2 className="font-sansserief text-sm uppercase tracking-[0.25em] text-white">
             Analise de Cores
           </h2>
-          <p className="mt-1 text-xs text-white/55">Area definida na etapa de analise</p>
+          <p className="mt-1 text-xs text-white/55">
+            Area definida na etapa de analise
+          </p>
         </div>
       </div>
 
@@ -210,7 +294,11 @@ const ColorAnalysis = () => {
             aria-label={isPanelExpanded ? "Recolher painel" : "Expandir painel"}
             className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black/45 text-white/75 transition hover:bg-white/10 hover:text-white"
           >
-            {isPanelExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+            {isPanelExpanded ? (
+              <ChevronDown className="h-5 w-5" />
+            ) : (
+              <ChevronUp className="h-5 w-5" />
+            )}
           </button>
 
           {isPanelExpanded && (
@@ -219,14 +307,18 @@ const ColorAnalysis = () => {
                 <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
                   Delta E
                 </p>
-                <p className="mt-2 text-lg font-medium text-white">Delta E &lt;= {config.deltaE}</p>
+                <p className="mt-2 text-lg font-medium text-white">
+                  Delta E &lt;= {config.deltaE}
+                </p>
               </div>
 
               <div className="rounded-xl border border-white/10 bg-white/5 p-3">
                 <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
                   Precisao minima
                 </p>
-                <p className="mt-2 text-lg font-medium text-white">{requiredPrecision.toFixed(1)}%</p>
+                <p className="mt-2 text-lg font-medium text-white">
+                  {requiredPrecision.toFixed(1)}%
+                </p>
               </div>
 
               <div
@@ -234,8 +326,8 @@ const ColorAnalysis = () => {
                   !result
                     ? "border-white/10 bg-white/5 text-white/65"
                     : result.success
-                    ? "border-emerald-500/35 bg-emerald-950/35 text-emerald-100"
-                    : "border-rose-500/35 bg-rose-950/35 text-rose-100"
+                      ? "border-emerald-500/35 bg-emerald-950/35 text-emerald-100"
+                      : "border-rose-500/35 bg-rose-950/35 text-rose-100"
                 }`}
               >
                 <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
@@ -244,15 +336,19 @@ const ColorAnalysis = () => {
                 {result ? (
                   <>
                     <p className="mt-2 text-sm font-medium">
-                      {result.success ? "Sucesso: tecido dentro do padrao de cor." : "Fora do padrao"}
+                      {result.success
+                        ? "Sucesso: tecido dentro do padrao de cor."
+                        : "Fora do padrao"}
                     </p>
                     <p className="mt-1 text-xs opacity-85">
-                      Precisao: <strong>{result.precision.toFixed(1)}%</strong> | Delta E:{" "}
-                      {result.deltaE.toFixed(2)}
+                      Precisao: <strong>{result.precision.toFixed(1)}%</strong>{" "}
+                      | Delta E: {result.deltaE.toFixed(2)}
                     </p>
                   </>
                 ) : (
-                  <p className="mt-2 text-sm">Nenhuma analise realizada ainda.</p>
+                  <p className="mt-2 text-sm">
+                    Nenhuma analise realizada ainda.
+                  </p>
                 )}
               </div>
             </div>
@@ -265,13 +361,31 @@ const ColorAnalysis = () => {
               </p>
               {result && (
                 <p className="mt-1 text-xs text-white/70">
-                  {result.success ? "Sucesso" : "Fora do padrao"} - {result.precision.toFixed(1)}%
+                  {result.success ? "Sucesso" : "Fora do padrao"} -{" "}
+                  {result.precision.toFixed(1)}%
                 </p>
               )}
             </div>
           )}
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-white">
+                  Analise automatica
+                </p>
+                <p className="text-xs text-white/65">
+                  Executa uma nova analise a cada 2,5 segundos.
+                </p>
+              </div>
+              <Switch
+                checked={isAutoAnalysisEnabled}
+                onCheckedChange={handleAutoAnalysisToggle}
+                disabled={cameraCapture.isCapturing}
+                aria-label="Ativar analise automatica"
+              />
+            </div>
+
             <button
               onClick={handleFinishTissue}
               className="flex min-h-[64px] items-center justify-center rounded-xl border border-rose-500/35 bg-rose-950/35 px-4 py-3 text-center text-sm font-medium text-rose-200 transition hover:bg-rose-900/45"
@@ -279,14 +393,19 @@ const ColorAnalysis = () => {
               Finalizar Tecido
             </button>
             <button
-              onClick={handleAnalyze}
-              disabled={cameraCapture.isCapturing}
+              onClick={() => void handleAnalyze("manual")}
+              disabled={cameraCapture.isCapturing || isAutoAnalysisEnabled}
               className="flex min-h-[64px] items-center justify-center rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-center text-sm font-medium text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {cameraCapture.isCapturing ? (
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="h-5 w-5 animate-spin" />
                   Analisando
+                </span>
+              ) : isAutoAnalysisEnabled ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Analise automatica ativa
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-2">
