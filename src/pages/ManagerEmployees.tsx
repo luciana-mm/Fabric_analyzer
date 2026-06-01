@@ -1,8 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ArrowLeft, ChevronDown, ChevronUp, Plus, Power, Search, ShieldCheck, User } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  Plus,
+  Power,
+  Search,
+  ShieldCheck,
+  User,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useManagerDashboardData } from "@/hooks/useDashboardData";
+import { supabase } from "@/integrations/supabase/client";
 import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
@@ -17,6 +29,7 @@ import {
 
 type Employee = {
   id: string;
+  userId: string;
   name: string;
   email?: string;
   accessId?: string;
@@ -31,7 +44,14 @@ type Employee = {
 
 type StatusFilter = "all" | "active" | "inactive";
 type NewEmployeeRole = "FUNCIONARIO (OPERADOR)" | "GESTOR";
-type SortKey = "name" | "shift" | "status" | "verified" | "success" | "fails" | "rate";
+type SortKey =
+  | "name"
+  | "shift"
+  | "status"
+  | "verified"
+  | "success"
+  | "fails"
+  | "rate";
 type SortDirection = "asc" | "desc";
 
 type NewEmployeeForm = {
@@ -52,78 +72,8 @@ const emptyNewEmployeeForm: NewEmployeeForm = {
   shift: "Nao informado",
 };
 
-const initialEmployees: Employee[] = [
-  {
-    id: "1",
-    name: "gestor",
-    role: "FUNCIONARIO (OPERADOR)",
-    shift: "Nao informado",
-    verified: 25,
-    success: 13,
-    fails: 12,
-    active: false,
-  },
-  {
-    id: "2",
-    name: "admin",
-    role: "FUNCIONARIO (OPERADOR)",
-    shift: "Nao informado",
-    verified: 0,
-    success: 0,
-    fails: 0,
-    active: true,
-  },
-  {
-    id: "3",
-    name: "testereal",
-    role: "FUNCIONARIO (OPERADOR)",
-    shift: "Nao informado",
-    verified: 0,
-    success: 0,
-    fails: 0,
-    active: true,
-  },
-  {
-    id: "4",
-    name: "teste",
-    role: "FUNCIONARIO (OPERADOR)",
-    shift: "Nao informado",
-    verified: 0,
-    success: 0,
-    fails: 0,
-    active: false,
-  },
-  {
-    id: "5",
-    name: "teste2",
-    role: "FUNCIONARIO (OPERADOR)",
-    shift: "Nao informado",
-    verified: 0,
-    success: 0,
-    fails: 0,
-    active: true,
-  },
-  {
-    id: "6",
-    name: "gestor2",
-    role: "FUNCIONARIO (OPERADOR)",
-    shift: "Nao informado",
-    verified: 0,
-    success: 0,
-    fails: 0,
-    active: true,
-  },
-  {
-    id: "7",
-    name: "luciana melo",
-    role: "FUNCIONARIO",
-    shift: "Nao informado",
-    verified: 0,
-    success: 0,
-    fails: 0,
-    active: false,
-  },
-];
+const mapDashboardRole = (role: string) =>
+  role.toLowerCase().includes("gestor") ? "GESTOR" : "FUNCIONARIO (OPERADOR)";
 
 const getSuccessRate = (employee: Employee) => {
   if (employee.verified === 0) return "0.0";
@@ -137,14 +87,43 @@ const getSuccessRateValue = (employee: Employee) => {
 
 const ManagerEmployees = () => {
   const router = useRouter();
-  const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
+  const {
+    employees: dashboardEmployees,
+    loading,
+    isError,
+    refresh,
+  } = useManagerDashboardData({
+    includeManagers: true,
+    includeInactive: true,
+    period: "daily",
+  });
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [pending, setPending] = useState<Employee | null>(null);
+  const [toggleError, setToggleError] = useState<string | null>(null);
+  const [isSavingToggle, setIsSavingToggle] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [newEmployee, setNewEmployee] = useState<NewEmployeeForm>(emptyNewEmployeeForm);
+  const [newEmployee, setNewEmployee] =
+    useState<NewEmployeeForm>(emptyNewEmployeeForm);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  useEffect(() => {
+    setEmployees(
+      dashboardEmployees.map((employee) => ({
+        id: employee.id,
+        userId: employee.userId,
+        name: employee.name,
+        role: mapDashboardRole(employee.role),
+        shift: employee.shift,
+        verified: employee.verified,
+        success: employee.success,
+        fails: employee.failure,
+        active: employee.active,
+      })),
+    );
+  }, [dashboardEmployees]);
 
   const counts = useMemo(
     () => ({
@@ -157,23 +136,31 @@ const ManagerEmployees = () => {
 
   const filteredEmployees = useMemo(() => {
     const filtered = employees.filter((employee) => {
-        const matchesSearch = employee.name.toLowerCase().includes(search.trim().toLowerCase());
-        const matchesFilter =
-          filter === "all" ||
-          (filter === "active" && employee.active) ||
-          (filter === "inactive" && !employee.active);
+      const matchesSearch = employee.name
+        .toLowerCase()
+        .includes(search.trim().toLowerCase());
+      const matchesFilter =
+        filter === "all" ||
+        (filter === "active" && employee.active) ||
+        (filter === "inactive" && !employee.active);
 
-        return matchesSearch && matchesFilter;
-      });
+      return matchesSearch && matchesFilter;
+    });
 
     const sorted = [...filtered].sort((a, b) => {
       const direction = sortDirection === "asc" ? 1 : -1;
 
       if (sortKey === "name") {
-        return a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }) * direction;
+        return (
+          a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }) *
+          direction
+        );
       }
       if (sortKey === "shift") {
-        return a.shift.localeCompare(b.shift, "pt-BR", { sensitivity: "base" }) * direction;
+        return (
+          a.shift.localeCompare(b.shift, "pt-BR", { sensitivity: "base" }) *
+          direction
+        );
       }
       if (sortKey === "status") {
         return (Number(a.active) - Number(b.active)) * direction;
@@ -204,17 +191,39 @@ const ManagerEmployees = () => {
     setSortDirection("asc");
   };
 
-  const toggleActive = (id: string) => {
+  const toggleActive = async (employee: Employee) => {
+    const nextActive = !employee.active;
+    setToggleError(null);
+    setIsSavingToggle(true);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ active: nextActive })
+      .eq("user_id", employee.userId);
+
+    if (error) {
+      setToggleError(
+        "Nao foi possivel atualizar o status no banco. Verifique as policies do Supabase.",
+      );
+      setIsSavingToggle(false);
+      return;
+    }
+
     setEmployees((prev) =>
-      prev.map((employee) =>
-        employee.id === id ? { ...employee, active: !employee.active } : employee,
+      prev.map((current) =>
+        current.userId === employee.userId
+          ? { ...current, active: nextActive }
+          : current,
       ),
     );
+
+    await refresh();
+    setIsSavingToggle(false);
   };
 
-  const confirmToggle = () => {
+  const confirmToggle = async () => {
     if (pending) {
-      toggleActive(pending.id);
+      await toggleActive(pending);
       setPending(null);
     }
   };
@@ -244,6 +253,7 @@ const ManagerEmployees = () => {
       ...prev,
       {
         id: accessId,
+        userId: accessId,
         name,
         email,
         accessId,
@@ -277,17 +287,41 @@ const ManagerEmployees = () => {
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-3">
-            <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>
+            <FilterChip
+              active={filter === "all"}
+              onClick={() => setFilter("all")}
+            >
               Todos - {counts.all}
             </FilterChip>
-            <FilterChip active={filter === "active"} onClick={() => setFilter("active")} tone="emerald">
+            <FilterChip
+              active={filter === "active"}
+              onClick={() => setFilter("active")}
+              tone="emerald"
+            >
               Ativos - {counts.active}
             </FilterChip>
-            <FilterChip active={filter === "inactive"} onClick={() => setFilter("inactive")} tone="rose">
+            <FilterChip
+              active={filter === "inactive"}
+              onClick={() => setFilter("inactive")}
+              tone="rose"
+            >
               Inativos - {counts.inactive}
             </FilterChip>
           </div>
         </div>
+
+        {(isError || toggleError) && (
+          <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
+            {toggleError ??
+              "Erro ao carregar funcionarios do banco. Verifique a conexao e as policies no Supabase."}
+          </p>
+        )}
+
+        {loading && employees.length === 0 && (
+          <div className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-xs text-slate-400">
+            Carregando funcionarios do banco...
+          </div>
+        )}
 
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex h-11 w-full min-w-0 items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-4 md:w-80">
@@ -385,13 +419,18 @@ const ManagerEmployees = () => {
                     align="right"
                     className="px-4"
                   />
-                  <th className="whitespace-nowrap px-6 py-4 text-right">Acao</th>
+                  <th className="whitespace-nowrap px-6 py-4 text-right">
+                    Acao
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filteredEmployees.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center text-sm text-slate-500">
+                    <td
+                      colSpan={8}
+                      className="px-6 py-12 text-center text-sm text-slate-500"
+                    >
                       Nenhum funcionario encontrado.
                     </td>
                   </tr>
@@ -409,7 +448,9 @@ const ManagerEmployees = () => {
                       >
                         <td className="px-6 py-5 align-middle">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-white">{employee.name}</p>
+                            <p className="truncate text-sm font-semibold text-white">
+                              {employee.name}
+                            </p>
                             <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                               {employee.role}
                             </p>
@@ -448,19 +489,29 @@ const ManagerEmployees = () => {
                           <div className="flex min-w-[150px] items-center justify-end gap-3">
                             <Switch
                               checked={active}
-                              onCheckedChange={() => setPending(employee)}
+                              onCheckedChange={() =>
+                                !isSavingToggle && setPending(employee)
+                              }
+                              disabled={isSavingToggle}
                               className="data-[state=checked]:bg-indigo-600 data-[state=unchecked]:bg-slate-700"
                             />
                             <button
                               type="button"
-                              onClick={() => setPending(employee)}
+                              onClick={() =>
+                                !isSavingToggle && setPending(employee)
+                              }
+                              disabled={isSavingToggle}
                               className={`inline-flex h-8 min-w-[86px] items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors ${
                                 active
                                   ? "border-rose-500/50 bg-rose-500/10 text-rose-300 hover:bg-rose-500/15"
                                   : "border-emerald-500/50 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15"
-                              }`}
+                              } disabled:cursor-not-allowed disabled:opacity-60`}
                             >
-                              <Power className="h-3.5 w-3.5" />
+                              {isSavingToggle ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Power className="h-3.5 w-3.5" />
+                              )}
                               {active ? "Inativar" : "Ativar"}
                             </button>
                           </div>
@@ -475,11 +526,16 @@ const ManagerEmployees = () => {
         </div>
       </div>
 
-      <AlertDialog open={!!pending} onOpenChange={(open) => !open && setPending(null)}>
+      <AlertDialog
+        open={!!pending}
+        onOpenChange={(open) => !open && setPending(null)}
+      >
         <AlertDialogContent className="border-white/10 bg-[#101016] text-white">
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {pending?.active ? "Inativar funcionario?" : "Ativar funcionario?"}
+              {pending?.active
+                ? "Inativar funcionario?"
+                : "Ativar funcionario?"}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-slate-400">
               {pending?.active
@@ -493,13 +549,23 @@ const ManagerEmployees = () => {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmToggle}
+              disabled={isSavingToggle}
               className={
                 pending?.active
                   ? "bg-rose-600 text-white hover:bg-rose-500"
                   : "bg-emerald-600 text-white hover:bg-emerald-500"
               }
             >
-              {pending?.active ? "Inativar" : "Ativar"}
+              {isSavingToggle ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Salvando...
+                </span>
+              ) : pending?.active ? (
+                "Inativar"
+              ) : (
+                "Ativar"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -510,7 +576,8 @@ const ManagerEmployees = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Adicionar funcionario</AlertDialogTitle>
             <AlertDialogDescription className="text-slate-400">
-              Cadastre o funcionario na lista e selecione se ele sera operador ou gestor.
+              Cadastre o funcionario na lista e selecione se ele sera operador
+              ou gestor.
             </AlertDialogDescription>
           </AlertDialogHeader>
 
@@ -520,7 +587,9 @@ const ManagerEmployees = () => {
                 Tipo de acesso
               </p>
               <div className="grid grid-cols-2 gap-3">
-                {(["FUNCIONARIO (OPERADOR)", "GESTOR"] as NewEmployeeRole[]).map((role) => {
+                {(
+                  ["FUNCIONARIO (OPERADOR)", "GESTOR"] as NewEmployeeRole[]
+                ).map((role) => {
                   const active = newEmployee.role === role;
                   const Icon = role === "GESTOR" ? ShieldCheck : User;
 
@@ -528,7 +597,9 @@ const ManagerEmployees = () => {
                     <button
                       key={role}
                       type="button"
-                      onClick={() => setNewEmployee((current) => ({ ...current, role }))}
+                      onClick={() =>
+                        setNewEmployee((current) => ({ ...current, role }))
+                      }
                       className={`flex min-h-[74px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-xs font-semibold transition-colors ${
                         active
                           ? "border-indigo-400/50 bg-indigo-500/15 text-white"
@@ -548,7 +619,10 @@ const ManagerEmployees = () => {
               <input
                 value={newEmployee.name}
                 onChange={(event) =>
-                  setNewEmployee((current) => ({ ...current, name: event.target.value }))
+                  setNewEmployee((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
                 }
                 placeholder="Nome do funcionario"
                 className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none transition focus:border-indigo-400/50"
@@ -561,7 +635,10 @@ const ManagerEmployees = () => {
                 <input
                   value={newEmployee.email}
                   onChange={(event) =>
-                    setNewEmployee((current) => ({ ...current, email: event.target.value }))
+                    setNewEmployee((current) => ({
+                      ...current,
+                      email: event.target.value,
+                    }))
                   }
                   placeholder="usuario@empresa.com"
                   type="email"
@@ -574,7 +651,10 @@ const ManagerEmployees = () => {
                 <input
                   value={newEmployee.accessId}
                   onChange={(event) =>
-                    setNewEmployee((current) => ({ ...current, accessId: event.target.value }))
+                    setNewEmployee((current) => ({
+                      ...current,
+                      accessId: event.target.value,
+                    }))
                   }
                   placeholder="Ex: 33333"
                   className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none transition focus:border-indigo-400/50"
@@ -587,7 +667,10 @@ const ManagerEmployees = () => {
               <input
                 value={newEmployee.password}
                 onChange={(event) =>
-                  setNewEmployee((current) => ({ ...current, password: event.target.value }))
+                  setNewEmployee((current) => ({
+                    ...current,
+                    password: event.target.value,
+                  }))
                 }
                 placeholder="Senha de acesso"
                 type="password"
@@ -600,7 +683,10 @@ const ManagerEmployees = () => {
               <input
                 value={newEmployee.shift}
                 onChange={(event) =>
-                  setNewEmployee((current) => ({ ...current, shift: event.target.value }))
+                  setNewEmployee((current) => ({
+                    ...current,
+                    shift: event.target.value,
+                  }))
                 }
                 placeholder="Nao informado"
                 className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none transition focus:border-indigo-400/50"
@@ -667,7 +753,9 @@ const SortableHeader = ({
         type="button"
         onClick={() => onSort(sortKey)}
         className={`inline-flex w-full items-center gap-1.5 transition-colors hover:text-slate-200 ${
-          align === "right" ? "justify-end text-right" : "justify-start text-left"
+          align === "right"
+            ? "justify-end text-right"
+            : "justify-start text-left"
         } ${active ? "text-white" : "text-slate-500"}`}
       >
         <span>{label}</span>
@@ -679,9 +767,18 @@ const SortableHeader = ({
   );
 };
 
-const FilterChip = ({ active, children, onClick, tone = "neutral" }: FilterChipProps) => {
+const FilterChip = ({
+  active,
+  children,
+  onClick,
+  tone = "neutral",
+}: FilterChipProps) => {
   const dotClass =
-    tone === "emerald" ? "bg-emerald-500" : tone === "rose" ? "bg-rose-500" : "bg-slate-400";
+    tone === "emerald"
+      ? "bg-emerald-500"
+      : tone === "rose"
+        ? "bg-rose-500"
+        : "bg-slate-400";
 
   return (
     <button
@@ -693,7 +790,9 @@ const FilterChip = ({ active, children, onClick, tone = "neutral" }: FilterChipP
           : "border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]"
       }`}
     >
-      {tone !== "neutral" && <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />}
+      {tone !== "neutral" && (
+        <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
+      )}
       {children}
     </button>
   );

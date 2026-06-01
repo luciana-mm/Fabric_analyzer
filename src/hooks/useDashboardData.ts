@@ -72,7 +72,13 @@ export type ManagerEmployeeRow = {
   }>;
 };
 
-export type GlobalReportPeriod = "daily" | "weekly" | "monthly" | "semester" | "yearly" | "custom";
+export type GlobalReportPeriod =
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "semester"
+  | "yearly"
+  | "custom";
 export type ManagerPerformancePeriod = Exclude<GlobalReportPeriod, "custom">;
 
 export type ManagerDailyStats = {
@@ -111,7 +117,8 @@ export type GlobalReportStats = {
   }>;
 };
 
-const formatMsToSecondsLabel = (ms: number) => `${(ms / 1000).toFixed(1).replace(".", ",")}s`;
+const formatMsToSecondsLabel = (ms: number) =>
+  `${(ms / 1000).toFixed(1).replace(".", ",")}s`;
 
 const normalizeFailureReason = (value: string | null) => {
   const label = value?.trim() || "Sem motivo informado";
@@ -130,7 +137,10 @@ const createLocalDateFromInput = (date: string) => {
   return new Date(year, month - 1, day);
 };
 
-const getDateRangeByPeriod = (period: GlobalReportPeriod, customRange?: GlobalReportCustomRange) => {
+const getDateRangeByPeriod = (
+  period: GlobalReportPeriod,
+  customRange?: GlobalReportCustomRange,
+) => {
   if (period === "custom") {
     if (!customRange?.startDate || !customRange.endDate) {
       return null;
@@ -205,7 +215,9 @@ const buildErrorBreakdown = (records: AnalysisRecord[]) => {
     return [] as Array<{ label: string; count: number; percentage: number }>;
   }
 
-  const grouped = failed.reduce<Record<string, { label: string; count: number }>>((acc, item) => {
+  const grouped = failed.reduce<
+    Record<string, { label: string; count: number }>
+  >((acc, item) => {
     const { key, label } = normalizeFailureReason(item.failure_reason);
     acc[key] = {
       label: acc[key]?.label ?? label,
@@ -223,7 +235,10 @@ const buildErrorBreakdown = (records: AnalysisRecord[]) => {
     .sort((a, b) => b.count - a.count);
 };
 
-const filterRecordsByRange = (records: AnalysisRecord[], range: { startDate: string; endDate: string } | null) => {
+const filterRecordsByRange = (
+  records: AnalysisRecord[],
+  range: { startDate: string; endDate: string } | null,
+) => {
   if (!range) {
     return records;
   }
@@ -244,7 +259,9 @@ export const useOperatorDashboardData = (userId: string | null | undefined) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("analysis_records")
-        .select("operator_user_id, reference_code, tissue_type, result, failure_reason, processing_time_ms, analyzed_at")
+        .select(
+          "operator_user_id, reference_code, tissue_type, result, failure_reason, processing_time_ms, analyzed_at",
+        )
         .eq("operator_user_id", userId as string)
         .order("analyzed_at", { ascending: false });
 
@@ -259,15 +276,28 @@ export const useOperatorDashboardData = (userId: string | null | undefined) => {
   const stats = useMemo<OperatorDashboardStats>(() => {
     const records = query.data ?? [];
     const totalVerified = records.length;
-    const totalSuccess = records.filter((record) => record.result === "ok").length;
+    const totalSuccess = records.filter(
+      (record) => record.result === "ok",
+    ).length;
     const totalFailure = totalVerified - totalSuccess;
-    const successRate = totalVerified === 0 ? 0 : Number(((totalSuccess / totalVerified) * 100).toFixed(1));
-    const failureRate = totalVerified === 0 ? 0 : Number(((totalFailure / totalVerified) * 100).toFixed(1));
+    const successRate =
+      totalVerified === 0
+        ? 0
+        : Number(((totalSuccess / totalVerified) * 100).toFixed(1));
+    const failureRate =
+      totalVerified === 0
+        ? 0
+        : Number(((totalFailure / totalVerified) * 100).toFixed(1));
 
     const averageTimeMs =
       totalVerified === 0
         ? 0
-        : Math.round(records.reduce((sum, record) => sum + record.processing_time_ms, 0) / totalVerified);
+        : Math.round(
+            records.reduce(
+              (sum, record) => sum + record.processing_time_ms,
+              0,
+            ) / totalVerified,
+          );
 
     const recentAnalyses = records.slice(0, 6).map((record) => ({
       id: record.reference_code,
@@ -304,16 +334,20 @@ const emptyGlobalReportStats: GlobalReportStats = {
   errorBreakdown: [],
 };
 
-export const useGlobalReportData = (period: GlobalReportPeriod, customRange?: GlobalReportCustomRange) => {
+export const useGlobalReportData = (
+  period: GlobalReportPeriod,
+  customRange?: GlobalReportCustomRange,
+) => {
   const customStartDate = customRange?.startDate;
   const customEndDate = customRange?.endDate;
   const dateRange = useMemo(
-    () => getDateRangeByPeriod(
-      period,
-      customStartDate && customEndDate
-        ? { startDate: customStartDate, endDate: customEndDate }
-        : undefined,
-    ),
+    () =>
+      getDateRangeByPeriod(
+        period,
+        customStartDate && customEndDate
+          ? { startDate: customStartDate, endDate: customEndDate }
+          : undefined,
+      ),
     [customEndDate, customStartDate, period],
   );
   const query = useQuery({
@@ -326,7 +360,9 @@ export const useGlobalReportData = (period: GlobalReportPeriod, customRange?: Gl
 
       const { data, error } = await supabase
         .from("analysis_records")
-        .select("operator_user_id, reference_code, tissue_type, result, failure_reason, processing_time_ms, analyzed_at")
+        .select(
+          "operator_user_id, reference_code, tissue_type, result, failure_reason, processing_time_ms, analyzed_at",
+        )
         .gte("analyzed_at", dateRange.startDate)
         .lt("analyzed_at", dateRange.endDate)
         .order("analyzed_at", { ascending: false });
@@ -344,7 +380,9 @@ export const useGlobalReportData = (period: GlobalReportPeriod, customRange?: Gl
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("user_id, display_name, employee_code, shift, job_title, active");
+        .select(
+          "user_id, display_name, employee_code, shift, job_title, active",
+        );
 
       if (error) {
         throw error;
@@ -361,31 +399,46 @@ export const useGlobalReportData = (period: GlobalReportPeriod, customRange?: Gl
 
     const records = query.data ?? [];
     const profiles = profilesQuery.data ?? [];
-    const profileByUserId = new Map(profiles.map((profile) => [profile.user_id, profile]));
+    const profileByUserId = new Map(
+      profiles.map((profile) => [profile.user_id, profile]),
+    );
     const verified = records.length;
     const success = records.filter((record) => record.result === "ok").length;
     const failure = verified - success;
     const averageTimeMs =
       verified === 0
         ? 0
-        : Math.round(records.reduce((sum, record) => sum + record.processing_time_ms, 0) / verified);
-    const groupedRecords = records.reduce<Record<string, AnalysisRecord[]>>((acc, item) => {
-      if (!acc[item.operator_user_id]) {
-        acc[item.operator_user_id] = [];
-      }
-      acc[item.operator_user_id].push(item);
-      return acc;
-    }, {});
+        : Math.round(
+            records.reduce(
+              (sum, record) => sum + record.processing_time_ms,
+              0,
+            ) / verified,
+          );
+    const groupedRecords = records.reduce<Record<string, AnalysisRecord[]>>(
+      (acc, item) => {
+        if (!acc[item.operator_user_id]) {
+          acc[item.operator_user_id] = [];
+        }
+        acc[item.operator_user_id].push(item);
+        return acc;
+      },
+      {},
+    );
     const employeePerformance = Object.entries(groupedRecords)
       .map(([userId, items]) => {
         const profile = profileByUserId.get(userId);
         const employeeVerified = items.length;
-        const employeeSuccess = items.filter((item) => item.result === "ok").length;
+        const employeeSuccess = items.filter(
+          (item) => item.result === "ok",
+        ).length;
         const employeeFailure = employeeVerified - employeeSuccess;
         const employeeAvgTimeMs =
           employeeVerified === 0
             ? 0
-            : Math.round(items.reduce((sum, item) => sum + item.processing_time_ms, 0) / employeeVerified);
+            : Math.round(
+                items.reduce((sum, item) => sum + item.processing_time_ms, 0) /
+                  employeeVerified,
+              );
 
         return {
           userId,
@@ -424,6 +477,7 @@ export const useGlobalReportData = (period: GlobalReportPeriod, customRange?: Gl
 
 export const useManagerDashboardData = (options?: {
   includeManagers?: boolean;
+  includeInactive?: boolean;
   period?: ManagerPerformancePeriod;
 }) => {
   const period = options?.period ?? "daily";
@@ -434,7 +488,9 @@ export const useManagerDashboardData = (options?: {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("analysis_records")
-        .select("operator_user_id, reference_code, tissue_type, result, failure_reason, processing_time_ms, analyzed_at")
+        .select(
+          "operator_user_id, reference_code, tissue_type, result, failure_reason, processing_time_ms, analyzed_at",
+        )
         .order("analyzed_at", { ascending: false });
 
       if (error) {
@@ -450,7 +506,9 @@ export const useManagerDashboardData = (options?: {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("user_id, display_name, employee_code, shift, job_title, active")
+        .select(
+          "user_id, display_name, employee_code, shift, job_title, active",
+        );
 
       if (error) {
         throw error;
@@ -483,18 +541,27 @@ export const useManagerDashboardData = (options?: {
       ? roles
       : roles.filter((item) => item.role !== "gestor");
     const visibleUserIds = new Set(visibleRoles.map((item) => item.user_id));
-    const roleByUserId = new Map(roles.map((item) => [item.user_id, item.role]));
+    const roleByUserId = new Map(
+      roles.map((item) => [item.user_id, item.role]),
+    );
 
-    const groupedRecords = records.reduce<Record<string, AnalysisRecord[]>>((acc, item) => {
-      if (!acc[item.operator_user_id]) {
-        acc[item.operator_user_id] = [];
-      }
-      acc[item.operator_user_id].push(item);
-      return acc;
-    }, {});
+    const groupedRecords = records.reduce<Record<string, AnalysisRecord[]>>(
+      (acc, item) => {
+        if (!acc[item.operator_user_id]) {
+          acc[item.operator_user_id] = [];
+        }
+        acc[item.operator_user_id].push(item);
+        return acc;
+      },
+      {},
+    );
 
     return profiles
-      .filter((profile) => visibleUserIds.has(profile.user_id) && profile.active)
+      .filter(
+        (profile) =>
+          visibleUserIds.has(profile.user_id) &&
+          (options?.includeInactive ? true : profile.active),
+      )
       .map((profile) => {
         const appRole = roleByUserId.get(profile.user_id);
         const items = groupedRecords[profile.user_id] ?? [];
@@ -502,7 +569,12 @@ export const useManagerDashboardData = (options?: {
         const success = items.filter((item) => item.result === "ok").length;
         const failure = verified - success;
         const avgTimeMs =
-          verified === 0 ? 0 : Math.round(items.reduce((sum, item) => sum + item.processing_time_ms, 0) / verified);
+          verified === 0
+            ? 0
+            : Math.round(
+                items.reduce((sum, item) => sum + item.processing_time_ms, 0) /
+                  verified,
+              );
 
         const recentAnalyses = items.slice(0, 5).map((item) => ({
           id: item.reference_code,
@@ -517,10 +589,13 @@ export const useManagerDashboardData = (options?: {
         }));
 
         return {
-          id: profile.employee_code ?? profile.user_id.slice(0, 8).toUpperCase(),
+          id:
+            profile.employee_code ?? profile.user_id.slice(0, 8).toUpperCase(),
           userId: profile.user_id,
           name: profile.display_name ?? "Sem nome",
-          role: profile.job_title ?? (appRole === "gestor" ? "Gestor" : "Funcionario (Operador)"),
+          role:
+            profile.job_title ??
+            (appRole === "gestor" ? "Gestor" : "Funcionario (Operador)"),
           active: profile.active,
           verified,
           success,
@@ -533,7 +608,14 @@ export const useManagerDashboardData = (options?: {
         };
       })
       .sort((a, b) => b.verified - a.verified);
-  }, [options?.includeManagers, periodRange, profilesQuery.data, analysesQuery.data, rolesQuery.data]);
+  }, [
+    options?.includeManagers,
+    options?.includeInactive,
+    periodRange,
+    profilesQuery.data,
+    analysesQuery.data,
+    rolesQuery.data,
+  ]);
 
   const dailyStats = useMemo<ManagerDailyStats>(() => {
     const profiles = profilesQuery.data ?? [];
@@ -545,26 +627,46 @@ export const useManagerDashboardData = (options?: {
     const visibleUserIds = new Set(visibleRoles.map((item) => item.user_id));
     const activeUserIds = new Set(
       profiles
-        .filter((profile) => profile.active && visibleUserIds.has(profile.user_id))
+        .filter(
+          (profile) => profile.active && visibleUserIds.has(profile.user_id),
+        )
         .map((profile) => profile.user_id),
     );
-    const activeRecords = records.filter((record) => activeUserIds.has(record.operator_user_id));
+    const activeRecords = records.filter((record) =>
+      activeUserIds.has(record.operator_user_id),
+    );
     const totalVerified = activeRecords.length;
-    const totalSuccess = activeRecords.filter((record) => record.result === "ok").length;
+    const totalSuccess = activeRecords.filter(
+      (record) => record.result === "ok",
+    ).length;
     const totalFailure = totalVerified - totalSuccess;
 
     return {
-      activeEmployeesToday: new Set(activeRecords.map((record) => record.operator_user_id)).size,
+      activeEmployeesToday: activeUserIds.size,
       totalVerified,
       totalSuccess,
       totalFailure,
-      successRate: totalVerified === 0 ? 0 : Number(((totalSuccess / totalVerified) * 100).toFixed(1)),
-      failureRate: totalVerified === 0 ? 0 : Number(((totalFailure / totalVerified) * 100).toFixed(1)),
+      successRate:
+        totalVerified === 0
+          ? 0
+          : Number(((totalSuccess / totalVerified) * 100).toFixed(1)),
+      failureRate:
+        totalVerified === 0
+          ? 0
+          : Number(((totalFailure / totalVerified) * 100).toFixed(1)),
     };
-  }, [analysesQuery.data, dailyRange, options?.includeManagers, profilesQuery.data, rolesQuery.data]);
+  }, [
+    analysesQuery.data,
+    dailyRange,
+    options?.includeManagers,
+    profilesQuery.data,
+    rolesQuery.data,
+  ]);
 
-  const loading = analysesQuery.isLoading || profilesQuery.isLoading || rolesQuery.isLoading;
-  const isError = analysesQuery.isError || profilesQuery.isError || rolesQuery.isError;
+  const loading =
+    analysesQuery.isLoading || profilesQuery.isLoading || rolesQuery.isLoading;
+  const isError =
+    analysesQuery.isError || profilesQuery.isError || rolesQuery.isError;
   const error = analysesQuery.error ?? profilesQuery.error ?? rolesQuery.error;
   const refresh = async () => {
     await Promise.all([
