@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useAuth } from "@/hooks/useAuth";
 import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
 import { useOperatorDashboardData } from "@/hooks/useDashboardData";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchJson } from "@/lib/api-client";
 import {
   getSystemFlowState,
   isConfigurationComplete,
@@ -114,17 +114,11 @@ const Index = () => {
     queryKey: ["operator-profile", user?.id],
     enabled: Boolean(user?.id),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("display_name, employee_code, shift, job_title")
-        .eq("user_id", user?.id as string)
-        .maybeSingle();
+      const result = await fetchJson<{ data: { display_name?: string | null; employee_code?: string | null; shift?: string | null; job_title?: string | null } | null }>(
+        `/api/profiles?userId=${encodeURIComponent(user?.id ?? "")}`,
+      );
 
-      if (error) {
-        throw error;
-      }
-
-      return data;
+      return result.data ?? {};
     },
   });
 

@@ -203,7 +203,7 @@ const Manager = () => {
             </div>
             {isError && (
               <p className="text-xs text-destructive mt-3">
-                Nao foi possivel carregar os dados do gestor. Verifique as policies e tabelas no Supabase.
+                Nao foi possivel carregar os dados do gestor. Verifique a conexao e as configuracoes do banco.
               </p>
             )}
           </section>

@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useBatchHistory, useBatchDetails, type BatchHistoryRow } from "@/hooks/useBatchHistory";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchJson } from "@/lib/api-client";
 import {
   Dialog,
   DialogContent,
@@ -31,14 +31,11 @@ export const BatchHistoryTable = () => {
   const { data: operators = [] } = useQuery({
     queryKey: ["operators-list"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("user_id, display_name")
-        .not("display_name", "is", null)
-        .order("display_name");
+      const response = await fetchJson<{ data: Array<{ user_id: string; display_name: string }> }>(
+        `/api/profiles?role=operador`,
+      );
 
-      if (error) throw error;
-      return data || [];
+      return response.data ?? [];
     },
   });
 

@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useManagerDashboardData } from "@/hooks/useDashboardData";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchJson } from "@/lib/api-client";
 import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
@@ -196,29 +196,28 @@ const ManagerEmployees = () => {
     setToggleError(null);
     setIsSavingToggle(true);
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({ active: nextActive })
-      .eq("user_id", employee.userId);
+    try {
+      await fetchJson<{ ok: boolean }>(`/api/profiles/${employee.userId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ active: nextActive }),
+      });
 
-    if (error) {
-      setToggleError(
-        "Nao foi possivel atualizar o status no banco. Verifique as policies do Supabase.",
+      setEmployees((prev) =>
+        prev.map((current) =>
+          current.userId === employee.userId
+            ? { ...current, active: nextActive }
+            : current,
+        ),
       );
+
+      await refresh();
+    } catch {
+      setToggleError(
+        "Nao foi possivel atualizar o status no banco.",
+      );
+    } finally {
       setIsSavingToggle(false);
-      return;
     }
-
-    setEmployees((prev) =>
-      prev.map((current) =>
-        current.userId === employee.userId
-          ? { ...current, active: nextActive }
-          : current,
-      ),
-    );
-
-    await refresh();
-    setIsSavingToggle(false);
   };
 
   const confirmToggle = async () => {
@@ -313,7 +312,7 @@ const ManagerEmployees = () => {
         {(isError || toggleError) && (
           <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
             {toggleError ??
-              "Erro ao carregar funcionarios do banco. Verifique a conexao e as policies no Supabase."}
+              "Erro ao carregar funcionarios do banco. Verifique a conexao e as configuracoes."}
           </p>
         )}
 

@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
 import { useCameraRobustCapture } from "@/hooks/useCameraRobustCapture";
+import { fetchJson } from "@/lib/api-client";
 import {
   createTissueBatchCode,
   defaultSystemConfig,
@@ -22,7 +23,6 @@ import {
 } from "@/lib/systemConfig";
 import { evaluateColorMatch } from "@/utils/calibrationUtils";
 import { rgb8BitToNormalized, rgbToHex } from "@/utils/colorSpaceConversion";
-import { supabase } from "@/integrations/supabase/client";
 
 const clampCapturePercent = (value: number | undefined, fallback: number) => {
   const numberValue = Number(value);
@@ -147,27 +147,30 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
         return;
       }
 
-      const { error } = await supabase.from("analysis_records").insert({
-        operator_user_id: user.id,
-        reference_code: `${activeTissueCode}-${Date.now()}`,
-        tissue_type: activeTissueCode,
-        tissue_batch_code: activeTissueCode,
-        analysis_type: analysisType,
-        result: success ? "ok" : "fail",
-        failure_reason: success
-          ? null
-          : "Precisao abaixo do minimo configurado",
-        processing_time_ms: 1000,
-        delta_e_measured: Number(evaluation.deltaE.toFixed(4)),
-        delta_e_threshold: config.deltaE,
-        precision_percent: Number(precision.toFixed(2)),
-        required_precision_percent: Number(requiredPrecision.toFixed(2)),
-        comparison_method: "CIEDE2000",
-        reference_color_hex: config.referenceColorHex,
-        measured_color_hex: measuredHex,
-      });
-
-      if (error) {
+      try {
+        await fetchJson<{ data: unknown }>("/api/analysis", {
+          method: "POST",
+          body: JSON.stringify({
+            operator_user_id: user.id,
+            reference_code: `${activeTissueCode}-${Date.now()}`,
+            tissue_type: activeTissueCode,
+            tissue_batch_code: activeTissueCode,
+            analysis_type: analysisType,
+            result: success ? "ok" : "fail",
+            failure_reason: success
+              ? null
+              : "Precisao abaixo do minimo configurado",
+            processing_time_ms: 1000,
+            delta_e_measured: Number(evaluation.deltaE.toFixed(4)),
+            delta_e_threshold: config.deltaE,
+            precision_percent: Number(precision.toFixed(2)),
+            required_precision_percent: Number(requiredPrecision.toFixed(2)),
+            comparison_method: "CIEDE2000",
+            reference_color_hex: config.referenceColorHex,
+            measured_color_hex: measuredHex,
+          }),
+        });
+      } catch (error) {
         console.error("Erro ao salvar analise:", error);
         if (trigger === "manual") {
           toast.warning(
@@ -185,6 +188,7 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
     },
     [
       activeTissueCode,
+      analysisType,
       cameraCapture,
       captureAreaHeight,
       captureAreaWidth,

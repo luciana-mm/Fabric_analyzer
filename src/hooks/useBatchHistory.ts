@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchJson } from "@/lib/api-client";
 import { useState, useMemo } from "react";
 
 export type BatchHistoryRow = {
@@ -49,21 +49,19 @@ export const useBatchHistory = (
       pageIndex,
     ],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_batch_history", {
-        p_search: search || null,
-        p_user_id: userId || null,
-        p_start: startDate?.toISOString() || null,
-        p_end: endDate?.toISOString() || null,
-        p_limit: pageSize,
-        p_offset: pageIndex * pageSize,
-      });
+      const params = new URLSearchParams();
+      if (search) params.append("search", search);
+      if (userId) params.append("userId", userId);
+      if (startDate) params.append("start", startDate.toISOString());
+      if (endDate) params.append("end", endDate.toISOString());
+      params.append("limit", String(pageSize));
+      params.append("offset", String(pageIndex * pageSize));
 
-      if (error) {
-        console.error("Error fetching batch history:", error);
-        throw error;
-      }
+      const response = await fetchJson<{ data: BatchHistoryRow[] }>(
+        `/api/batch-history?${params.toString()}`,
+      );
 
-      return (data as BatchHistoryRow[]) || [];
+      return response.data ?? [];
     },
   });
 
@@ -82,16 +80,11 @@ export const useBatchDetails = (batchId?: string) => {
     queryFn: async () => {
       if (!batchId) return null;
 
-      const { data, error } = await supabase.rpc("get_batch_details", {
-        p_batch_id: batchId,
-      });
+      const response = await fetchJson<{ data: BatchDetailsRow | null }>(
+        `/api/batch-details?batchId=${encodeURIComponent(batchId)}`,
+      );
 
-      if (error) {
-        console.error("Error fetching batch details:", error);
-        throw error;
-      }
-
-      return (data?.[0] as BatchDetailsRow | undefined) || null;
+      return response.data ?? null;
     },
     enabled: !!batchId,
   });

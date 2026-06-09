@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Loader2, ShieldCheck, User, X } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import type { AppRole } from "@/hooks/useAuth";
 
 interface AddUserProps {
@@ -61,53 +60,23 @@ export default function AddUser({ isOpen, isClosed, onSaved }: AddUserProps) {
     setIsSaving(true);
 
     try {
-      const { data: currentSession } = await supabase.auth.getSession();
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password: form.password,
-        options: {
-          data: {
-            role: selectedRole,
-            display_name: name,
-            employee_code: code,
-          },
+      const response = await fetch("/api/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      });
-
-      if (error) throw error;
-
-      const newUserId = data.user?.id;
-      if (currentSession.session) {
-        await supabase.auth.setSession({
-          access_token: currentSession.session.access_token,
-          refresh_token: currentSession.session.refresh_token,
-        });
-      }
-
-      if (!newUserId) {
-        toast.success("Convite criado", {
-          description: "O usuário deve confirmar o cadastro pelo e-mail.",
-        });
-        handleClose();
-        return;
-      }
-
-      const [{ error: profileError }, { error: roleError }] = await Promise.all([
-        supabase.from("profiles").upsert({
-          user_id: newUserId,
-          display_name: name,
-          employee_code: code,
-          job_title: selectedRole === "gestor" ? "Gestor" : "Operador",
-          active: true,
-        }),
-        supabase.from("user_roles").upsert({
-          user_id: newUserId,
+        body: JSON.stringify({
+          name,
+          code,
+          email,
+          password: form.password,
           role: selectedRole,
         }),
-      ]);
+      });
 
-      if (profileError || roleError) {
-        throw profileError ?? roleError;
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Erro ao criar usuário");
       }
 
       toast.success(selectedRole === "gestor" ? "Gestor adicionado" : "Operador adicionado");

@@ -7,7 +7,6 @@ import { ArrowRight, Lock, Mail, Microscope } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import gridBg from "@/assets/grid-bg.jpg";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
 const credentialsSchema = z.object({
@@ -51,17 +50,24 @@ const Login = () => {
     try {
       console.log("Iniciando login...", { email: parsed.data.email });
 
-      const { error, data } = await supabase.auth.signInWithPassword({
-        email: parsed.data.email,
-        password: parsed.data.password,
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: parsed.data.email,
+          password: parsed.data.password,
+        }),
       });
 
-      if (error) {
-        console.error("Erro de autenticação:", error);
-        throw error;
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Erro ao fazer login");
       }
 
-      console.log("Login bem-sucedido:", data);
+      console.log("Login bem-sucedido");
       toast.success("Bem-vindo de volta");
     } catch (err: unknown) {
       console.error("Erro no handleSubmit:", err);

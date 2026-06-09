@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchJson } from "@/lib/api-client";
 
 type AnalysisRecord = {
   operator_user_id: string;
@@ -257,19 +257,10 @@ export const useOperatorDashboardData = (userId: string | null | undefined) => {
     queryKey: ["operator-dashboard", userId],
     enabled: Boolean(userId),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("analysis_records")
-        .select(
-          "operator_user_id, reference_code, tissue_type, result, failure_reason, processing_time_ms, analyzed_at",
-        )
-        .eq("operator_user_id", userId as string)
-        .order("analyzed_at", { ascending: false });
-
-      if (error) {
-        throw error;
-      }
-
-      return (data ?? []) as AnalysisRecord[];
+      const response = await fetchJson<{ data: AnalysisRecord[] }>(
+        `/api/analysis?userId=${encodeURIComponent(userId ?? "")}`,
+      );
+      return response.data ?? [];
     },
   });
 
@@ -358,37 +349,22 @@ export const useGlobalReportData = (
         return [] as AnalysisRecord[];
       }
 
-      const { data, error } = await supabase
-        .from("analysis_records")
-        .select(
-          "operator_user_id, reference_code, tissue_type, result, failure_reason, processing_time_ms, analyzed_at",
-        )
-        .gte("analyzed_at", dateRange.startDate)
-        .lt("analyzed_at", dateRange.endDate)
-        .order("analyzed_at", { ascending: false });
-
-      if (error) {
-        throw error;
-      }
-
-      return (data ?? []) as AnalysisRecord[];
+      const response = await fetchJson<{ data: AnalysisRecord[] }>(
+        `/api/analysis?start=${encodeURIComponent(dateRange.startDate)}&end=${encodeURIComponent(
+          dateRange.endDate,
+        )}`,
+      );
+      return response.data ?? [];
     },
   });
 
   const profilesQuery = useQuery({
     queryKey: ["global-report", "profiles"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select(
-          "user_id, display_name, employee_code, shift, job_title, active",
-        );
-
-      if (error) {
-        throw error;
-      }
-
-      return (data ?? []) as ProfileSummary[];
+      const response = await fetchJson<{ data: ProfileSummary[] }>(
+        `/api/profiles`,
+      );
+      return response.data ?? [];
     },
   });
 
@@ -486,50 +462,30 @@ export const useManagerDashboardData = (options?: {
   const analysesQuery = useQuery({
     queryKey: ["manager-dashboard", "analyses"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("analysis_records")
-        .select(
-          "operator_user_id, reference_code, tissue_type, result, failure_reason, processing_time_ms, analyzed_at",
-        )
-        .order("analyzed_at", { ascending: false });
-
-      if (error) {
-        throw error;
-      }
-
-      return (data ?? []) as AnalysisRecord[];
+      const response = await fetchJson<{ data: AnalysisRecord[] }>(
+        "/api/analysis",
+      );
+      return response.data ?? [];
     },
   });
 
   const profilesQuery = useQuery({
     queryKey: ["manager-dashboard", "profiles"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select(
-          "user_id, display_name, employee_code, shift, job_title, active",
-        );
-
-      if (error) {
-        throw error;
-      }
-
-      return (data ?? []) as ProfileSummary[];
+      const response = await fetchJson<{ data: ProfileSummary[] }>(
+        `/api/profiles`,
+      );
+      return response.data ?? [];
     },
   });
 
   const rolesQuery = useQuery({
     queryKey: ["manager-dashboard", "roles"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("user_id, role");
-
-      if (error) {
-        throw error;
-      }
-
-      return (data ?? []) as UserRoleRow[];
+      const response = await fetchJson<{ data: UserRoleRow[] }>(
+        `/api/roles`,
+      );
+      return response.data ?? [];
     },
   });
 
