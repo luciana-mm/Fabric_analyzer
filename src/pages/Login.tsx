@@ -7,7 +7,7 @@ import { ArrowRight, Lock, Mail, Microscope } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import gridBg from "@/assets/grid-bg.jpg";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth, type AuthUser } from "@/hooks/useAuth";
 
 const credentialsSchema = z.object({
   email: z
@@ -23,7 +23,7 @@ const credentialsSchema = z.object({
 
 const Login = () => {
   const router = useRouter();
-  const { user, role, loading: authLoading } = useAuth();
+  const { user, role, loading: authLoading, applySession } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -62,13 +62,25 @@ const Login = () => {
         }),
       });
 
+      const payload = (await response.json().catch(() => null)) as {
+        user?: AuthUser;
+        error?: string;
+      } | null;
+
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || "Erro ao fazer login");
+        throw new Error(payload?.error || "Erro ao fazer login");
       }
 
+      if (!payload?.user) {
+        throw new Error("Resposta de login invalida");
+      }
+
+      applySession(payload.user);
+
+      const destination = payload.user.role === "gestor" ? "/gestor" : "/painel";
       console.log("Login bem-sucedido");
       toast.success("Bem-vindo de volta");
+      window.location.assign(destination);
     } catch (err: unknown) {
       console.error("Erro no handleSubmit:", err);
       const message = err instanceof Error ? err.message : "Erro desconhecido";

@@ -29,6 +29,8 @@ interface AuthContextValue {
   loading: boolean;
   error: string | null;
   signOut: () => Promise<void>;
+  refreshSession: () => Promise<AuthUser | null>;
+  applySession: (user: AuthUser | null) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -39,28 +41,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const applySession = (nextUser: AuthUser | null) => {
+    setUser(nextUser);
+    setRole(nextUser?.role ?? null);
+    if (nextUser) {
+      setError(null);
+    }
+  };
+
+  const refreshSession = async (): Promise<AuthUser | null> => {
+    try {
+      const response = await fetchJson<{ user: AuthUser | null }>("/api/auth/session");
+      applySession(response.user);
+      return response.user;
+    } catch (err) {
+      console.error("Erro ao carregar sessão:", err);
+      applySession(null);
+      setError("Falha ao restaurar sessão");
+      return null;
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
 
     const loadSession = async () => {
-      try {
-        const response = await fetchJson<{ user: AuthUser | null }>(
-          "/api/auth/session",
-        );
-
-        if (!mounted) return;
-
-        setUser(response.user);
-        setRole(response.user?.role ?? null);
-      } catch (err) {
-        console.error("Erro ao carregar sessão:", err);
-        if (mounted) {
-          setError("Falha ao restaurar sessão");
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+      await refreshSession();
+      if (mounted) {
+        setLoading(false);
       }
     };
 
@@ -149,7 +157,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AuthContext.Provider
-      value={{ session: null, user, role, loading, error, signOut }}
+      value={{ session: null, user, role, loading, error, signOut, refreshSession, applySession }}
     >
       {children}
     </AuthContext.Provider>
