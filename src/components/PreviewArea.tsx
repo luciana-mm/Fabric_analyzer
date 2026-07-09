@@ -5,7 +5,10 @@ interface MeasurementGridOverlayProps {
   height: number;
 }
 
-export const MeasurementGridOverlay = ({ width, height }: MeasurementGridOverlayProps) => {
+export const MeasurementGridOverlay = ({
+  width,
+  height,
+}: MeasurementGridOverlayProps) => {
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
       <div
@@ -17,7 +20,12 @@ export const MeasurementGridOverlay = ({ width, height }: MeasurementGridOverlay
           maxHeight: "70vh",
         }}
       >
-        <div className="absolute inset-0 pointer-events-none rounded-lg border-[10px] border-dashed border-white drop-shadow-[0_0_4px_rgba(0,0,0,1)]" />
+        <div
+          className="absolute inset-0 pointer-events-none rounded-lg border-[10px] border-dashed border-white"
+          style={{
+            boxShadow: "0 0 0 9999px rgba(0,0,0,0.6)",
+          }}
+        />
       </div>
     </div>
   );

@@ -1,13 +1,22 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { ArrowLeft, Camera, CheckCircle, Info, Lightbulb, Loader, Pipette, Save } from 'lucide-react';
-import { toast } from 'sonner';
-import { CameraPreview } from './CameraPreview';
-import { RgbScreen } from './RgbScreen';
-import { useCameraRobustCapture } from '@/hooks/useCameraRobustCapture';
-import { useRobustColorCalibration } from '@/hooks/useRobustColorCalibration';
-import { defaultSystemConfig } from '@/lib/systemConfig';
+import { useState } from "react";
+import {
+  ArrowLeft,
+  Camera,
+  CheckCircle,
+  Info,
+  Lightbulb,
+  Loader,
+  Pipette,
+  Save,
+} from "lucide-react";
+import { toast } from "sonner";
+import { CameraPreview } from "./CameraPreview";
+import { RgbScreen } from "./RgbScreen";
+import { useCameraRobustCapture } from "@/hooks/useCameraRobustCapture";
+import { useRobustColorCalibration } from "@/hooks/useRobustColorCalibration";
+import { defaultSystemConfig } from "@/lib/systemConfig";
 
 interface ColorCaptureProps {
   onBack: () => void;
@@ -65,7 +74,9 @@ export const ColorCapture = ({
     hex: initialColorHex,
     rgb: initialColorRgb,
   });
-  const [isLightCalibrated, setIsLightCalibrated] = useState(initialLightCalibrated);
+  const [isLightCalibrated, setIsLightCalibrated] = useState(
+    initialLightCalibrated,
+  );
   const [isRgbPickerOpen, setIsRgbPickerOpen] = useState(false);
   const captureAreaWidth = clampCapturePercent(
     initialSampleAreaWidthPercent,
@@ -88,10 +99,17 @@ export const ColorCapture = ({
     try {
       const success = await colorCalibration.startLightCalibration(
         async (sampleIndex, totalSamples) => {
-          toast.loading(`Capturando amostra ${sampleIndex + 1}/${totalSamples}...`, {
-            id: 'light-calibration-progress',
-          });
-          return await cameraCapture.captureRobustSample(1, 100, captureAreaOptions);
+          toast.loading(
+            `Capturando amostra ${sampleIndex + 1}/${totalSamples}...`,
+            {
+              id: "light-calibration-progress",
+            },
+          );
+          return await cameraCapture.captureRobustSample(
+            1,
+            100,
+            captureAreaOptions,
+          );
         },
         LIGHT_CALIBRATION_SAMPLES,
         SAMPLE_INTERVAL_MS,
@@ -100,25 +118,25 @@ export const ColorCapture = ({
       if (success) {
         setIsLightCalibrated(true);
 
-        toast.success('Calibracao de luz concluida!', {
-          id: 'light-calibration-progress',
-          description: 'Calibracao salva como referencia de luz base',
+        toast.success("Calibracao de luz concluida!", {
+          id: "light-calibration-progress",
+          description: "Calibracao salva como referencia de luz base",
         });
       } else {
-        toast.error('Falha na calibracao', {
-          id: 'light-calibration-progress',
-          description: colorCalibration.error || 'Tente novamente',
+        toast.error("Falha na calibracao", {
+          id: "light-calibration-progress",
+          description: colorCalibration.error || "Tente novamente",
         });
       }
     } catch (err) {
-      console.error('Erro ao calibrar luz:', err);
-      toast.error('Erro na calibracao');
+      console.error("Erro ao calibrar luz:", err);
+      toast.error("Erro na calibracao");
     }
   };
 
   const handleCaptureColor = async () => {
     if (!colorCalibration.isLightCalibrated()) {
-      toast.error('Calibre a luz primeiro!', {
+      toast.error("Calibre a luz primeiro!", {
         description: 'Clique em "Calibrar Luz" antes de capturar a cor',
       });
       return;
@@ -127,10 +145,17 @@ export const ColorCapture = ({
     try {
       const result = await colorCalibration.startColorCapture(
         async (sampleIndex, totalSamples) => {
-          toast.loading(`Capturando amostra ${sampleIndex + 1}/${totalSamples}...`, {
-            id: 'color-capture-progress',
-          });
-          return await cameraCapture.captureRobustSample(1, 100, captureAreaOptions);
+          toast.loading(
+            `Capturando amostra ${sampleIndex + 1}/${totalSamples}...`,
+            {
+              id: "color-capture-progress",
+            },
+          );
+          return await cameraCapture.captureRobustSample(
+            1,
+            100,
+            captureAreaOptions,
+          );
         },
         COLOR_CAPTURE_SAMPLES,
         SAMPLE_INTERVAL_MS,
@@ -145,42 +170,45 @@ export const ColorCapture = ({
           rgb: rgb8Bit,
         });
 
-        toast.success('Cor capturada com sucesso!', {
-          id: 'color-capture-progress',
+        toast.success("Cor capturada com sucesso!", {
+          id: "color-capture-progress",
           description: `Cor base salva: ${hex}`,
         });
       } else {
-        toast.error('Falha na captura de cor', {
-          id: 'color-capture-progress',
-          description: colorCalibration.error || 'Tente novamente',
+        toast.error("Falha na captura de cor", {
+          id: "color-capture-progress",
+          description: colorCalibration.error || "Tente novamente",
         });
       }
     } catch (err) {
-      console.error('Erro ao capturar cor:', err);
-      toast.error('Erro na captura');
+      console.error("Erro ao capturar cor:", err);
+      toast.error("Erro na captura");
     }
   };
 
   const handleSave = () => {
     if (!isLightCalibrated) {
-      toast.error('Luz nao calibrada', {
-        description: 'Realize a calibracao de luz antes de salvar',
+      toast.error("Luz nao calibrada", {
+        description: "Realize a calibracao de luz antes de salvar",
       });
       return;
     }
 
     const hasNewLightReference = colorCalibration.isLightCalibrated();
-
     onSave({
-      referenceColorHex: displayColor.hex,
+      referenceColorHex: displayColor.hex.toUpperCase(),
       referenceColorRgb: displayColor.rgb,
       colorConfigured: true,
-      lightCalibrated: false,
+      // mark lightCalibrated if we have a saved light reference
+      lightCalibrated: hasNewLightReference || initialLightCalibrated,
       ambientLightConfigured: hasNewLightReference || initialLightCalibrated,
       ...(hasNewLightReference && colorCalibration.lightCalibrationData
         ? {
-            ambientLightReferenceHex: colorCalibration.lightCalibrationData.referenceHex,
-            ambientLightReferenceRgb: colorCalibration.lightCalibrationData.referenceRgb8Bit,
+            ambientLightReferenceHex: (
+              colorCalibration.lightCalibrationData.referenceHex || ""
+            ).toUpperCase(),
+            ambientLightReferenceRgb:
+              colorCalibration.lightCalibrationData.referenceRgb8Bit,
           }
         : {}),
     });
@@ -207,10 +235,10 @@ export const ColorCapture = ({
           style={{
             width: `${captureAreaWidth}vw`,
             height: `${captureAreaHeight}vh`,
-            maxWidth: '90vw',
-            maxHeight: '68vh',
-            minWidth: '140px',
-            minHeight: '100px',
+            maxWidth: "90vw",
+            maxHeight: "68vh",
+            minWidth: "140px",
+            minHeight: "100px",
           }}
         />
       </div>
@@ -229,14 +257,22 @@ export const ColorCapture = ({
             <h2 className="font-sansserief text-sm uppercase tracking-[0.25em] text-white">
               Calibracao de Luz (D65)
             </h2>
-            <p className="mt-1 text-xs text-white/55">{colorCalibration.statusMessage}</p>
+            <p className="mt-1 text-xs text-white/55">
+              {colorCalibration.statusMessage}
+            </p>
           </div>
           <div className="group relative flex items-center justify-center rounded-full border border-white/10 bg-black/40 p-2.5 backdrop-blur-md">
-            <Info size={18} className="cursor-pointer text-white/65 transition-colors group-hover:text-white" />
+            <Info
+              size={18}
+              className="cursor-pointer text-white/65 transition-colors group-hover:text-white"
+            />
             <div className="absolute right-0 top-full mt-3 hidden w-64 rounded-lg border border-white/10 bg-slate-950/95 p-3 text-xs text-white shadow-lg backdrop-blur-md group-hover:block">
-              <h3 className="mb-2 border-b border-white/10 pb-1 text-sm font-bold">Procedimento de Medicao</h3>
+              <h3 className="mb-2 border-b border-white/10 pb-1 text-sm font-bold">
+                Procedimento de Medicao
+              </h3>
               <p className="text-slate-300">
-                A amostra usa somente a regiao pontilhada central definida na area de analise.
+                A amostra usa somente a regiao pontilhada central definida na
+                area de analise.
               </p>
             </div>
           </div>
@@ -250,7 +286,7 @@ export const ColorCapture = ({
         onSelect={(color) => {
           setDisplayColor(color);
           setIsRgbPickerOpen(false);
-          toast.success('Cor atualizada', {
+          toast.success("Cor atualizada", {
             description: `${color.hex.toUpperCase()} selecionado`,
           });
         }}
@@ -268,7 +304,9 @@ export const ColorCapture = ({
                 <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
                   Cor selecionada
                 </p>
-                <p className="text-sm font-medium text-white">{displayColor.hex.toUpperCase()}</p>
+                <p className="text-sm font-medium text-white">
+                  {displayColor.hex.toUpperCase()}
+                </p>
               </div>
             </div>
 
@@ -285,14 +323,16 @@ export const ColorCapture = ({
               disabled={colorCalibration.isCalibrating}
               className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${
                 isLightCalibrated
-                  ? 'border-emerald-500/45 bg-emerald-950/45 text-emerald-200'
-                  : 'border-blue-500/45 bg-blue-950/45 text-blue-200 hover:bg-blue-900/55'
-              } ${colorCalibration.isCalibrating ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                  ? "border-emerald-500/45 bg-emerald-950/45 text-emerald-200"
+                  : "border-blue-500/45 bg-blue-950/45 text-blue-200 hover:bg-blue-900/55"
+              } ${colorCalibration.isCalibrating ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
             >
               {colorCalibration.isCalibrating ? (
                 <>
                   <Loader className="h-5 w-5 animate-spin" />
-                  <span>{colorCalibration.calibrationProgress.toFixed(0)}%</span>
+                  <span>
+                    {colorCalibration.calibrationProgress.toFixed(0)}%
+                  </span>
                 </>
               ) : isLightCalibrated ? (
                 <>
@@ -312,9 +352,9 @@ export const ColorCapture = ({
               disabled={isBusy || !isLightCalibrated}
               className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${
                 !isLightCalibrated
-                  ? 'cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500'
-                  : 'border-violet-500/45 bg-violet-950/45 text-violet-200 hover:bg-violet-900/55'
-              } ${isBusy ? 'opacity-60' : ''}`}
+                  ? "cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500"
+                  : "border-violet-500/45 bg-violet-950/45 text-violet-200 hover:bg-violet-900/55"
+              } ${isBusy ? "opacity-60" : ""}`}
             >
               {isBusy ? (
                 <>
@@ -334,8 +374,8 @@ export const ColorCapture = ({
               disabled={!isLightCalibrated}
               className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${
                 !isLightCalibrated
-                  ? 'cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500'
-                  : 'border-emerald-500/45 bg-emerald-950/45 text-emerald-200 hover:bg-emerald-900/55'
+                  ? "cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500"
+                  : "border-emerald-500/45 bg-emerald-950/45 text-emerald-200 hover:bg-emerald-900/55"
               }`}
             >
               <Save className="h-5 w-5" />
@@ -347,8 +387,8 @@ export const ColorCapture = ({
               disabled={!isLightCalibrated}
               className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${
                 isLightCalibrated
-                  ? 'border-white/15 bg-white/10 text-slate-100 hover:bg-white/15'
-                  : 'cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500'
+                  ? "border-white/15 bg-white/10 text-slate-100 hover:bg-white/15"
+                  : "cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500"
               }`}
             >
               <Pipette className="h-5 w-5" />
@@ -364,7 +404,7 @@ export const ColorCapture = ({
 function rgbToHex(rgb: { r: number; g: number; b: number }): string {
   const toHex = (n: number) => {
     const hex = Math.round(Math.max(0, Math.min(1, n)) * 255).toString(16);
-    return hex.length === 1 ? '0' + hex : hex;
+    return hex.length === 1 ? "0" + hex : hex;
   };
   return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`.toUpperCase();
 }
