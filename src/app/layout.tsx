@@ -8,7 +8,9 @@ export const metadata: Metadata = {
   description: "Análise de tecidos com controle operacional e gerencial.",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="pt-BR">
       <body className="min-h-screen bg-background text-foreground antialiased">
