@@ -109,7 +109,7 @@ def reset_defect_count() -> None:
     """Zera a contagem (ex: chamar quando começar a inspecionar um novo rolo/peça de tecido)"""
     _tracker.reset()
 
-DISTANCIA_MAX_FUSAO_MESMO_FRAME = 40  # pixels; ajuste conforme o tamanho típico das falhas
+DISTANCIA_MAX_FUSAO_MESMO_FRAME = 50  # pixels; ajuste conforme o tamanho típico das falhas
 
 # Filtro de falhas pequenas (furos, fiapos, pontos)
 AREA_MIN_PEQUENA = 6
@@ -165,6 +165,8 @@ def _fundir_centroides_proximos(centroides, boxes):
 
 
 def analyze_fabric(frame: np.ndarray) -> np.ndarray:
+    LIMIAR_INTENSIDADE_PEQUENA = 12 
+    LIMIAR_INTENSIDADE_MANCHA = 6  
     result = frame.copy()
 
     h_frame, w_frame = frame.shape[:2]
@@ -186,15 +188,18 @@ def analyze_fabric(frame: np.ndarray) -> np.ndarray:
     diff = cv2.absdiff(gray_roi, fundo)
     diff = cv2.GaussianBlur(diff, (3, 3), 0)
 
-    limiar_intensidade = 12
-    _, mask = cv2.threshold(diff, limiar_intensidade, 255, cv2.THRESH_BINARY)
-
+    # ---------- MÁSCARA NORMAL: falhas pequenas (furos, fiapos) ----------
+    _, mask_pequena = cv2.threshold(diff, LIMIAR_INTENSIDADE_PEQUENA, 255, cv2.THRESH_BINARY)
     kernel_morf = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_morf, iterations=1)
+    mask_pequena = cv2.morphologyEx(mask_pequena, cv2.MORPH_OPEN, kernel_morf, iterations=1)
     kernel_fusao = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-    mask = cv2.dilate(mask, kernel_fusao, iterations=1)
+    mask_pequena = cv2.dilate(mask_pequena, kernel_fusao, iterations=1)
 
-    contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # ---------- MÁSCARA SENSÍVEL: manchas grandes de baixo contraste ----------
+    _, mask_mancha = cv2.threshold(diff, LIMIAR_INTENSIDADE_MANCHA, 255, cv2.THRESH_BINARY)
+    kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
+    mask_mancha = cv2.morphologyEx(mask_mancha, cv2.MORPH_CLOSE, kernel_close, iterations=2)
+    mask_mancha = cv2.dilate(mask_mancha, kernel_close, iterations=1)
 
     if LINHA_ORIENTACAO == "horizontal":
         linha_pos_abs = y_inicio + int(altura * (LINHA_POSICAO_PERCENT / 100.0))
@@ -206,22 +211,26 @@ def analyze_fabric(frame: np.ndarray) -> np.ndarray:
     centroides = []
     boxes_absolutos = []
 
-    for cont in contornos:
-        area = cv2.contourArea(cont)
-        if (AREA_MIN_PEQUENA < area < AREA_MAX_PEQUENA) or (AREA_MIN_MANCHA <= area < AREA_MAX_MANCHA):
-            x, y, w, h = cv2.boundingRect(cont)
+    def _extrair_contornos(mask, area_min, area_max):
+        contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for cont in contornos:
+            area = cv2.contourArea(cont)
+            if area_min < area < area_max:
+                x, y, w, h = cv2.boundingRect(cont)
+                absoluto_x_inicio = x_inicio + x
+                absoluto_y_inicio = y_inicio + y
+                absoluto_x_fim = x_inicio + x + w
+                absoluto_y_fim = y_inicio + y + h
+                cx = absoluto_x_inicio + w // 2
+                cy = absoluto_y_inicio + h // 2
+                centroides.append((cx, cy))
+                boxes_absolutos.append((absoluto_x_inicio, absoluto_y_inicio, absoluto_x_fim, absoluto_y_fim))
 
-            absoluto_x_inicio = x_inicio + x
-            absoluto_y_inicio = y_inicio + y
-            absoluto_x_fim = x_inicio + x + w
-            absoluto_y_fim = y_inicio + y + h
+    # falhas pequenas vêm da máscara normal (mais limpa, menos ruído)
+    _extrair_contornos(mask_pequena, AREA_MIN_PEQUENA, AREA_MAX_PEQUENA)
+    # manchas grandes vêm da máscara sensível, só aceita se a área for grande o suficiente
+    _extrair_contornos(mask_mancha, AREA_MIN_MANCHA, AREA_MAX_MANCHA)
 
-            cx = absoluto_x_inicio + w // 2
-            cy = absoluto_y_inicio + h // 2
-
-            centroides.append((cx, cy))
-            boxes_absolutos.append((absoluto_x_inicio, absoluto_y_inicio, absoluto_x_fim, absoluto_y_fim))
-    
     centroides, boxes_absolutos = _fundir_centroides_proximos(centroides, boxes_absolutos)
     ativos = _tracker.update(centroides, linha_pos_abs)
 
