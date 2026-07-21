@@ -2,13 +2,18 @@ import os
 import threading
 import time
 from typing import Optional
+import subprocess
+import io
+import logging
 
 import cv2
 import numpy as np
+from detector import analyze_fabric, to_grayscale, get_defect_count, reset_defect_count
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+
 
 load_dotenv()
 
@@ -24,6 +29,12 @@ CAMERA_RTSP_URL = os.getenv(
 OUTPUT_FPS = float(os.getenv("OUTPUT_FPS", "12"))
 JPEG_QUALITY = int(os.getenv("JPEG_QUALITY", "80"))
 CONNECT_TIMEOUT_SECONDS = float(os.getenv("CONNECT_TIMEOUT_SECONDS", "5"))
+
+# Fallback to using ffmpeg subprocess for more robust H.264 handling
+USE_FFMPEG_FALLBACK = os.getenv("USE_FFMPEG_FALLBACK", "1") != "0"
+
+logging.basicConfig(level=logging.INFO)
+_log = logging.getLogger("camera-proxy")
 
 app = FastAPI(title="hikvision-camera-proxy", version="1.0.0")
 app.add_middleware(
@@ -43,45 +54,148 @@ class CameraState:
         self.running = True
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
+        self._ffmpeg_thread: Optional[threading.Thread] = None
 
     def _capture_loop(self) -> None:
+        backoff = 1.0
         while self.running:
-            capture = cv2.VideoCapture(CAMERA_RTSP_URL, cv2.CAP_FFMPEG)
-            capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            started_at = time.time()
-            self.connected = capture.isOpened()
+            try:
+                # Prefer OpenCV capture first for simple cases
+                _log.info("Attempting OpenCV capture...")
+                capture = cv2.VideoCapture(CAMERA_RTSP_URL, cv2.CAP_FFMPEG)
+                # slightly larger buffersize to reduce packet-loss noise
+                try:
+                    capture.set(cv2.CAP_PROP_BUFFERSIZE, 4)
+                except Exception:
+                    pass
 
-            if not self.connected:
-                capture.release()
-                time.sleep(1.0)
-                continue
+                started_at = time.time()
+                self.connected = capture.isOpened()
 
-            while self.running:
-                ok, frame = capture.read()
-                if not ok:
-                    self.connected = False
-                    break
-
-                encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY]
-                encoded_ok, jpg = cv2.imencode(".jpg", frame, encode_params)
-                if not encoded_ok:
+                if not self.connected:
+                    _log.warning("OpenCV failed to open RTSP stream, will retry or fallback")
+                    capture.release()
+                    # try ffmpeg fallback if enabled
+                    if USE_FFMPEG_FALLBACK:
+                        self._start_ffmpeg_fallback()
+                        return
+                    time.sleep(min(backoff, 10.0))
+                    backoff = min(backoff * 2, 10.0)
                     continue
 
-                with self.lock:
-                    self.latest_frame = jpg.tobytes()
-                    self.last_frame_ts = time.time()
-                    self.connected = True
+                backoff = 1.0
 
-                if time.time() - started_at > CONNECT_TIMEOUT_SECONDS and self.last_frame_ts == 0:
-                    self.connected = False
-                    break
+                while self.running:
+                    ok, frame = capture.read()
+                    if not ok:
+                        self.connected = False
+                        _log.warning("OpenCV read returned not ok, breaking to reconnect")
+                        break
 
-            capture.release()
-            time.sleep(0.5)
+                    encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY]
+                    encoded_ok, jpg = cv2.imencode(".jpg", frame, encode_params)
+                    if not encoded_ok:
+                        _log.debug("Failed to encode frame to jpg, skipping")
+                        continue
+
+                    with self.lock:
+                        self.latest_frame = jpg.tobytes()
+                        self.last_frame_ts = time.time()
+                        self.connected = True
+
+                    if time.time() - started_at > CONNECT_TIMEOUT_SECONDS and self.last_frame_ts == 0:
+                        self.connected = False
+                        _log.warning("Connect timeout exceeded without frames")
+                        break
+
+                capture.release()
+                time.sleep(0.5)
+            except Exception as e:
+                _log.exception("Unexpected error in capture loop: %s", e)
+                time.sleep(1.0)
 
     def stop(self) -> None:
         self.running = False
         self.thread.join(timeout=1.0)
+        if self._ffmpeg_thread and self._ffmpeg_thread.is_alive():
+            # thread will exit when running is False
+            self._ffmpeg_thread.join(timeout=1.0)
+
+    def _start_ffmpeg_fallback(self) -> None:
+        if self._ffmpeg_thread and self._ffmpeg_thread.is_alive():
+            return
+        self._ffmpeg_thread = threading.Thread(target=self._ffmpeg_loop, daemon=True)
+        self._ffmpeg_thread.start()
+
+    def _ffmpeg_loop(self) -> None:
+        """Start ffmpeg subprocess to read RTSP via TCP and stream MJPEG frames to stdout.
+        This is generally more robust for H.264 streams from cameras.
+        """
+        _log.info("Starting ffmpeg fallback loop")
+        backoff = 1.0
+        while self.running:
+            cmd = [
+                "ffmpeg",
+                "-rtsp_transport",
+                "tcp",
+                "-i",
+                CAMERA_RTSP_URL,
+                "-f",
+                "mjpeg",
+                "-q:v",
+                "5",
+                "-r",
+                str(int(OUTPUT_FPS)),
+                "pipe:1",
+            ]
+
+            try:
+                _log.info("Launching ffmpeg: %s", " ".join(cmd))
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+                stdout = proc.stdout
+                buffer = b""
+
+                while self.running:
+                    if stdout is None:
+                        break
+                    chunk = stdout.read(4096)
+                    if not chunk:
+                        # process ended or no data
+                        _log.warning("ffmpeg stdout closed or no data")
+                        break
+                    buffer += chunk
+
+                    # find JPEG start/end markers
+                    while True:
+                        start = buffer.find(b"\xff\xd8")
+                        end = buffer.find(b"\xff\xd9", start + 2) if start != -1 else -1
+                        if start != -1 and end != -1:
+                            jpg = buffer[start:end + 2]
+                            buffer = buffer[end + 2 :]
+                            with self.lock:
+                                self.latest_frame = jpg
+                                self.last_frame_ts = time.time()
+                                self.connected = True
+                        else:
+                            break
+
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+
+            except FileNotFoundError:
+                _log.error("ffmpeg not found in PATH. Install ffmpeg to use fallback.")
+                break
+            except Exception as e:
+                _log.exception("ffmpeg loop error: %s", e)
+
+            if not self.running:
+                break
+            _log.info("ffmpeg fallback reconnect backoff %s seconds", backoff)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 30.0)
 
 
 camera_state = CameraState()
@@ -130,6 +244,112 @@ def stream_mjpeg() -> StreamingResponse:
         headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
     )
 
+@app.get("/stream-analyzed.mjpg")
+def stream_analyzed_mjpeg() -> StreamingResponse:
+    """Stream de vídeo com processamento de visão computacional (OpenCV)"""
+    boundary = "frame"
+
+    def analyzed_frame_generator():
+        frame_interval = 1.0 / OUTPUT_FPS if OUTPUT_FPS > 0 else 0.08
+
+        while True:
+            # 1. Pega o frame em bytes do estado atual (igual a rota normal)
+            with camera_state.lock:
+                frame_bytes = camera_state.latest_frame
+
+            if frame_bytes is None:
+                time.sleep(0.1)
+                continue
+
+            try:
+                # 2. Converte de bytes (.jpg) para uma matriz NumPy (que o OpenCV entende)
+                frame_array = np.frombuffer(frame_bytes, dtype=np.uint8)
+                frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
+
+                if frame is not None:
+                    # 3. Manda para o seu arquivo isolado fazer a mágica!
+                    processed_frame = analyze_fabric(frame)
+
+                    # 4. Converte a matriz de volta para JPG para enviar pro navegador
+                    encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY]
+                    encoded_ok, jpg = cv2.imencode(".jpg", processed_frame, encode_params)
+                    
+                    if encoded_ok:
+                        yield (
+                            b"--" + boundary.encode() + b"\r\n"
+                            b"Content-Type: image/jpeg\r\n"
+                            b"Content-Length: " + str(len(jpg.tobytes())).encode() + b"\r\n\r\n"
+                            + jpg.tobytes()
+                            + b"\r\n"
+                        )
+            except Exception as e:
+                _log.error(f"Erro ao processar frame analisado: {e}")
+
+            time.sleep(frame_interval)
+
+    return StreamingResponse(
+        analyzed_frame_generator(),
+        media_type=f"multipart/x-mixed-replace; boundary={boundary}",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )
+
+@app.get("/stream-grayscale.mjpg")
+def stream_grayscale_mjpeg() -> StreamingResponse:
+    """Stream de vídeo apenas em tons de cinza"""
+    boundary = "frame"
+
+    def grayscale_frame_generator():
+        frame_interval = 1.0 / OUTPUT_FPS if OUTPUT_FPS > 0 else 0.08
+
+        while True:
+            with camera_state.lock:
+                frame_bytes = camera_state.latest_frame
+
+            if frame_bytes is None:
+                time.sleep(0.1)
+                continue
+
+            try:
+                frame_array = np.frombuffer(frame_bytes, dtype=np.uint8)
+                frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
+
+                if frame is not None:
+                    # Puxa a sua nova função de cinza
+                    gray_frame = to_grayscale(frame)
+
+                    encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY]
+                    encoded_ok, jpg = cv2.imencode(".jpg", gray_frame, encode_params)
+                    
+                    if encoded_ok:
+                        yield (
+                            b"--" + boundary.encode() + b"\r\n"
+                            b"Content-Type: image/jpeg\r\n"
+                            b"Content-Length: " + str(len(jpg.tobytes())).encode() + b"\r\n\r\n"
+                            + jpg.tobytes()
+                            + b"\r\n"
+                        )
+            except Exception as e:
+                _log.error(f"Erro ao processar frame cinza: {e}")
+
+            time.sleep(frame_interval)
+
+    return StreamingResponse(
+        grayscale_frame_generator(),
+        media_type=f"multipart/x-mixed-replace; boundary={boundary}",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )
+
+@app.get("/defect-count")
+def defect_count() -> JSONResponse:
+    """Retorna a contagem atual de falhas detectadas"""
+    return JSONResponse({"count": get_defect_count()})
+
+
+@app.post("/reset-count")
+def reset_count() -> JSONResponse:
+    """Zera a contagem de falhas (usar ao iniciar um novo teste/rolo)"""
+    reset_defect_count()
+    return JSONResponse({"success": True, "count": get_defect_count()})
 
 def _decode_latest_frame() -> np.ndarray:
     with camera_state.lock:
