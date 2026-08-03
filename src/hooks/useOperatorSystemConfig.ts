@@ -33,6 +33,11 @@ type OperatorConfigRow = {
   analysis_area_configured: boolean;
   color_configured: boolean;
   light_calibrated: boolean;
+  ambient_light_configured: boolean;          // NOVO
+  ambient_light_reference_hex: string | null; // NOVO
+  ambient_light_reference_r: number | null;   // NOVO
+  ambient_light_reference_g: number | null;   // NOVO
+  ambient_light_reference_b: number | null;   // NOVO
   system_step: SystemStep;
   active_view: ConfigView;
   updated_at: string;
@@ -52,9 +57,18 @@ const rowToSystemConfig = (row: OperatorConfigRow, localConfig: SystemConfig): S
       g: row.reference_color_g,
       b: row.reference_color_b,
     },
-    ambientLightReferenceHex: localConfig.ambientLightReferenceHex,
-    ambientLightReferenceRgb: localConfig.ambientLightReferenceRgb,
-    ambientLightConfigured: localConfig.ambientLightConfigured,
+    ambientLightReferenceHex: row.ambient_light_reference_hex ?? localConfig.ambientLightReferenceHex,
+    ambientLightReferenceRgb:
+      row.ambient_light_reference_r != null &&
+      row.ambient_light_reference_g != null &&
+      row.ambient_light_reference_b != null
+        ? {
+            r: row.ambient_light_reference_r,
+            g: row.ambient_light_reference_g,
+            b: row.ambient_light_reference_b,
+          }
+        : localConfig.ambientLightReferenceRgb,
+    ambientLightConfigured: row.ambient_light_configured ?? localConfig.ambientLightConfigured,
     deltaConfigured: row.delta_configured,
     analysisAreaConfigured: row.analysis_area_configured,
     colorConfigured: row.color_configured,
@@ -89,6 +103,11 @@ const systemConfigToPayload = (
   analysis_area_configured: config.analysisAreaConfigured,
   color_configured: config.colorConfigured,
   light_calibrated: config.lightCalibrated,
+  ambient_light_configured: config.ambientLightConfigured,
+  ambient_light_reference_hex: config.ambientLightReferenceHex ?? null,
+  ambient_light_reference_r: config.ambientLightReferenceRgb?.r ?? null,
+  ambient_light_reference_g: config.ambientLightReferenceRgb?.g ?? null,
+  ambient_light_reference_b: config.ambientLightReferenceRgb?.b ?? null,
   system_step: config.systemStep,
   active_view: activeView,
 });

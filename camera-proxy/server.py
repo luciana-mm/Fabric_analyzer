@@ -13,10 +13,12 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi import Query
 
 
 load_dotenv()
 
+os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
 CAMERA_IP = os.getenv("CAMERA_IP", "192.168.1.64")
 CAMERA_RTSP_PORT = int(os.getenv("CAMERA_RTSP_PORT", "554"))
 CAMERA_USER = os.getenv("CAMERA_USER", "admin")
@@ -68,6 +70,12 @@ class CameraState:
                     capture.set(cv2.CAP_PROP_BUFFERSIZE, 4)
                 except Exception:
                     pass
+                try:
+                    capture.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)
+                    capture.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)
+                except Exception:
+                    pass
+                
 
                 started_at = time.time()
                 self.connected = capture.isOpened()
@@ -244,16 +252,17 @@ def stream_mjpeg() -> StreamingResponse:
         headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
     )
 
+# AQUI: O w: int e h: int garantem que o Python não trate como texto e quebre a imagem
 @app.get("/stream-analyzed.mjpg")
-def stream_analyzed_mjpeg() -> StreamingResponse:
-    """Stream de vídeo com processamento de visão computacional (OpenCV)"""
+def stream_analyzed_mjpeg(
+    w: int = Query(60, ge=1, le=100, description="Largura da área de análise em %"),
+    h: int = Query(50, ge=1, le=100, description="Altura da área de análise em %"),
+) -> StreamingResponse:
     boundary = "frame"
 
     def analyzed_frame_generator():
         frame_interval = 1.0 / OUTPUT_FPS if OUTPUT_FPS > 0 else 0.08
-
         while True:
-            # 1. Pega o frame em bytes do estado atual (igual a rota normal)
             with camera_state.lock:
                 frame_bytes = camera_state.latest_frame
 
@@ -262,28 +271,25 @@ def stream_analyzed_mjpeg() -> StreamingResponse:
                 continue
 
             try:
-                # 2. Converte de bytes (.jpg) para uma matriz NumPy (que o OpenCV entende)
                 frame_array = np.frombuffer(frame_bytes, dtype=np.uint8)
                 frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
 
                 if frame is not None:
-                    # 3. Manda para o seu arquivo isolado fazer a mágica!
-                    processed_frame = analyze_fabric(frame)
-
-                    # 4. Converte a matriz de volta para JPG para enviar pro navegador
+                    processed_frame = analyze_fabric(frame, w, h)
                     encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY]
                     encoded_ok, jpg = cv2.imencode(".jpg", processed_frame, encode_params)
-                    
+
                     if encoded_ok:
+                        jpg_bytes = jpg.tobytes()
                         yield (
                             b"--" + boundary.encode() + b"\r\n"
                             b"Content-Type: image/jpeg\r\n"
-                            b"Content-Length: " + str(len(jpg.tobytes())).encode() + b"\r\n\r\n"
-                            + jpg.tobytes()
+                            b"Content-Length: " + str(len(jpg_bytes)).encode() + b"\r\n\r\n"
+                            + jpg_bytes
                             + b"\r\n"
                         )
             except Exception as e:
-                _log.error(f"Erro ao processar frame analisado: {e}")
+                _log.error(f"Erro ao processar frame analisado (w={w}, h={h}): {e}")
 
             time.sleep(frame_interval)
 
@@ -292,7 +298,6 @@ def stream_analyzed_mjpeg() -> StreamingResponse:
         media_type=f"multipart/x-mixed-replace; boundary={boundary}",
         headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
     )
-
 @app.get("/stream-grayscale.mjpg")
 def stream_grayscale_mjpeg() -> StreamingResponse:
     """Stream de vídeo apenas em tons de cinza"""

@@ -1,5 +1,8 @@
+"use client";
+
 import { AlertTriangle, RefreshCw } from "lucide-react";
-import { useCameraPreview } from "@/hooks/useCameraPreview";
+// Verifique se o caminho do import abaixo está correto no seu projeto!
+import { useCameraPreview } from "@/hooks/useCameraPreview"; 
 
 interface CameraPreviewProps {
   className?: string;
@@ -8,6 +11,7 @@ interface CameraPreviewProps {
   fallbackMessage?: string;
   showRetryButton?: boolean;
   overlay?: React.ReactNode;
+  streamPath?: string;
 }
 
 export const CameraPreview = ({
@@ -17,17 +21,19 @@ export const CameraPreview = ({
   fallbackMessage,
   showRetryButton = true,
   overlay,
+  streamPath,
 }: CameraPreviewProps) => {
-  const { checkedOnce, status, streamUrl, errorMessage, markStreamError, retry } = useCameraPreview();
+  // AQUI: Agora ele pega a streamUrl correta (da porta 8000) de dentro do hook
+  const { checkedOnce, status, errorMessage, markStreamError, retry, streamUrl } = useCameraPreview(streamPath);
   const isOnline = status === "online" || status === "connecting";
 
   return (
     <div className={className ?? "relative w-full h-full overflow-hidden rounded-xl border border-border/30 bg-black"}>
       {isOnline ? (
         <img
-          src={streamUrl}
+          src={streamUrl} // A tag img agora usa a URL conectada no Python
           alt="Vídeo ao vivo da câmera"
-          className={imageClassName ?? "w-full h-full object-cover bg-black"}
+          className={imageClassName ?? "w-full h-full object-contain bg-black"}
           onError={markStreamError}
         />
       ) : (
