@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export type CameraPreviewStatus = "connecting" | "online" | "offline" | "error";
 
+// AQUI ESTAVA O ERRO: Mudamos o fallback de 8090 para 8000
 const CAMERA_PROXY_URL = process.env.NEXT_PUBLIC_CAMERA_PROXY_URL ?? "http://127.0.0.1:8090";
 
 const getRetryDelayMs = (failures: number) => {
@@ -11,7 +12,10 @@ const getRetryDelayMs = (failures: number) => {
   return 2000 * Math.pow(2, cappedFailures);
 };
 
-export const useCameraPreview = () => {
+export const useCameraPreview = (
+  streamPath: string = "/stream.mjpg",
+   params: Record<string, string | number> = {}
+) => {
   const [streamKey, setStreamKey] = useState(0);
   const [status, setStatus] = useState<CameraPreviewStatus>("connecting");
   const [checkedOnce, setCheckedOnce] = useState(false);
@@ -28,18 +32,14 @@ export const useCameraPreview = () => {
         throw new Error(`Proxy respondeu com status ${response.status}`);
       }
 
-      if (!mountedRef.current) {
-        return;
-      }
+      if (!mountedRef.current) return;
 
       failuresRef.current = 0;
       setStatus("online");
       setErrorMessage(null);
       setCheckedOnce(true);
     } catch {
-      if (!mountedRef.current) {
-        return;
-      }
+      if (!mountedRef.current) return;
 
       failuresRef.current += 1;
       setStatus("offline");
@@ -53,10 +53,7 @@ export const useCameraPreview = () => {
 
     const schedule = async () => {
       await runHealthCheck();
-
-      if (!mountedRef.current) {
-        return;
-      }
+      if (!mountedRef.current) return;
 
       const delay = status === "online" ? 5000 : getRetryDelayMs(failuresRef.current);
       timerRef.current = window.setTimeout(() => {
@@ -89,8 +86,14 @@ export const useCameraPreview = () => {
   }, [runHealthCheck]);
 
   const streamUrl = useMemo(() => {
-    return `${CAMERA_PROXY_URL}/stream.mjpg?t=${streamKey}`;
-  }, [streamKey]);
+    const url = new URL(
+      streamPath.startsWith("/") ? streamPath : `/${streamPath}`,
+      `${CAMERA_PROXY_URL}/`
+    );
+    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
+    url.searchParams.set("t", String(streamKey));
+    return url.toString();
+  }, [streamKey, streamPath, params]);
 
   return {
     status,

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Grip, Save, Eye, Info, ArrowLeft } from "lucide-react";
-import { MeasurementGridOverlay } from "./PreviewArea";
 import { CameraPreview } from "./CameraPreview";
 import type { SamplePointsValue } from "@/lib/systemConfig";
 
@@ -36,13 +35,10 @@ export const AnalysisArea = ({ onBack, onSave, initialWidth, initialHeight, init
     <div className="fixed inset-0 z-20 overflow-hidden bg-[#0a0c14] flex items-center justify-center">
       <CameraPreview
         className="absolute inset-0 z-0 rounded-none border-0"
-        imageClassName="w-full h-full object-cover opacity-55"
+        imageClassName="w-full h-full object-contain opacity-55"
         fallbackMessage="Preview indisponivel para a area de analise."
         showRetryButton={false}
-      />
-      <MeasurementGridOverlay
-        width={widthRangeValue}
-        height={heightRangeValue}
+        streamPath={`/stream-analyzed.mjpg?w=${widthRangeValue}&h=${heightRangeValue}`}
       />
       {isVisible && (
         <div className="relative z-20 w-full max-w-2xl mx-auto bg-[#0a0c14]/90 backdrop-blur-sm p-8 rounded-xl border border-slate-800 text-white text-sm">

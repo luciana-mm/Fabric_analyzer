@@ -172,27 +172,14 @@ export const AmbientLightCalibration = ({
     <div className="fixed inset-0 z-20 overflow-hidden bg-[#0a0c14] text-white">
       <CameraPreview
         className="absolute inset-0 z-0 rounded-none border-0 bg-black"
-        imageClassName="h-full w-full bg-black object-cover"
+        imageClassName="h-full w-full bg-black object-contain"
         offlineClassName="absolute inset-0 flex items-center justify-center bg-black p-6"
         fallbackMessage="Preview indisponivel durante calibracao"
         showRetryButton={false}
+        streamPath={`/stream-analyzed.mjpg?w=${captureAreaWidth}&h=${captureAreaHeight}`}
       />
 
       <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black/60 via-transparent to-black/45" />
-
-      <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center px-6 pb-56 sm:pb-44 lg:pb-36">
-        <div
-          className="relative rounded-lg border-[6px] border-dashed border-white/95 shadow-[0_0_0_9999px_rgba(0,0,0,0.12),0_0_18px_rgba(0,0,0,0.9)] transition-all duration-150 ease-out"
-          style={{
-            width: `${captureAreaWidth}vw`,
-            height: `${captureAreaHeight}vh`,
-            maxWidth: "90vw",
-            maxHeight: "68vh",
-            minWidth: "140px",
-            minHeight: "100px",
-          }}
-        />
-      </div>
 
       <div className="absolute left-4 right-4 top-4 z-30 flex items-start justify-between gap-4 md:left-8 md:right-8 md:top-6">
         <button

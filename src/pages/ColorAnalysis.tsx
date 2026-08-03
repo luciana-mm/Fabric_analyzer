@@ -29,11 +29,12 @@ const clampCapturePercent = (value: number | undefined, fallback: number) => {
   if (!Number.isFinite(numberValue)) {
     return fallback;
   }
-
   return Math.min(100, Math.max(5, Math.round(numberValue)));
 };
 
 const AUTO_ANALYSIS_INTERVAL_MS = 2500;
+// URL base da câmera (ajuste se for diferente no seu ambiente)
+const CAMERA_API_URL = "http://localhost:8090"; 
 
 interface ColorAnalysisProps {
   analysisType?: "tecido" | "pecas";
@@ -50,8 +51,12 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
     deltaE: number;
     success: boolean;
   } | null>(null);
+  
   const [isPanelExpanded, setIsPanelExpanded] = useState(false);
   const [isAutoAnalysisEnabled, setIsAutoAnalysisEnabled] = useState(false);
+  
+  // NOVO: Estado para armazenar a contagem de falhas (defeitos)
+  const [defectCount, setDefectCount] = useState<number>(0);
 
   const requiredPrecision = useMemo(() => {
     if (config.deltaE === 1) return 80;
@@ -61,6 +66,8 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
 
   const activeTissueCode = config.activeTissueCode;
   const flowState = getSystemFlowState(config);
+  
+  // Aqui estão as variáveis dinâmicas do quadradinho
   const captureAreaWidth = clampCapturePercent(
     config.sampleAreaWidthPercent,
     defaultSystemConfig.sampleAreaWidthPercent,
@@ -72,38 +79,62 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(min-width: 1024px)");
-
-    const syncPanelState = () => {
-      setIsPanelExpanded(mediaQuery.matches);
-    };
+    const syncPanelState = () => setIsPanelExpanded(mediaQuery.matches);
 
     syncPanelState();
     mediaQuery.addEventListener("change", syncPanelState);
-
-    return () => {
-      mediaQuery.removeEventListener("change", syncPanelState);
-    };
+    return () => mediaQuery.removeEventListener("change", syncPanelState);
   }, []);
+
+  // NOVO: Polling para buscar a contagem de defeitos da câmera em tempo real
+  useEffect(() => {
+    if (analysisType !== "tecido") return;
+
+    const fetchDefects = async () => {
+      try {
+        const response = await fetch(`${CAMERA_API_URL}/defect-count`);
+        if (response.ok) {
+          const data = await response.json();
+          setDefectCount(data.count);
+        }
+      } catch (error) {
+        // Ignora erro silenciosamente para não floodar o console caso a câmera esteja off
+      }
+    };
+
+    fetchDefects(); // Busca imediatamente
+    const intervalId = setInterval(fetchDefects, 1000); // A cada 1 segundo
+
+    return () => clearInterval(intervalId);
+  }, [analysisType]);
+
+  // NOVO: Função para zerar as falhas
+  const handleResetDefects = async () => {
+    try {
+      const response = await fetch(`${CAMERA_API_URL}/reset-count`, { method: "POST" });
+      if (response.ok) {
+        setDefectCount(0);
+        toast.success("Contagem de falhas zerada.");
+      }
+    } catch (error) {
+      toast.error("Erro ao zerar contagem da câmera.");
+    }
+  };
 
   const handleAnalyze = useCallback(
     async (trigger: "manual" | "auto" = "manual") => {
-      if (cameraCapture.isCapturing) {
-        return;
-      }
+      if (cameraCapture.isCapturing) return;
 
       if (!config.colorConfigured || !flowState.podeIniciar) {
         if (trigger === "auto") {
           setIsAutoAnalysisEnabled(false);
           toast.warning("Analise automatica pausada", {
-            description:
-              "Finalize a configuracao para retomar a analise automatica.",
+            description: "Finalize a configuracao para retomar a analise automatica.",
           });
           return;
         }
-
         toast.error("Configuracao incompleta", {
-          description:
-            "Defina a cor base e calibre a luz antes de iniciar a analise.",
+          description: "Defina a cor base e calibre a luz antes de iniciar a analise.",
         });
         return;
       }
@@ -113,6 +144,7 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
         areaHeightPercent: captureAreaHeight,
         samplePoints: config.samplePoints,
       });
+
       if (!rgbSample) {
         if (trigger === "manual") {
           toast.error("Nao foi possivel capturar amostra da camera.");
@@ -132,17 +164,11 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
       const success = precision >= requiredPrecision;
       const measuredHex = rgbToHex(measured);
 
-      setResult({
-        precision,
-        deltaE: evaluation.deltaE,
-        success,
-      });
+      setResult({ precision, deltaE: evaluation.deltaE, success });
 
       if (!user?.id) {
         if (trigger === "manual") {
-          toast.warning(
-            "Analise concluida sem usuario autenticado para salvar historico.",
-          );
+          toast.warning("Analise concluida sem usuario autenticado para salvar historico.");
         }
         return;
       }
@@ -157,9 +183,7 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
             tissue_batch_code: activeTissueCode,
             analysis_type: analysisType,
             result: success ? "ok" : "fail",
-            failure_reason: success
-              ? null
-              : "Precisao abaixo do minimo configurado",
+            failure_reason: success ? null : "Precisao abaixo do minimo configurado",
             processing_time_ms: 1000,
             delta_e_measured: Number(evaluation.deltaE.toFixed(4)),
             delta_e_threshold: config.deltaE,
@@ -173,9 +197,7 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
       } catch (error) {
         console.error("Erro ao salvar analise:", error);
         if (trigger === "manual") {
-          toast.warning(
-            "Analise concluida, mas nao foi possivel salvar no historico.",
-          );
+          toast.warning("Analise concluida, mas nao foi possivel salvar no historico.");
         }
         return;
       }
@@ -200,43 +222,28 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
   );
 
   useEffect(() => {
-    if (
-      !isAutoAnalysisEnabled ||
-      cameraCapture.isCapturing ||
-      analysisType === "pecas"
-    ) {
+    if (!isAutoAnalysisEnabled || cameraCapture.isCapturing || analysisType === "pecas") {
       return;
     }
-
     const timerId = window.setTimeout(() => {
       void handleAnalyze("auto");
     }, AUTO_ANALYSIS_INTERVAL_MS);
 
-    return () => {
-      window.clearTimeout(timerId);
-    };
-  }, [
-    cameraCapture.isCapturing,
-    handleAnalyze,
-    isAutoAnalysisEnabled,
-    analysisType,
-  ]);
+    return () => window.clearTimeout(timerId);
+  }, [cameraCapture.isCapturing, handleAnalyze, isAutoAnalysisEnabled, analysisType]);
 
   const handleAutoAnalysisToggle = (enabled: boolean) => {
     if (enabled && (!config.colorConfigured || !flowState.podeIniciar)) {
       toast.error("Configuracao incompleta", {
-        description:
-          "Defina a cor base e calibre a luz antes de ativar a analise automatica.",
+        description: "Defina a cor base e calibre a luz antes de ativar a analise automatica.",
       });
       return;
     }
-
     setIsAutoAnalysisEnabled(enabled);
   };
 
   const handleFinishTissue = async () => {
     const nextBatchCode = createTissueBatchCode();
-
     if (persistPatch) {
       await persistPatch({
         systemStep: "CONFIG",
@@ -252,41 +259,31 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
 
     setResult(null);
     setIsAutoAnalysisEnabled(false);
-    toast.success(
-      `${analysisType === "tecido" ? "Tecido" : "Peça"} finalizado`,
-      {
-        description:
-          "Novo lote iniciado. Refaca as configuracoes e a calibracao de luz.",
-      },
-    );
+    toast.success(`${analysisType === "tecido" ? "Tecido" : "Peça"} finalizado`, {
+      description: "Novo lote iniciado. Refaca as configuracoes e a calibracao de luz.",
+    });
     router.push("/painel");
   };
+
+  // NOVO: Monta a URL dinâmica passando os percentuais para a API do Python
+  const cameraStreamPath = analysisType === "tecido" 
+    ? `/stream-analyzed.mjpg?w=${captureAreaWidth}&h=${captureAreaHeight}`
+    : `/stream.mjpg`;
 
   return (
     <div className="fixed inset-0 z-20 overflow-hidden bg-[#0a0c14] text-white">
       <CameraPreview
         className="absolute inset-0 z-0 rounded-none border-0 bg-black"
-        imageClassName="h-full w-full bg-black object-cover"
+        imageClassName="h-full w-full bg-black object-contain"
         offlineClassName="absolute inset-0 flex items-center justify-center bg-black p-6"
         fallbackMessage="Nao foi possivel acessar a camera."
         showRetryButton={false}
+        streamPath={cameraStreamPath} // <--- Enviando URL com parâmetros dinâmicos
       />
 
       <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black/60 via-transparent to-black/45" />
 
-      <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center px-6 pb-48 sm:pb-40 lg:pb-32">
-        <div
-          className="relative rounded-lg border-[6px] border-dashed border-white/95 shadow-[0_0_0_9999px_rgba(0,0,0,0.12),0_0_18px_rgba(0,0,0,0.9)] transition-all duration-150 ease-out"
-          style={{
-            width: `${captureAreaWidth}vw`,
-            height: `${captureAreaHeight}vh`,
-            maxWidth: "90vw",
-            maxHeight: "68vh",
-            minWidth: "140px",
-            minHeight: "100px",
-          }}
-        />
-      </div>
+
 
       <div className="absolute left-4 right-4 top-4 z-30 flex items-start justify-between gap-4 md:left-8 md:right-8 md:top-6">
         <button
@@ -297,6 +294,7 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
           Voltar
         </button>
 
+        {/* INFORMAÇÕES SUPERIOR DIREITA (Onde as falhas vão aparecer no Desktop) */}
         <div className="hidden rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-right backdrop-blur-md md:block">
           <h2 className="font-sansserief text-sm uppercase tracking-[0.25em] text-white">
             Analise de Cores
@@ -313,9 +311,26 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
               {analysisType === "tecido" ? "Tecido" : "Peças"}
             </span>
           </div>
+
+          {/* NOVO: Badge do Defect Tracker */}
+          {analysisType === "tecido" && (
+            <div className="mt-3 border-t border-white/10 pt-3 flex items-center justify-end gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-white/55 uppercase tracking-widest">Falhas:</span>
+                <span className="text-xl font-bold text-orange-500">{defectCount}</span>
+              </div>
+              <button
+                onClick={handleResetDefects}
+                className="rounded border border-orange-500/30 bg-orange-500/10 px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-orange-400 transition hover:bg-orange-500/20"
+              >
+                Zerar
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
+      {/* PAINEL INFERIOR */}
       <div className="absolute bottom-4 left-1/2 z-30 w-[calc(100%-2rem)] max-w-6xl -translate-x-1/2 md:bottom-6">
         <div className="relative rounded-2xl border border-white/10 bg-black/50 p-4 shadow-2xl backdrop-blur-md">
           <button
@@ -324,31 +339,19 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
             aria-label={isPanelExpanded ? "Recolher painel" : "Expandir painel"}
             className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black/45 text-white/75 transition hover:bg-white/10 hover:text-white"
           >
-            {isPanelExpanded ? (
-              <ChevronDown className="h-5 w-5" />
-            ) : (
-              <ChevronUp className="h-5 w-5" />
-            )}
+            {isPanelExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
           </button>
 
           {isPanelExpanded && (
             <div className="mb-4 grid gap-3 pr-10 lg:grid-cols-[1fr_1fr_1.4fr]">
               <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
-                  Delta E
-                </p>
-                <p className="mt-2 text-lg font-medium text-white">
-                  Delta E &lt;= {config.deltaE}
-                </p>
+                <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">Delta E</p>
+                <p className="mt-2 text-lg font-medium text-white">Delta E &lt;= {config.deltaE}</p>
               </div>
 
               <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
-                  Precisao minima
-                </p>
-                <p className="mt-2 text-lg font-medium text-white">
-                  {requiredPrecision.toFixed(1)}%
-                </p>
+                <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">Precisao minima</p>
+                <p className="mt-2 text-lg font-medium text-white">{requiredPrecision.toFixed(1)}%</p>
               </div>
 
               <div
@@ -360,25 +363,18 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
                       : "border-rose-500/35 bg-rose-950/35 text-rose-100"
                 }`}
               >
-                <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
-                  Resultado
-                </p>
+                <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">Resultado</p>
                 {result ? (
                   <>
                     <p className="mt-2 text-sm font-medium">
-                      {result.success
-                        ? "Sucesso: tecido dentro do padrao de cor."
-                        : "Fora do padrao"}
+                      {result.success ? "Sucesso: tecido dentro do padrao de cor." : "Fora do padrao"}
                     </p>
                     <p className="mt-1 text-xs opacity-85">
-                      Precisao: <strong>{result.precision.toFixed(1)}%</strong>{" "}
-                      | Delta E: {result.deltaE.toFixed(2)}
+                      Precisao: <strong>{result.precision.toFixed(1)}%</strong> | Delta E: {result.deltaE.toFixed(2)}
                     </p>
                   </>
                 ) : (
-                  <p className="mt-2 text-sm">
-                    Nenhuma analise realizada ainda.
-                  </p>
+                  <p className="mt-2 text-sm">Nenhuma analise realizada ainda.</p>
                 )}
               </div>
             </div>
@@ -386,15 +382,25 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
 
           {!isPanelExpanded && (
             <div className="mb-3 pr-10">
-              <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
-                Analise de {analysisType === "tecido" ? "tecidos" : "pecas"}
-              </p>
-              {result && (
-                <p className="mt-1 text-xs text-white/70">
-                  {result.success ? "Sucesso" : "Fora do padrao"} -{" "}
-                  {result.precision.toFixed(1)}%
-                </p>
-              )}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
+                    Analise de {analysisType === "tecido" ? "tecidos" : "pecas"}
+                  </p>
+                  {result && (
+                    <p className="mt-1 text-xs text-white/70">
+                      {result.success ? "Sucesso" : "Fora do padrao"} - {result.precision.toFixed(1)}%
+                    </p>
+                  )}
+                </div>
+                {/* Badge para Mobile */}
+                {analysisType === "tecido" && (
+                  <div className="flex flex-col items-end mr-4 md:hidden">
+                    <span className="text-[10px] text-white/55 uppercase tracking-widest">Falhas</span>
+                    <span className="font-bold text-orange-500">{defectCount}</span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -402,12 +408,8 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
             {analysisType === "tecido" && (
               <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
                 <div>
-                  <p className="text-sm font-medium text-white">
-                    Analise automatica
-                  </p>
-                  <p className="text-xs text-white/65">
-                    Executa uma nova analise a cada 2,5 segundos.
-                  </p>
+                  <p className="text-sm font-medium text-white">Analise automatica</p>
+                  <p className="text-xs text-white/65">Executa uma nova analise a cada 2,5 segundos.</p>
                 </div>
                 <Switch
                   checked={isAutoAnalysisEnabled}
