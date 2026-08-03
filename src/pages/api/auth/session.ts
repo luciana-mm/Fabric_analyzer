@@ -14,33 +14,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ user: null });
   }
 
-  const userResult = await query(
-    "SELECT id, email FROM users WHERE id = $1",
-    [userId],
-  );
+  try {
+    const userResult = await query(
+      "SELECT id, email FROM users WHERE id = $1",
+      [userId],
+    );
 
-  const userRow = userResult.rows[0];
-  if (!userRow) {
-    return res.status(200).json({ user: null });
+    const userRow = userResult.rows[0];
+    if (!userRow) {
+      return res.status(200).json({ user: null });
+    }
+
+    const profileResult = await query(
+      "SELECT display_name, job_title, shift FROM profiles WHERE user_id = $1",
+      [userId],
+    );
+    const roleResult = await query(
+      "SELECT role FROM user_roles WHERE user_id = $1",
+      [userId],
+    );
+
+    return res.status(200).json({
+      user: {
+        id: userRow.id,
+        email: userRow.email,
+        role: roleResult.rows[0]?.role ?? null,
+        display_name: profileResult.rows[0]?.display_name ?? null,
+        job_title: profileResult.rows[0]?.job_title ?? null,
+        shift: profileResult.rows[0]?.shift ?? null,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ user: null });
   }
-
-  const profileResult = await query(
-    "SELECT display_name, job_title, shift FROM profiles WHERE user_id = $1",
-    [userId],
-  );
-  const roleResult = await query(
-    "SELECT role FROM user_roles WHERE user_id = $1",
-    [userId],
-  );
-
-  return res.status(200).json({
-    user: {
-      id: userRow.id,
-      email: userRow.email,
-      role: roleResult.rows[0]?.role ?? null,
-      display_name: profileResult.rows[0]?.display_name ?? null,
-      job_title: profileResult.rows[0]?.job_title ?? null,
-      shift: profileResult.rows[0]?.shift ?? null,
-    },
-  });
 }
