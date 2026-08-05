@@ -32,6 +32,7 @@ function ConfigAnalysisAreaContent() {
       initialWidth={config.sampleAreaWidthPercent}
       initialHeight={config.sampleAreaHeightPercent}
       initialPoints={config.samplePoints as SamplePointsValue}
+      initialEstampado={config.estampado}
     />
   );
 }

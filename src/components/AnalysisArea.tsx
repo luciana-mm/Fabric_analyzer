@@ -9,18 +9,34 @@ interface AnalysisAreaProps {
     samplePoints: SamplePointsValue;
     sampleAreaWidthPercent: number;
     sampleAreaHeightPercent: number;
+    estampado: boolean;
   }) => void;
   initialWidth: number;
   initialHeight: number;
   initialPoints: SamplePointsValue;
+  initialEstampado: boolean;
 }
 
-export const AnalysisArea = ({ onBack, onSave, initialWidth, initialHeight, initialPoints }: AnalysisAreaProps) => {
+export const AnalysisArea = ({ onBack, onSave, initialWidth, initialHeight, initialPoints, initialEstampado }: AnalysisAreaProps) => {
   const [isVisible, setIsVisible] = useState(true);
-
   const [heightRangeValue, setHeightRangeValue] = useState(initialHeight);
   const [widthRangeValue, setWidthRangeValue] = useState(initialWidth);
   const [selectedPoints, setSelectedPoints] = useState<SamplePointsValue>(initialPoints);
+
+  const [isEstampado, setIsEstampado] = useState(initialEstampado);
+
+  // Simple local Switch component to avoid external dependency import
+  const Switch = ({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (v: boolean) => void }) => (
+    <button
+      aria-pressed={checked}
+      onClick={() => onCheckedChange(!checked)}
+      className={`w-12 h-7 rounded-full p-1 transition-colors ${checked ? 'bg-blue-600' : 'bg-slate-600'}`}
+    >
+      <span
+        className={`block w-5 h-5 bg-white rounded-full shadow transform transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`}
+      />
+    </button>
+  );
 
   const getPointStyle = (value: SamplePointsValue) => {
     const baseClasses =
@@ -38,7 +54,7 @@ export const AnalysisArea = ({ onBack, onSave, initialWidth, initialHeight, init
         imageClassName="w-full h-full object-contain opacity-55"
         fallbackMessage="Preview indisponivel para a area de analise."
         showRetryButton={false}
-        streamPath={`/stream-analyzed.mjpg?w=${widthRangeValue}&h=${heightRangeValue}`}
+        streamPath={`/stream-analyzed.mjpg?w=${widthRangeValue}&h=${heightRangeValue}&apenas_area=true`}
       />
       {isVisible && (
         <div className="relative z-20 w-full max-w-2xl mx-auto bg-[#0a0c14]/90 backdrop-blur-sm p-8 rounded-xl border border-slate-800 text-white text-sm">
@@ -52,28 +68,28 @@ export const AnalysisArea = ({ onBack, onSave, initialWidth, initialHeight, init
             </button>
           </div>
           <div className="relative flex items-center justify-center mb-10">
-        <h2 className="text-xl font-bold cursor-default text-center">
-          Selecione o n.º de pontos e medidas da área
-        </h2>
-        <div className="absolute right-0">
-          <div className="group relative flex items-center justify-center">
-            <Info
-              size={20}
-              className="cursor-pointer text-slate-400 group-hover:text-slate-100 transition-colors"
-            />
-            <div className="absolute left-full ml-3 hidden group-hover:block w-64 p-3 bg-slate-800 text-xs text-white rounded shadow-lg border border-slate-700 glow-box z-50">
-              <p className="mb-1">Selecione o número de pontos de amostragem e as medidas da área de análise.</p>
-              <ul className="space-y-1 text-[11px] text-slate-300">
-                <li><strong className="text-white">4 Pontos:</strong> Amostragem básica para análise de cor.</li>
-                <li><strong className="text-white">9 Pontos:</strong> Amostragem moderada para análise de cor.</li>
-                <li><strong className="text-white">18 Pontos:</strong> Amostragem detalhada para análise de cor.</li>
-              </ul>
+            <h2 className="text-xl font-bold cursor-default text-center">
+              Selecione o n.º de pontos e medidas da área
+            </h2>
+            <div className="absolute right-0">
+              <div className="group relative flex items-center justify-center">
+                <Info
+                  size={20}
+                  className="cursor-pointer text-slate-400 group-hover:text-slate-100 transition-colors"
+                />
+                <div className="absolute left-full ml-3 hidden group-hover:block w-64 p-3 bg-slate-800 text-xs text-white rounded shadow-lg border border-slate-700 glow-box z-50">
+                  <p className="mb-1">Selecione o número de pontos de amostragem e as medidas da área de análise.</p>
+                  <ul className="space-y-1 text-[11px] text-slate-300">
+                    <li><strong className="text-white">4 Pontos:</strong> Amostragem básica para análise de cor.</li>
+                    <li><strong className="text-white">9 Pontos:</strong> Amostragem moderada para análise de cor.</li>
+                    <li><strong className="text-white">18 Pontos:</strong> Amostragem detalhada para análise de cor.</li>
+                  </ul>
 
-              <div className="absolute top-1/2 -translate-y-1/2 right-full border-8 border-transparent border-r-slate-800"></div>
+                  <div className="absolute top-1/2 -translate-y-1/2 right-full border-8 border-transparent border-r-slate-800"></div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
           <div className="grid grid-cols-3 border border-slate-700 rounded-[10px] w-[350px] h-[100px] m-auto mb-10 overflow-hidden">
             <span
               onClick={() => setSelectedPoints(4)}
@@ -146,6 +162,7 @@ export const AnalysisArea = ({ onBack, onSave, initialWidth, initialHeight, init
                   samplePoints: selectedPoints,
                   sampleAreaWidthPercent: widthRangeValue,
                   sampleAreaHeightPercent: heightRangeValue,
+                  estampado: isEstampado,
                 });
                 onBack();
               }}
@@ -166,6 +183,13 @@ export const AnalysisArea = ({ onBack, onSave, initialWidth, initialHeight, init
           >
             Voltar
           </button>
+          <div className="flex items-center justify-between mb-6 px-2">
+            <div>
+              <p className="text-sm font-medium text-white">Tecido estampado</p>
+              <p className="text-xs text-slate-400">Xadrez, listrado ou outro padrão repetido</p>
+            </div>
+            <Switch checked={isEstampado} onCheckedChange={setIsEstampado} />
+          </div>
           <div className="flex gap-3">
             <div className="flex flex-col gap-y-4 text-sm font-medium text-slate-300">
               <span className="h-6 flex items-center cursor-default">
@@ -205,7 +229,7 @@ export const AnalysisArea = ({ onBack, onSave, initialWidth, initialHeight, init
               onClick={() => setIsVisible(true)}
               className="bg-gray-500 p-2 w-[150px] rounded-[10px] hover:bg-gray-400 "
             >
-              <Eye className="m-auto"/>
+              <Eye className="m-auto" />
               Mostrar Painel
             </button>
           </div>
