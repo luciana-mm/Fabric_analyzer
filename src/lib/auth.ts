@@ -1,6 +1,8 @@
-import { createHmac, randomBytes, scrypt as _scrypt, timingSafeEqual } from "crypto";
+﻿import { createHmac, randomBytes, scrypt as _scrypt, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import type { IncomingMessage, ServerResponse } from "http";
+import type { IncomingMessage } from "http";
+import type { NextApiRequest, NextApiResponse } from "next";
+import { query } from "@/lib/db";
 
 const scrypt = promisify(_scrypt);
 const SESSION_SECRET = process.env.SESSION_SECRET;
@@ -12,6 +14,9 @@ if (!SESSION_SECRET) {
     "Missing SESSION_SECRET environment variable. Configure a strong secret in .env.local.",
   );
 }
+
+export type AppRole = "operador" | "gestor";
+export type AuthSession = { userId: string; role: AppRole };
 
 function sign(value: string) {
   return createHmac("sha256", SESSION_SECRET!).update(value).digest("hex");
@@ -103,6 +108,36 @@ export function verifySessionToken(token: string) {
   }
 
   return userId;
+}
+
+export async function requireAuth(req: NextApiRequest, res: NextApiResponse) {
+  const token = getSessionToken(req);
+  const userId = token ? verifySessionToken(token) : null;
+
+  if (!userId) {
+    res.status(401).json({ error: "Authentication required" });
+    return null;
+  }
+
+  try {
+    const result = await query("SELECT role FROM user_roles WHERE user_id = $1", [userId]);
+    const role = result.rows[0]?.role;
+
+    if (role !== "operador" && role !== "gestor") {
+      res.status(403).json({ error: "Access denied" });
+      return null;
+    }
+
+    return { userId, role } as AuthSession;
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Unable to verify session" });
+    return null;
+  }
+}
+
+export function normalizeRole(role: unknown): AppRole | null {
+  return role === "gestor" ? "gestor" : role === "operador" ? "operador" : null;
 }
 
 export async function hashPassword(password: string) {
