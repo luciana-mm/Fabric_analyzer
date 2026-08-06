@@ -65,26 +65,43 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     return null;
   }
 
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
-${colorConfig
-  .map(([key, itemConfig]) => {
-    const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color;
-    return color ? `  --color-${key}: ${color};` : null;
-  })
-  .join("\n")}
-}
-`,
-          )
-          .join("\n"),
-      }}
-    />
-  );
+  const isSafeKey = (value: string) => /^[a-zA-Z0-9_-]+$/.test(value);
+  const isSafeColor = (value: string) => {
+    return (
+      /^#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(value) ||
+      /^(?:rgb|rgba|hsl|hsla)\([0-9.,%\s]+\)$/.test(value) ||
+      /^[a-zA-Z]+$/.test(value)
+    );
+  };
+
+  const styles = Object.entries(THEMES)
+    .map(([theme, prefix]) => {
+      const content = colorConfig
+        .map(([key, itemConfig]) => {
+          if (!isSafeKey(key)) {
+            return null;
+          }
+
+          const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color;
+          if (typeof color !== "string" || !isSafeColor(color)) {
+            return null;
+          }
+
+          return `  --color-${key}: ${color};`;
+        })
+        .filter(Boolean)
+        .join("\n");
+
+      return content ? `${prefix} [data-chart=${id}] {\n${content}\n}` : null;
+    })
+    .filter(Boolean)
+    .join("\n");
+
+  if (!styles) {
+    return null;
+  }
+
+  return <style>{styles}</style>;
 };
 
 const ChartTooltip = RechartsPrimitive.Tooltip;
