@@ -11,6 +11,7 @@ export interface SystemConfig {
   samplePoints: SamplePointsValue;
   sampleAreaWidthPercent: number;
   sampleAreaHeightPercent: number;
+  estampado: boolean;
   referenceColorHex: string;
   referenceColorRgb: {
     r: number;
@@ -52,6 +53,7 @@ export const defaultSystemConfig: SystemConfig = {
   samplePoints: 9,
   sampleAreaWidthPercent: 60,
   sampleAreaHeightPercent: 50,
+  estampado: false,
   referenceColorHex: "#ffffff",
   referenceColorRgb: { r: 255, g: 255, b: 255 },
   ambientLightReferenceHex: "#000000",
@@ -164,6 +166,7 @@ const configurationPatchKeys: Array<keyof SystemConfig> = [
   "samplePoints",
   "sampleAreaWidthPercent",
   "sampleAreaHeightPercent",
+  "estampado",
   "referenceColorHex",
   "referenceColorRgb",
   "ambientLightReferenceHex",
@@ -213,6 +216,7 @@ export const sanitizeSystemConfig = (
 
   return {
     version: 1,
+    estampado: Boolean(sourceConfig.estampado),
     systemStep,
     activeTissueCode:
       typeof sourceConfig.activeTissueCode === "string" &&

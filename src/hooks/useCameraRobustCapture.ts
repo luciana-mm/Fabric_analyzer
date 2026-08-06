@@ -16,6 +16,7 @@ export interface CameraRobustCaptureState {
     samplesTotal: number;
     averageLuminance: number;
     stabilityScore: number;
+    rawSamples: RgbColor8Bit[];   // <-- NOVO
   } | null;
 }
 
@@ -27,8 +28,10 @@ export interface UseCameraRobustCaptureReturn extends CameraRobustCaptureState {
       areaWidthPercent?: number;
       areaHeightPercent?: number;
       samplePoints?: 4 | 9 | 18;
+      includeSamples?: boolean;
+      pixelPuro?: boolean;
     },
-  ) => Promise<RgbColor8Bit | null>;
+  ) => Promise<{ rgb: RgbColor8Bit; rawSamples: RgbColor8Bit[] } | null>;
 }
 
 const CAMERA_PROXY_URL =
@@ -53,8 +56,10 @@ export function useCameraRobustCapture(): UseCameraRobustCaptureReturn {
         areaWidthPercent?: number;
         areaHeightPercent?: number;
         samplePoints?: 4 | 9 | 18;
+        includeSamples?: boolean;
+        pixelPuro?: boolean;
       },
-    ): Promise<RgbColor8Bit | null> => {
+    ): Promise<{ rgb: RgbColor8Bit; rawSamples: RgbColor8Bit[] } | null> => {
       setState((prev) => ({
         ...prev,
         isCapturing: true,
@@ -76,51 +81,54 @@ export function useCameraRobustCapture(): UseCameraRobustCaptureReturn {
         if (options?.samplePoints !== undefined) {
           query.set("sample_points", String(options.samplePoints));
         }
-
+        if (options?.includeSamples) {
+          query.set("include_samples", "true");
+        }
+        if (options?.pixelPuro) {
+          query.set("pixel_puro", "true");
+        }
         const response = await fetch(
           `${CAMERA_PROXY_URL}/capture-robust-sample?${query.toString()}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-          },
+          { method: "POST", headers: { "Content-Type": "application/json" } },
         );
+
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(
             errorData.detail ||
-              `Camera error: ${response.status} ${response.statusText}`,
+            `Camera error: ${response.status} ${response.statusText}`,
           );
         }
 
         const data = await response.json();
-
         if (!data.success || !data.rgb) {
           throw new Error("Invalid response from camera proxy");
         }
 
+        const rawSamples = Array.isArray(data.samples)
+          ? data.samples.map(
+              (sample: { r: number; g: number; b: number }): RgbColor8Bit => ({
+                r: sample.r,
+                g: sample.g,
+                b: sample.b,
+              }),
+            )
+          : [];
+
         const capture = {
-          rgb: {
-            r: data.rgb.r,
-            g: data.rgb.g,
-            b: data.rgb.b,
-          } as RgbColor8Bit,
+          rgb: { r: data.rgb.r, g: data.rgb.g, b: data.rgb.b } as RgbColor8Bit,
           hex: data.hex,
           samplesUsed: data.samples_used,
           samplesTotal: data.samples_total,
           averageLuminance: data.average_luminance,
           stabilityScore: data.stability_score,
+          rawSamples,
         };
 
-        setState((prev) => ({
-          ...prev,
-          isCapturing: false,
-          lastCapture: capture,
-        }));
+        setState((prev) => ({ ...prev, isCapturing: false, lastCapture: capture }));
 
-        return capture.rgb;
+        return { rgb: capture.rgb, rawSamples: capture.rawSamples };
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : "Unknown error";

@@ -112,6 +112,9 @@ PROPORCAO_MAXIMA = 3.2
 
 # Sensibilidade da diferença de cor. Menor = pega manchas mais fracas/pálidas.
 LIMIAR_COR_AB = 9
+KERNEL_LOCAL_ESTAMPADO = 51
+LIMIAR_COR_LOCAL_ESTAMPADO = 12
+AREA_MAXIMA_RELATIVA_ROI = 0.35
 
 
 def _fundir_centroides_proximos(centroides, boxes):
@@ -196,32 +199,71 @@ def _mask_intensidade(gray_roi: np.ndarray) -> np.ndarray:
     _, mask = cv2.threshold(diff, limiar_intensidade, 255, cv2.THRESH_BINARY)
     return mask
 
+N_CORES_PALETA = 3
 
-def _mask_cor(roi_bgr: np.ndarray) -> np.ndarray:
-    """
-    Máscara baseada em diferença de COR (canais a/b do Lab), ignorando brilho.
+def _mask_cor(
+    roi_bgr: np.ndarray,
+    paleta: list[tuple[int, int]] | None = None,
+    ref_a: int | None = None,
+    ref_b: int | None = None,
+) -> np.ndarray:
 
-    Usa a MEDIANA GLOBAL da ROI como referência de "cor neutra do tecido",
-    em vez de um blur local. Isso evita o problema de manchas grandes
-    ficarem "ocas" (só a borda detectada) quando a mancha é maior que a
-    janela do blur local — nesse caso o blur local acaba usando a própria
-    mancha como se fosse fundo, e o centro dela não gera diferença nenhuma.
-    A mediana global é robusta a isso porque a mancha normalmente é
-    minoria de pixels dentro da ROI inteira.
-    """
     lab = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2LAB)
     l_ch, a_ch, b_ch = cv2.split(lab)
 
-    ref_a = int(round(float(np.median(a_ch))))
-    ref_b = int(round(float(np.median(b_ch))))
+    if paleta:
+        a_i = a_ch.astype(np.int16)
+        b_i = b_ch.astype(np.int16)
+
+        dist_min = None
+        for pa, pb in paleta:
+            diff_a = np.abs(a_i - int(pa)).astype(np.float32)
+            diff_b = np.abs(b_i - int(pb)).astype(np.float32)
+            dist = diff_a * 0.5 + diff_b * 0.5
+            dist_min = dist if dist_min is None else np.minimum(dist_min, dist)
+
+        diff_cor = np.clip(dist_min, 0, 255).astype(np.uint8)
+        diff_cor = cv2.GaussianBlur(diff_cor, (5, 5), 0)
+        _, mask = cv2.threshold(diff_cor, LIMIAR_COR_AB, 255, cv2.THRESH_BINARY)
+        return mask
+
+    if ref_a is None or ref_b is None:
+        ref_a = int(round(float(np.median(a_ch))))
+        ref_b = int(round(float(np.median(b_ch))))
+    else:
+        ref_a = int(np.clip(ref_a, 0, 255))
+        ref_b = int(np.clip(ref_b, 0, 255))
 
     diff_a = cv2.absdiff(a_ch, np.full_like(a_ch, ref_a))
     diff_b = cv2.absdiff(b_ch, np.full_like(b_ch, ref_b))
-
     diff_cor = cv2.addWeighted(diff_a, 0.5, diff_b, 0.5, 0)
     diff_cor = cv2.GaussianBlur(diff_cor, (5, 5), 0)
 
     _, mask = cv2.threshold(diff_cor, LIMIAR_COR_AB, 255, cv2.THRESH_BINARY)
+    return mask
+
+
+def _mask_cor_local(
+    roi_bgr: np.ndarray,
+    kernel_size: int = KERNEL_LOCAL_ESTAMPADO,
+    limiar: int = LIMIAR_COR_LOCAL_ESTAMPADO,
+) -> np.ndarray:
+    """Detecta desvios locais de cor, apropriado para tecidos estampados."""
+    tamanho_kernel = max(3, int(kernel_size))
+    if tamanho_kernel % 2 == 0:
+        tamanho_kernel += 1
+
+    lab = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2LAB)
+    _, a_ch, b_ch = cv2.split(lab)
+    fundo_a = cv2.medianBlur(a_ch, tamanho_kernel)
+    fundo_b = cv2.medianBlur(b_ch, tamanho_kernel)
+
+    diff_a = cv2.absdiff(a_ch, fundo_a)
+    diff_b = cv2.absdiff(b_ch, fundo_b)
+    diff_cor = cv2.addWeighted(diff_a, 0.5, diff_b, 0.5, 0)
+    diff_cor = cv2.GaussianBlur(diff_cor, (5, 5), 0)
+
+    _, mask = cv2.threshold(diff_cor, limiar, 255, cv2.THRESH_BINARY)
     return mask
 
 
@@ -239,10 +281,15 @@ def _preencher_buracos(mask: np.ndarray) -> np.ndarray:
     return cv2.bitwise_or(mask, mask_ff_inv)
 
 
-def _contorno_parece_defeito(cont) -> bool:
+def _contorno_parece_defeito(cont, area_roi_total: int | None = None) -> bool:
     """Rejeita contornos em formato de linha/risco (sombra de dobra)."""
     area = cv2.contourArea(cont)
     if area <= 0:
+        return False
+    if (
+        area_roi_total is not None
+        and area > area_roi_total * AREA_MAXIMA_RELATIVA_ROI
+    ):
         return False
 
     hull = cv2.convexHull(cont)
@@ -263,7 +310,16 @@ def _contorno_parece_defeito(cont) -> bool:
     return solidez >= SOLIDEZ_MINIMA and proporcao <= PROPORCAO_MAXIMA
 
 
-def analyze_fabric(frame: np.ndarray, area_w_pct=60, area_h_pct=50) -> np.ndarray:
+def analyze_fabric(
+    frame: np.ndarray,
+    area_w_pct=60,
+    area_h_pct=50,
+    apenas_area: bool = False,
+    paleta: list[tuple[int, int]] | None = None,
+    ref_a: int | None = None,
+    ref_b: int | None = None,
+    estampado: bool = False,
+) -> np.ndarray:
     result = frame.copy()
     h_frame, w_frame = frame.shape[:2]
 
@@ -289,19 +345,23 @@ def analyze_fabric(frame: np.ndarray, area_w_pct=60, area_h_pct=50) -> np.ndarra
     )
 
     roi = frame[y_inicio:y_fim, x_inicio:x_fim]
-    if roi.size == 0:
+    if apenas_area or roi.size == 0:
         return result
 
     gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
 
     mask_intensidade = _mask_intensidade(gray_roi)
-    mask_cor = _mask_cor(roi)
+    mask_cor = (
+        _mask_cor_local(roi)
+        if estampado
+        else _mask_cor(roi, paleta=paleta, ref_a=ref_a, ref_b=ref_b)
+    )
     mask = cv2.bitwise_or(mask_intensidade, mask_cor)
 
     kernel_morf = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_morf, iterations=1)
 
-    kernel_fusao = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    kernel_fusao = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
     mask = cv2.dilate(mask, kernel_fusao, iterations=1)
 
     # Preenche buracos ANTES de procurar contornos, pra manchas grandes
@@ -325,7 +385,7 @@ def analyze_fabric(frame: np.ndarray, area_w_pct=60, area_h_pct=50) -> np.ndarra
         if not ((AREA_MIN_PEQUENA < area < AREA_MAX_PEQUENA) or (AREA_MIN_MANCHA <= area < AREA_MAX_MANCHA)):
             continue
 
-        if not _contorno_parece_defeito(cont):
+        if not _contorno_parece_defeito(cont, area_roi_total=altura * largura):
             continue
 
         x, y, w, h = cv2.boundingRect(cont)

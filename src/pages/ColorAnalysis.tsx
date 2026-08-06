@@ -34,7 +34,7 @@ const clampCapturePercent = (value: number | undefined, fallback: number) => {
 
 const AUTO_ANALYSIS_INTERVAL_MS = 2500;
 // URL base da câmera (ajuste se for diferente no seu ambiente)
-const CAMERA_API_URL = "http://localhost:8090"; 
+const CAMERA_API_URL = "http://localhost:8090";
 
 interface ColorAnalysisProps {
   analysisType?: "tecido" | "pecas";
@@ -51,10 +51,10 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
     deltaE: number;
     success: boolean;
   } | null>(null);
-  
+
   const [isPanelExpanded, setIsPanelExpanded] = useState(false);
   const [isAutoAnalysisEnabled, setIsAutoAnalysisEnabled] = useState(false);
-  
+
   // NOVO: Estado para armazenar a contagem de falhas (defeitos)
   const [defectCount, setDefectCount] = useState<number>(0);
 
@@ -66,7 +66,7 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
 
   const activeTissueCode = config.activeTissueCode;
   const flowState = getSystemFlowState(config);
-  
+
   // Aqui estão as variáveis dinâmicas do quadradinho
   const captureAreaWidth = clampCapturePercent(
     config.sampleAreaWidthPercent,
@@ -139,18 +139,19 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
         return;
       }
 
-      const rgbSample = await cameraCapture.captureRobustSample(5, 200, {
+      const captured = await cameraCapture.captureRobustSample(5, 200, {
         areaWidthPercent: captureAreaWidth,
         areaHeightPercent: captureAreaHeight,
         samplePoints: config.samplePoints,
       });
 
-      if (!rgbSample) {
+      if (!captured) {
         if (trigger === "manual") {
           toast.error("Nao foi possivel capturar amostra da camera.");
         }
         return;
       }
+      const { rgb: rgbSample } = captured;
 
       const measured = rgb8BitToNormalized(rgbSample);
       const reference = {
@@ -266,9 +267,10 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
   };
 
   // NOVO: Monta a URL dinâmica passando os percentuais para a API do Python
+  // ColorAnalysis.tsx
   const cameraStreamPath = analysisType === "tecido" 
-    ? `/stream-analyzed.mjpg?w=${captureAreaWidth}&h=${captureAreaHeight}`
-    : `/stream.mjpg`;
+  ? `/stream-analyzed.mjpg?w=${captureAreaWidth}&h=${captureAreaHeight}&estampado=${config.estampado}`
+  : `/stream.mjpg`;
 
   return (
     <div className="fixed inset-0 z-20 overflow-hidden bg-[#0a0c14] text-white">
@@ -302,11 +304,10 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
           <div className="mt-2 flex items-center justify-end gap-2">
             <span className="text-xs text-white/55">Tipo:</span>
             <span
-              className={`px-2 py-1 rounded text-xs font-medium uppercase tracking-widest ${
-                analysisType === "tecido"
+              className={`px-2 py-1 rounded text-xs font-medium uppercase tracking-widest ${analysisType === "tecido"
                   ? "bg-blue-500/20 text-blue-200 border border-blue-500/30"
                   : "bg-purple-500/20 text-purple-200 border border-purple-500/30"
-              }`}
+                }`}
             >
               {analysisType === "tecido" ? "Tecido" : "Peças"}
             </span>
@@ -355,13 +356,12 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
               </div>
 
               <div
-                className={`rounded-xl border p-3 ${
-                  !result
+                className={`rounded-xl border p-3 ${!result
                     ? "border-white/10 bg-white/5 text-white/65"
                     : result.success
                       ? "border-emerald-500/35 bg-emerald-950/35 text-emerald-100"
                       : "border-rose-500/35 bg-rose-950/35 text-rose-100"
-                }`}
+                  }`}
               >
                 <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">Resultado</p>
                 {result ? (

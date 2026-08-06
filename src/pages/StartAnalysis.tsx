@@ -117,6 +117,8 @@ const StartAnalysis = () => {
               className="relative w-full min-h-[55vh] max-h-[75vh] overflow-hidden bg-black"
               imageClassName="w-full max-h-[75vh] object-contain bg-black"
               fallbackMessage="O servidor local da camera nao respondeu."
+              // StartAnalysis.tsx
+              streamPath={`/stream-analyzed.mjpg?w=${systemConfig.sampleAreaWidthPercent}&h=${systemConfig.sampleAreaHeightPercent}&estampado=${systemConfig.estampado}`}
               overlay={
                 <div className="absolute left-4 top-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/70 border border-border/30 backdrop-blur-sm">
                   <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />

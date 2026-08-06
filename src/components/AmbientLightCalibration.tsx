@@ -98,14 +98,15 @@ export const AmbientLightCalibration = ({
     }
 
     try {
-      const rgbSample = await cameraCapture.captureRobustSample(5, 200, {
+      const captured = await cameraCapture.captureRobustSample(5, 200, {
         areaWidthPercent: captureAreaWidth,
         areaHeightPercent: captureAreaHeight,
       });
-      if (!rgbSample) {
+      if (!captured) {
         toast.error("Falha ao capturar a luz ambiente.");
         return;
       }
+      const { rgb: rgbSample } = captured;
 
       const normalizedAmbient = rgb8BitToNormalized(rgbSample);
       const ambientColorHex = rgbToHex(normalizedAmbient);
@@ -176,7 +177,7 @@ export const AmbientLightCalibration = ({
         offlineClassName="absolute inset-0 flex items-center justify-center bg-black p-6"
         fallbackMessage="Preview indisponivel durante calibracao"
         showRetryButton={false}
-        streamPath={`/stream-analyzed.mjpg?w=${captureAreaWidth}&h=${captureAreaHeight}`}
+        streamPath={`/stream-analyzed.mjpg?w=${captureAreaWidth}&h=${captureAreaHeight}&apenas_area=true`}
       />
 
       <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black/60 via-transparent to-black/45" />

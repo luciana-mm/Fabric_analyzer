@@ -1,7 +1,9 @@
 import os
+import json
 import threading
 import time
 from typing import Optional
+from pathlib import Path
 import subprocess
 import io
 import logging
@@ -10,10 +12,11 @@ import cv2
 import numpy as np
 from detector import analyze_fabric, to_grayscale, get_defect_count, reset_defect_count
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi import Query
+import random 
 
 
 load_dotenv()
@@ -31,12 +34,39 @@ CAMERA_RTSP_URL = os.getenv(
 OUTPUT_FPS = float(os.getenv("OUTPUT_FPS", "12"))
 JPEG_QUALITY = int(os.getenv("JPEG_QUALITY", "80"))
 CONNECT_TIMEOUT_SECONDS = float(os.getenv("CONNECT_TIMEOUT_SECONDS", "5"))
+COLOR_REFERENCE_PATH = Path(
+    os.getenv(
+        "COLOR_REFERENCE_PATH",
+        str(Path(__file__).with_name("calibrated-color-reference.json")),
+    )
+)
 
 # Fallback to using ffmpeg subprocess for more robust H.264 handling
 USE_FFMPEG_FALLBACK = os.getenv("USE_FFMPEG_FALLBACK", "1") != "0"
 
 logging.basicConfig(level=logging.INFO)
 _log = logging.getLogger("camera-proxy")
+
+
+def _load_color_reference() -> tuple[Optional[int], Optional[int], Optional[list]]:
+    try:
+        saved = json.loads(COLOR_REFERENCE_PATH.read_text(encoding="utf-8"))
+        ref_a = int(saved["ref_a"]) if "ref_a" in saved else None
+        ref_b = int(saved["ref_b"]) if "ref_b" in saved else None
+        paleta_raw = saved.get("paleta")
+        paleta = None
+        if isinstance(paleta_raw, list) and paleta_raw:
+            paleta = [(int(p[0]), int(p[1])) for p in paleta_raw]
+        return ref_a, ref_b, paleta
+    except (FileNotFoundError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        pass
+    return None, None, None
+
+
+
+color_reference_lock = threading.Lock()
+saved_ref_a, saved_ref_b, saved_paleta = _load_color_reference()
+N_CORES_PALETA = 3
 
 app = FastAPI(title="hikvision-camera-proxy", version="1.0.0")
 app.add_middleware(
@@ -46,6 +76,64 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.post("/reference-palette")
+def save_reference_palette(payload: dict = Body(...)) -> JSONResponse:
+    """
+    Recebe uma lista de amostras RGB coletadas na ROI (ex: vários pontos
+    do xadrez), converte pra Lab e agrupa em N_CORES_PALETA clusters via
+    k-means. Salva a paleta resultante como referência do tecido.
+    """
+    global saved_ref_a, saved_ref_b, saved_paleta
+
+    samples = payload.get("samples")
+    if not isinstance(samples, list) or len(samples) == 0:
+        raise HTTPException(status_code=400, detail="Informe 'samples': lista de {r,g,b}")
+
+    lab_points = []
+    for s in samples:
+        try:
+            r, g, b = int(s["r"]), int(s["g"]), int(s["b"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not all(0 <= v <= 255 for v in (r, g, b)):
+            continue
+        rgb_arr = np.uint8([[[r, g, b]]])
+        lab_arr = cv2.cvtColor(rgb_arr, cv2.COLOR_RGB2LAB)
+        lab_points.append([float(lab_arr[0, 0, 1]), float(lab_arr[0, 0, 2])])
+
+    if not lab_points:
+        raise HTTPException(status_code=400, detail="Nenhuma amostra valida em 'samples'")
+
+    data = np.array(lab_points, dtype=np.float32)
+    k = min(N_CORES_PALETA, len(data))
+
+    if k == 1:
+        centers = np.array([[float(np.mean(data[:, 0])), float(np.mean(data[:, 1]))]])
+    else:
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.5)
+        _, _, centers = cv2.kmeans(data, k, None, criteria, 5, cv2.KMEANS_PP_CENTERS)
+
+    paleta = [(int(round(c[0])), int(round(c[1]))) for c in centers]
+
+    # mantém ref_a/ref_b (cor "principal") pra compatibilidade com quem ainda ler só isso
+    ref_a = paleta[0][0]
+    ref_b = paleta[0][1]
+
+    reference = {"ref_a": ref_a, "ref_b": ref_b, "paleta": [list(p) for p in paleta]}
+
+    try:
+        COLOR_REFERENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        temporary_path = COLOR_REFERENCE_PATH.with_suffix(".tmp")
+        temporary_path.write_text(json.dumps(reference), encoding="utf-8")
+        temporary_path.replace(COLOR_REFERENCE_PATH)
+    except OSError as error:
+        _log.error("Não foi possível salvar a paleta de cor: %s", error)
+        raise HTTPException(status_code=500, detail="Falha ao salvar paleta de cor")
+
+    with color_reference_lock:
+        saved_ref_a, saved_ref_b, saved_paleta = ref_a, ref_b, paleta
+
+    return JSONResponse({"ref_a": ref_a, "ref_b": ref_b, "paleta": paleta, "n_cores": len(paleta)})
 
 class CameraState:
     def __init__(self) -> None:
@@ -257,8 +345,26 @@ def stream_mjpeg() -> StreamingResponse:
 def stream_analyzed_mjpeg(
     w: int = Query(60, ge=1, le=100, description="Largura da área de análise em %"),
     h: int = Query(50, ge=1, le=100, description="Altura da área de análise em %"),
+    apenas_area: bool = Query(False),
+    estampado: bool = Query(False),
+    ref_r: Optional[int] = Query(None, ge=0, le=255),
+    ref_g: Optional[int] = Query(None, ge=0, le=255),
+    ref_b: Optional[int] = Query(None, ge=0, le=255),
 ) -> StreamingResponse:
+    global saved_ref_a, saved_ref_b, saved_paleta
+
     boundary = "frame"
+    with color_reference_lock:
+        ref_a = saved_ref_a
+        ref_b = saved_ref_b
+        paleta = saved_paleta
+
+    if None not in (ref_r, ref_g, ref_b):
+        reference_rgb = np.uint8([[[ref_r, ref_g, ref_b]]])
+        reference_lab = cv2.cvtColor(reference_rgb, cv2.COLOR_RGB2LAB)
+        ref_a = int(reference_lab[0, 0, 1])
+        ref_b = int(reference_lab[0, 0, 2])
+        paleta = [(ref_a, ref_b)]  # override manual vira paleta de 1 cor
 
     def analyzed_frame_generator():
         frame_interval = 1.0 / OUTPUT_FPS if OUTPUT_FPS > 0 else 0.08
@@ -275,7 +381,16 @@ def stream_analyzed_mjpeg(
                 frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
 
                 if frame is not None:
-                    processed_frame = analyze_fabric(frame, w, h)
+                    processed_frame = analyze_fabric(
+                        frame,
+                        w,
+                        h,
+                        apenas_area=apenas_area,
+                        paleta=paleta,
+                        ref_a=ref_a,
+                        ref_b=ref_b,
+                        estampado=estampado,
+                    )
                     encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY]
                     encoded_ok, jpg = cv2.imencode(".jpg", processed_frame, encode_params)
 
@@ -298,6 +413,43 @@ def stream_analyzed_mjpeg(
         media_type=f"multipart/x-mixed-replace; boundary={boundary}",
         headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
     )
+
+
+@app.post("/reference-color")
+def save_reference_color(payload: dict = Body(...)) -> JSONResponse:
+    """Converte a cor RGB calibrada para Lab OpenCV e a persiste no proxy."""
+    global saved_ref_a, saved_ref_b, saved_paleta
+
+    try:
+        ref_r = int(payload["r"])
+        ref_g = int(payload["g"])
+        ref_b = int(payload["b"])
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Informe r, g e b entre 0 e 255")
+
+    if not all(0 <= value <= 255 for value in (ref_r, ref_g, ref_b)):
+        raise HTTPException(status_code=400, detail="r, g e b devem estar entre 0 e 255")
+
+    reference_rgb = np.uint8([[[ref_r, ref_g, ref_b]]])
+    reference_lab = cv2.cvtColor(reference_rgb, cv2.COLOR_RGB2LAB)
+    ref_a = int(reference_lab[0, 0, 1])
+    ref_b = int(reference_lab[0, 0, 2])
+    paleta = [(ref_a, ref_b)]
+    reference = {"ref_a": ref_a, "ref_b": ref_b, "paleta": [list(p) for p in paleta]}
+
+    try:
+        COLOR_REFERENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        temporary_path = COLOR_REFERENCE_PATH.with_suffix(".tmp")
+        temporary_path.write_text(json.dumps(reference), encoding="utf-8")
+        temporary_path.replace(COLOR_REFERENCE_PATH)
+    except OSError as error:
+        _log.error("Não foi possível salvar a referência de cor: %s", error)
+        raise HTTPException(status_code=500, detail="Falha ao salvar referência de cor")
+
+    with color_reference_lock:
+        saved_ref_a, saved_ref_b, saved_paleta = ref_a, ref_b, paleta
+
+    return JSONResponse({"ref_a": ref_a, "ref_b": ref_b})
 @app.get("/stream-grayscale.mjpg")
 def stream_grayscale_mjpeg() -> StreamingResponse:
     """Stream de vídeo apenas em tons de cinza"""
@@ -505,6 +657,7 @@ def _collect_area_samples(
     area_width_percent: float,
     area_height_percent: float,
     sample_points: int,
+    pixel_puro: bool = False,
 ) -> list[tuple[float, float, float]]:
     height, width = frame.shape[:2]
     center_x = width // 2
@@ -525,27 +678,50 @@ def _collect_area_samples(
     rows, cols = _get_sampling_grid(sample_points)
     patch_radius = max(2, int(min(roi.shape[0], roi.shape[1]) * 0.04))
 
+    cell_w = roi.shape[1] / cols
+    cell_h = roi.shape[0] / rows
+    jitter_w = cell_w * 0.3
+    jitter_h = cell_h * 0.3
+
     samples: list[tuple[float, float, float]] = []
     for row in range(rows):
         for col in range(cols):
-            px = int((col + 0.5) * roi.shape[1] / cols)
-            py = int((row + 0.5) * roi.shape[0] / rows)
+            base_px = (col + 0.5) * cell_w
+            base_py = (row + 0.5) * cell_h
+            px = int(base_px + random.uniform(-jitter_w, jitter_w))
+            py = int(base_py + random.uniform(-jitter_h, jitter_h))
+            px = max(0, min(roi.shape[1] - 1, px))
+            py = max(0, min(roi.shape[0] - 1, py))
 
-            sx0 = max(0, px - patch_radius)
-            sx1 = min(roi.shape[1], px + patch_radius)
-            sy0 = max(0, py - patch_radius)
-            sy1 = min(roi.shape[0], py + patch_radius)
+            if pixel_puro:
+                b, g, r = roi[py, px]
+            else:
+                sx0 = max(0, px - patch_radius)
+                sx1 = min(roi.shape[1], px + patch_radius)
+                sy0 = max(0, py - patch_radius)
+                sy1 = min(roi.shape[0], py + patch_radius)
 
-            patch = roi[sy0:sy1, sx0:sx1]
-            if patch.size == 0:
-                continue
+                patch = roi[sy0:sy1, sx0:sx1]
+                if patch.size == 0:
+                    continue
 
-            b, g, r = patch.mean(axis=(0, 1))
+                b, g, r = patch.mean(axis=(0, 1))
             samples.append((float(r), float(g), float(b)))
 
     return samples
 
-
+@app.get("/reference-palette")
+def get_reference_palette() -> JSONResponse:
+    with color_reference_lock:
+        paleta = saved_paleta
+        ref_a = saved_ref_a
+        ref_b = saved_ref_b
+    return JSONResponse({
+        "ref_a": ref_a,
+        "ref_b": ref_b,
+        "paleta": paleta,
+        "n_cores": len(paleta) if paleta else 0,
+    })
 @app.post("/capture-robust-sample")
 def capture_robust_sample(
     sample_count: int = 5,
@@ -553,11 +729,9 @@ def capture_robust_sample(
     area_width_percent: float = 60,
     area_height_percent: float = 50,
     sample_points: int = 9,
+    include_samples: bool = False,
+    pixel_puro: bool = False,
 ) -> JSONResponse:
-    """
-    Capture multiple color samples with robust processing
-    Implements outlier removal and weighted averaging
-    """
     if sample_count < 1 or sample_count > 20:
         raise HTTPException(status_code=400, detail="sample_count deve estar entre 1 e 20")
     if interval_ms < 50 or interval_ms > 5000:
@@ -572,6 +746,7 @@ def capture_robust_sample(
     samples = []
     luminance_values = []
     successful_captures = 0
+    raw_point_samples: list[tuple[float, float, float]] = []
 
     print(
         "[server] Iniciando captura robusta: "
@@ -583,27 +758,26 @@ def capture_robust_sample(
     for i in range(sample_count):
         try:
             frame = _decode_latest_frame()
-
             frame_samples = _collect_area_samples(
                 frame=frame,
                 area_width_percent=area_width_percent,
                 area_height_percent=area_height_percent,
                 sample_points=sample_points,
+                pixel_puro=pixel_puro,
             )
             if frame_samples:
+                raw_point_samples.extend(frame_samples)   # <-- NOVO: guarda os pontos crus
                 frame_mean = _calculate_robust_mean(frame_samples)
                 samples.append(frame_mean)
                 luminance_values.append(_calculate_luminance(frame_mean))
                 successful_captures += 1
-                print(
-                    f"[server] Sample {i + 1}: RGB({frame_mean[0]:.1f}, {frame_mean[1]:.1f}, {frame_mean[2]:.1f}) "
-                    f"com {len(frame_samples)} subamostras"
-                )
+                ...
         except Exception as e:
             print(f"[server] Erro na amostra {i + 1}: {e}")
 
         if i < sample_count - 1:
             time.sleep(interval_ms / 1000.0)
+
 
     if not samples:
         raise HTTPException(status_code=503, detail="Nenhuma amostra capturada com sucesso")
@@ -633,14 +807,20 @@ def capture_robust_sample(
         "samples_captured": successful_captures,
         "samples_total": sample_count,
         "samples_used": len(clean_samples),
-        "average_luminance": float(average_luminance) / 255.0,  # Normalized to 0-1
-        "stability_score": max(0.0, 1.0 - mean_distance / 50.0),  # Rough metric
+        "average_luminance": float(average_luminance) / 255.0,
+        "stability_score": max(0.0, 1.0 - mean_distance / 50.0),
         "sampling_config": {
             "area_width_percent": area_width_percent,
             "area_height_percent": area_height_percent,
             "sample_points": sample_points,
         },
     }
+
+    if include_samples:   # <-- NOVO
+        result["samples"] = [
+            {"r": int(round(r)), "g": int(round(g)), "b": int(round(b))}
+            for (r, g, b) in raw_point_samples
+        ]
 
     print(f"[server] Captura robusta concluída: {result}")
     return JSONResponse(result)

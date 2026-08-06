@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+camera-proxy/calibrated-color-reference.json
 .next/
 
 # Editor directories and files
