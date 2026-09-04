@@ -1,37 +1,39 @@
 import cv2
 import numpy as np
+from dataclasses import dataclass
+from typing import Optional, List, Tuple, Dict, Any
 
-# ============================================================
-# CONFIGURAÇÃO DA LINHA DE CONTAGEM (esteira em movimento)
-# ============================================================
-LINHA_ORIENTACAO = "vertical"
-LINHA_POSICAO_PERCENT = 50
-DISTANCIA_MAX_RASTREIO = 90
-FRAMES_MAX_SUMICO = 15
-FRAMES_MIN_CONFIRMACAO = 4
-
+@dataclass
+class Detection:
+    box: Tuple[int, int, int, int]  # (x0, y0, x1, y1)
+    centroid: Tuple[int, int]
+    area: float
 
 class DefectTracker:
     """Rastreia falhas entre frames e conta quantas cruzaram a linha de referência."""
-
-    def __init__(self):
+    def __init__(self, linha_orientacao: str = "vertical", frames_max_sumico: int = 15, frames_min_confirmacao: int = 4, distancia_max_rastreio: int = 90):
         self.next_id = 0
-        self.objetos = {}
+        self.objetos: Dict[int, Dict[str, Any]] = {}
         self.total_count = 0
+        self.linha_orientacao = linha_orientacao
+        self.frames_max_sumico = frames_max_sumico
+        self.frames_min_confirmacao = frames_min_confirmacao
+        self.distancia_max_rastreio = distancia_max_rastreio
 
-    def _lado_da_linha(self, cx, cy, linha_pos):
-        if LINHA_ORIENTACAO == "horizontal":
+    def _lado_da_linha(self, cx: int, cy: int, linha_pos: int) -> str:
+        if self.linha_orientacao == "horizontal":
             return "cima" if cy < linha_pos else "baixo"
         else:
             return "esquerda" if cx < linha_pos else "direita"
 
-    def update(self, centroides, linha_pos):
+    def update(self, deteccoes: List[Detection], linha_pos: int) -> List[Tuple[int, int, int]]:
         ids_usados = set()
         ativos = []
 
-        for cx, cy in centroides:
+        for det in deteccoes:
+            cx, cy = det.centroid
             melhor_id = None
-            melhor_dist = DISTANCIA_MAX_RASTREIO
+            melhor_dist = self.distancia_max_rastreio
 
             for obj_id, dados in self.objetos.items():
                 if obj_id in ids_usados:
@@ -65,7 +67,7 @@ class DefectTracker:
             if dados["lado"] is None:
                 dados["lado"] = lado_atual
             elif lado_atual != dados["lado"] and not dados["contado"]:
-                if dados["frames_vivo"] >= FRAMES_MIN_CONFIRMACAO:
+                if dados["frames_vivo"] >= self.frames_min_confirmacao:
                     self.total_count += 1
                     dados["contado"] = True
                 dados["lado"] = lado_atual
@@ -77,7 +79,7 @@ class DefectTracker:
         for obj_id in list(self.objetos.keys()):
             if obj_id not in ids_usados:
                 self.objetos[obj_id]["sumico"] += 1
-                if self.objetos[obj_id]["sumico"] > FRAMES_MAX_SUMICO:
+                if self.objetos[obj_id]["sumico"] > self.frames_max_sumico:
                     del self.objetos[obj_id]
 
         return ativos
@@ -88,328 +90,274 @@ class DefectTracker:
         self.total_count = 0
 
 
-_tracker = DefectTracker()
+class BaseDetector:
+    def detect(self, roi: np.ndarray, config: dict) -> List[Detection]:
+        raise NotImplementedError()
 
 
-def get_defect_count() -> int:
-    return _tracker.total_count
+class ColorDetector(BaseDetector):
+    def __init__(self):
+        self.distancia_max_fusao = 40
+        self.area_min_pequena = 10
+        self.area_max_pequena = 3000
+        self.area_min_mancha = 3000
+        self.area_max_mancha = 200000
+        self.solidez_minima = 0.55
+        self.proporcao_maxima = 3.2
+        self.limiar_cor_ab = 9
+        self.kernel_local_estampado = 51
+        self.limiar_cor_local_estampado = 12
+        self.area_maxima_relativa_roi = 0.35
 
+    def _fundir_centroides_proximos(self, centroides: List[Tuple[int, int]], boxes: List[Tuple[int, int, int, int]]) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int, int, int]]]:
+        if len(centroides) <= 1:
+            return centroides, boxes
 
-def reset_defect_count() -> None:
-    _tracker.reset()
+        usados = [False] * len(centroides)
+        novos_centroides = []
+        novos_boxes = []
 
+        for i in range(len(centroides)):
+            if usados[i]:
+                continue
+            grupo_idx = [i]
+            usados[i] = True
 
-DISTANCIA_MAX_FUSAO_MESMO_FRAME = 40
+            mudou = True
+            while mudou:
+                mudou = False
+                for j in range(len(centroides)):
+                    if usados[j]:
+                        continue
+                    for k in grupo_idx:
+                        dist = np.hypot(centroides[j][0] - centroides[k][0], centroides[j][1] - centroides[k][1])
+                        if dist < self.distancia_max_fusao:
+                            grupo_idx.append(j)
+                            usados[j] = True
+                            mudou = True
+                            break
 
-AREA_MIN_PEQUENA = 10
-AREA_MAX_PEQUENA = 3000
+            gx = int(np.mean([centroides[g][0] for g in grupo_idx]))
+            gy = int(np.mean([centroides[g][1] for g in grupo_idx]))
+            novos_centroides.append((gx, gy))
 
-AREA_MIN_MANCHA = 3000
-AREA_MAX_MANCHA = 200000
+            x0 = min(boxes[g][0] for g in grupo_idx)
+            y0 = min(boxes[g][1] for g in grupo_idx)
+            x1 = max(boxes[g][2] for g in grupo_idx)
+            y1 = max(boxes[g][3] for g in grupo_idx)
+            novos_boxes.append((x0, y0, x1, y1))
 
-SOLIDEZ_MINIMA = 0.55
-PROPORCAO_MAXIMA = 3.2
+        return novos_centroides, novos_boxes
 
-# Sensibilidade da diferença de cor. Menor = pega manchas mais fracas/pálidas.
-LIMIAR_COR_AB = 9
-KERNEL_LOCAL_ESTAMPADO = 51
-LIMIAR_COR_LOCAL_ESTAMPADO = 12
-AREA_MAXIMA_RELATIVA_ROI = 0.35
-
-
-def _fundir_centroides_proximos(centroides, boxes):
-    if len(centroides) <= 1:
-        return centroides, boxes
-
-    usados = [False] * len(centroides)
-    novos_centroides = []
-    novos_boxes = []
-
-    for i in range(len(centroides)):
-        if usados[i]:
-            continue
-        grupo_idx = [i]
-        usados[i] = True
-
-        mudou = True
-        while mudou:
-            mudou = False
-            for j in range(len(centroides)):
-                if usados[j]:
-                    continue
-                for k in grupo_idx:
-                    dist = np.hypot(centroides[j][0] - centroides[k][0], centroides[j][1] - centroides[k][1])
-                    if dist < DISTANCIA_MAX_FUSAO_MESMO_FRAME:
-                        grupo_idx.append(j)
-                        usados[j] = True
-                        mudou = True
-                        break
-
-        gx = int(np.mean([centroides[g][0] for g in grupo_idx]))
-        gy = int(np.mean([centroides[g][1] for g in grupo_idx]))
-        novos_centroides.append((gx, gy))
-
-        x0 = min(boxes[g][0] for g in grupo_idx)
-        y0 = min(boxes[g][1] for g in grupo_idx)
-        x1 = max(boxes[g][2] for g in grupo_idx)
-        y1 = max(boxes[g][3] for g in grupo_idx)
-        novos_boxes.append((x0, y0, x1, y1))
-
-    return novos_centroides, novos_boxes
-
-
-def draw_dashed_rectangle(img, pt1, pt2, color, thickness=2, dash_length=10, gap_length=6):
-    x1, y1 = pt1
-    x2, y2 = pt2
-
-    def draw_dashed_line(p1, p2):
-        lx1, ly1 = p1
-        lx2, ly2 = p2
-        dist = int(np.hypot(lx2 - lx1, ly2 - ly1))
-        if dist == 0:
-            return
-        dx = (lx2 - lx1) / dist
-        dy = (ly2 - ly1) / dist
-
-        pos = 0
-        draw = True
-        while pos < dist:
-            seg_len = dash_length if draw else gap_length
-            end_pos = min(pos + seg_len, dist)
-            if draw:
-                start = (int(lx1 + dx * pos), int(ly1 + dy * pos))
-                end = (int(lx1 + dx * end_pos), int(ly1 + dy * end_pos))
-                cv2.line(img, start, end, color, thickness)
-            pos = end_pos
-            draw = not draw
-
-    draw_dashed_line((x1, y1), (x2, y1))
-    draw_dashed_line((x2, y1), (x2, y2))
-    draw_dashed_line((x2, y2), (x1, y2))
-    draw_dashed_line((x1, y2), (x1, y1))
-
-
-def _mask_intensidade(gray_roi: np.ndarray) -> np.ndarray:
-    """Máscara baseada em diferença de brilho (detecta furos, fiapos, sombras fortes)."""
-    fundo = cv2.medianBlur(gray_roi, 41)
-    diff = cv2.absdiff(gray_roi, fundo)
-    diff = cv2.GaussianBlur(diff, (3, 3), 0)
-
-    limiar_intensidade = 16
-    _, mask = cv2.threshold(diff, limiar_intensidade, 255, cv2.THRESH_BINARY)
-    return mask
-
-N_CORES_PALETA = 3
-
-def _mask_cor(
-    roi_bgr: np.ndarray,
-    paleta: list[tuple[int, int]] | None = None,
-    ref_a: int | None = None,
-    ref_b: int | None = None,
-) -> np.ndarray:
-
-    lab = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2LAB)
-    l_ch, a_ch, b_ch = cv2.split(lab)
-
-    if paleta:
-        a_i = a_ch.astype(np.int16)
-        b_i = b_ch.astype(np.int16)
-
-        dist_min = None
-        for pa, pb in paleta:
-            diff_a = np.abs(a_i - int(pa)).astype(np.float32)
-            diff_b = np.abs(b_i - int(pb)).astype(np.float32)
-            dist = diff_a * 0.5 + diff_b * 0.5
-            dist_min = dist if dist_min is None else np.minimum(dist_min, dist)
-
-        diff_cor = np.clip(dist_min, 0, 255).astype(np.uint8)
-        diff_cor = cv2.GaussianBlur(diff_cor, (5, 5), 0)
-        _, mask = cv2.threshold(diff_cor, LIMIAR_COR_AB, 255, cv2.THRESH_BINARY)
+    def _mask_intensidade(self, gray_roi: np.ndarray) -> np.ndarray:
+        fundo = cv2.medianBlur(gray_roi, 41)
+        diff = cv2.absdiff(gray_roi, fundo)
+        diff = cv2.GaussianBlur(diff, (3, 3), 0)
+        _, mask = cv2.threshold(diff, 16, 255, cv2.THRESH_BINARY)
         return mask
 
-    if ref_a is None or ref_b is None:
-        ref_a = int(round(float(np.median(a_ch))))
-        ref_b = int(round(float(np.median(b_ch))))
-    else:
-        ref_a = int(np.clip(ref_a, 0, 255))
-        ref_b = int(np.clip(ref_b, 0, 255))
+    def _mask_cor(self, roi_bgr: np.ndarray, paleta: Optional[List[Tuple[int, int]]] = None, ref_a: Optional[int] = None, ref_b: Optional[int] = None) -> np.ndarray:
+        lab = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2LAB)
+        _, a_ch, b_ch = cv2.split(lab)
 
-    diff_a = cv2.absdiff(a_ch, np.full_like(a_ch, ref_a))
-    diff_b = cv2.absdiff(b_ch, np.full_like(b_ch, ref_b))
-    diff_cor = cv2.addWeighted(diff_a, 0.5, diff_b, 0.5, 0)
-    diff_cor = cv2.GaussianBlur(diff_cor, (5, 5), 0)
+        if paleta:
+            a_i = a_ch.astype(np.int16)
+            b_i = b_ch.astype(np.int16)
+            dist_min = None
+            for pa, pb in paleta:
+                diff_a = np.abs(a_i - int(pa)).astype(np.float32)
+                diff_b = np.abs(b_i - int(pb)).astype(np.float32)
+                dist = diff_a * 0.5 + diff_b * 0.5
+                dist_min = dist if dist_min is None else np.minimum(dist_min, dist)
+            diff_cor = np.clip(dist_min, 0, 255).astype(np.uint8)
+            diff_cor = cv2.GaussianBlur(diff_cor, (5, 5), 0)
+            _, mask = cv2.threshold(diff_cor, self.limiar_cor_ab, 255, cv2.THRESH_BINARY)
+            return mask
 
-    _, mask = cv2.threshold(diff_cor, LIMIAR_COR_AB, 255, cv2.THRESH_BINARY)
-    return mask
+        if ref_a is None or ref_b is None:
+            ref_a = int(round(float(np.median(a_ch))))
+            ref_b = int(round(float(np.median(b_ch))))
+        else:
+            ref_a = int(np.clip(ref_a, 0, 255))
+            ref_b = int(np.clip(ref_b, 0, 255))
 
+        diff_a = cv2.absdiff(a_ch, np.full_like(a_ch, ref_a))
+        diff_b = cv2.absdiff(b_ch, np.full_like(b_ch, ref_b))
+        diff_cor = cv2.addWeighted(diff_a, 0.5, diff_b, 0.5, 0)
+        diff_cor = cv2.GaussianBlur(diff_cor, (5, 5), 0)
+        _, mask = cv2.threshold(diff_cor, self.limiar_cor_ab, 255, cv2.THRESH_BINARY)
+        return mask
 
-def _mask_cor_local(
-    roi_bgr: np.ndarray,
-    kernel_size: int = KERNEL_LOCAL_ESTAMPADO,
-    limiar: int = LIMIAR_COR_LOCAL_ESTAMPADO,
-) -> np.ndarray:
-    """Detecta desvios locais de cor, apropriado para tecidos estampados."""
-    tamanho_kernel = max(3, int(kernel_size))
-    if tamanho_kernel % 2 == 0:
-        tamanho_kernel += 1
+    def _mask_cor_local(self, roi_bgr: np.ndarray) -> np.ndarray:
+        tamanho_kernel = max(3, int(self.kernel_local_estampado))
+        if tamanho_kernel % 2 == 0:
+            tamanho_kernel += 1
+        lab = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2LAB)
+        _, a_ch, b_ch = cv2.split(lab)
+        fundo_a = cv2.medianBlur(a_ch, tamanho_kernel)
+        fundo_b = cv2.medianBlur(b_ch, tamanho_kernel)
+        diff_a = cv2.absdiff(a_ch, fundo_a)
+        diff_b = cv2.absdiff(b_ch, fundo_b)
+        diff_cor = cv2.addWeighted(diff_a, 0.5, diff_b, 0.5, 0)
+        diff_cor = cv2.GaussianBlur(diff_cor, (5, 5), 0)
+        _, mask = cv2.threshold(diff_cor, self.limiar_cor_local_estampado, 255, cv2.THRESH_BINARY)
+        return mask
 
-    lab = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2LAB)
-    _, a_ch, b_ch = cv2.split(lab)
-    fundo_a = cv2.medianBlur(a_ch, tamanho_kernel)
-    fundo_b = cv2.medianBlur(b_ch, tamanho_kernel)
+    def _preencher_buracos(self, mask: np.ndarray) -> np.ndarray:
+        h, w = mask.shape[:2]
+        mask_ff = mask.copy()
+        flood_mask = np.zeros((h + 2, w + 2), np.uint8)
+        cv2.floodFill(mask_ff, flood_mask, (0, 0), 255)
+        mask_ff_inv = cv2.bitwise_not(mask_ff)
+        return cv2.bitwise_or(mask, mask_ff_inv)
 
-    diff_a = cv2.absdiff(a_ch, fundo_a)
-    diff_b = cv2.absdiff(b_ch, fundo_b)
-    diff_cor = cv2.addWeighted(diff_a, 0.5, diff_b, 0.5, 0)
-    diff_cor = cv2.GaussianBlur(diff_cor, (5, 5), 0)
-
-    _, mask = cv2.threshold(diff_cor, limiar, 255, cv2.THRESH_BINARY)
-    return mask
-
-
-def _preencher_buracos(mask: np.ndarray) -> np.ndarray:
-    """
-    Preenche buracos internos na máscara (ex: mancha detectada só na borda,
-    formando um anel). Faz flood-fill a partir do canto (fundo) e usa o
-    complemento pra achar regiões fechadas por dentro, unindo de volta.
-    """
-    h, w = mask.shape[:2]
-    mask_ff = mask.copy()
-    flood_mask = np.zeros((h + 2, w + 2), np.uint8)
-    cv2.floodFill(mask_ff, flood_mask, (0, 0), 255)
-    mask_ff_inv = cv2.bitwise_not(mask_ff)
-    return cv2.bitwise_or(mask, mask_ff_inv)
-
-
-def _contorno_parece_defeito(cont, area_roi_total: int | None = None) -> bool:
-    """Rejeita contornos em formato de linha/risco (sombra de dobra)."""
-    area = cv2.contourArea(cont)
-    if area <= 0:
-        return False
-    if (
-        area_roi_total is not None
-        and area > area_roi_total * AREA_MAXIMA_RELATIVA_ROI
-    ):
-        return False
-
-    hull = cv2.convexHull(cont)
-    hull_area = cv2.contourArea(hull)
-    if hull_area <= 0:
-        return False
-
-    solidez = area / hull_area
-
-    x, y, w, h = cv2.boundingRect(cont)
-    lado_maior = max(w, h)
-    lado_menor = max(1, min(w, h))
-    proporcao = lado_maior / lado_menor
-
-    if area >= AREA_MIN_MANCHA:
-        return solidez >= (SOLIDEZ_MINIMA - 0.15) and proporcao <= (PROPORCAO_MAXIMA + 1.0)
-
-    return solidez >= SOLIDEZ_MINIMA and proporcao <= PROPORCAO_MAXIMA
-
-
-def analyze_fabric(
-    frame: np.ndarray,
-    area_w_pct=60,
-    area_h_pct=50,
-    apenas_area: bool = False,
-    paleta: list[tuple[int, int]] | None = None,
-    ref_a: int | None = None,
-    ref_b: int | None = None,
-    estampado: bool = False,
-) -> np.ndarray:
-    result = frame.copy()
-    h_frame, w_frame = frame.shape[:2]
-
-    w_pct = max(1.0, min(100.0, float(area_w_pct)))
-    h_pct = max(1.0, min(100.0, float(area_h_pct)))
-
-    largura = max(2, int(w_frame * (w_pct / 100.0)))
-    altura = max(2, int(h_frame * (h_pct / 100.0)))
-
-    x_inicio = max(0, int(w_frame / 2 - largura / 2))
-    y_inicio = max(0, int(h_frame / 2 - altura / 2))
-    x_fim = min(w_frame, x_inicio + largura)
-    y_fim = min(h_frame, y_inicio + altura)
-
-    draw_dashed_rectangle(
-        result,
-        (x_inicio, y_inicio),
-        (x_fim, y_fim),
-        color=(255, 255, 255),
-        thickness=2,
-        dash_length=12,
-        gap_length=8,
-    )
-
-    roi = frame[y_inicio:y_fim, x_inicio:x_fim]
-    if apenas_area or roi.size == 0:
-        return result
-
-    gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-
-    mask_intensidade = _mask_intensidade(gray_roi)
-    mask_cor = (
-        _mask_cor_local(roi)
-        if estampado
-        else _mask_cor(roi, paleta=paleta, ref_a=ref_a, ref_b=ref_b)
-    )
-    mask = cv2.bitwise_or(mask_intensidade, mask_cor)
-
-    kernel_morf = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_morf, iterations=1)
-
-    kernel_fusao = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    mask = cv2.dilate(mask, kernel_fusao, iterations=1)
-
-    # Preenche buracos ANTES de procurar contornos, pra manchas grandes
-    # virarem blob sólido em vez de anel.
-    mask = _preencher_buracos(mask)
-
-    contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    if LINHA_ORIENTACAO == "horizontal":
-        linha_pos_abs = y_inicio + int(altura * (LINHA_POSICAO_PERCENT / 100.0))
-        cv2.line(result, (x_inicio, linha_pos_abs), (x_fim, linha_pos_abs), (0, 165, 255), 2)
-    else:
-        linha_pos_abs = x_inicio + int(largura * (LINHA_POSICAO_PERCENT / 100.0))
-        cv2.line(result, (linha_pos_abs, y_inicio), (linha_pos_abs, y_fim), (0, 165, 255), 2)
-
-    centroides = []
-    boxes_absolutos = []
-
-    for cont in contornos:
+    def _contorno_parece_defeito(self, cont, area_roi_total: Optional[int] = None) -> bool:
         area = cv2.contourArea(cont)
-        if not ((AREA_MIN_PEQUENA < area < AREA_MAX_PEQUENA) or (AREA_MIN_MANCHA <= area < AREA_MAX_MANCHA)):
-            continue
+        if area <= 0:
+            return False
+        if area_roi_total is not None and area > area_roi_total * self.area_maxima_relativa_roi:
+            return False
 
-        if not _contorno_parece_defeito(cont, area_roi_total=altura * largura):
-            continue
+        hull = cv2.convexHull(cont)
+        hull_area = cv2.contourArea(hull)
+        if hull_area <= 0:
+            return False
 
+        solidez = area / hull_area
         x, y, w, h = cv2.boundingRect(cont)
+        lado_maior = max(w, h)
+        lado_menor = max(1, min(w, h))
+        proporcao = lado_maior / lado_menor
 
-        absoluto_x_inicio = x_inicio + x
-        absoluto_y_inicio = y_inicio + y
-        absoluto_x_fim = x_inicio + x + w
-        absoluto_y_fim = y_inicio + y + h
+        if area >= self.area_min_mancha:
+            return solidez >= (self.solidez_minima - 0.15) and proporcao <= (self.proporcao_maxima + 1.0)
+        return solidez >= self.solidez_minima and proporcao <= self.proporcao_maxima
 
-        cx = absoluto_x_inicio + w // 2
-        cy = absoluto_y_inicio + h // 2
+    def detect(self, roi: np.ndarray, config: dict) -> List[Detection]:
+        gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        mask_intensidade = self._mask_intensidade(gray_roi)
+        
+        estampado = config.get("estampado", False)
+        paleta = config.get("paleta")
+        ref_a = config.get("ref_a")
+        ref_b = config.get("ref_b")
+        
+        mask_cor = self._mask_cor_local(roi) if estampado else self._mask_cor(roi, paleta=paleta, ref_a=ref_a, ref_b=ref_b)
+        mask = cv2.bitwise_or(mask_intensidade, mask_cor)
 
-        centroides.append((cx, cy))
-        boxes_absolutos.append((absoluto_x_inicio, absoluto_y_inicio, absoluto_x_fim, absoluto_y_fim))
+        kernel_morf = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_morf, iterations=1)
+        kernel_fusao = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        mask = cv2.dilate(mask, kernel_fusao, iterations=1)
+        mask = self._preencher_buracos(mask)
 
-    centroides, boxes_absolutos = _fundir_centroides_proximos(centroides, boxes_absolutos)
-    ativos = _tracker.update(centroides, linha_pos_abs)
+        contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        roi_h, roi_w = roi.shape[:2]
+        centroides = []
+        boxes = []
 
-    for (obj_id, cx, cy), box in zip(ativos, boxes_absolutos):
-        bx0, by0, bx1, by1 = box
-        cv2.rectangle(result, (bx0, by0), (bx1, by1), (0, 255, 0), 3)
-        cv2.putText(result, f"#{obj_id}", (bx0, max(0, by0 - 6)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+        for cont in contornos:
+            area = cv2.contourArea(cont)
+            if not ((self.area_min_pequena < area < self.area_max_pequena) or (self.area_min_mancha <= area < self.area_max_mancha)):
+                continue
 
-    return result
+            if not self._contorno_parece_defeito(cont, area_roi_total=roi_h * roi_w):
+                continue
+
+            x, y, w, h = cv2.boundingRect(cont)
+            cx = x + w // 2
+            cy = y + h // 2
+            centroides.append((cx, cy))
+            boxes.append((x, y, x + w, y + h))
+
+        centroides, boxes = self._fundir_centroides_proximos(centroides, boxes)
+        
+        detections = []
+        for (cx, cy), (bx0, by0, bx1, by1) in zip(centroides, boxes):
+            w = bx1 - bx0
+            h = by1 - by0
+            detections.append(Detection(box=(bx0, by0, bx1, by1), centroid=(cx, cy), area=float(w*h)))
+            
+        return detections
+
+
+class Visualizer:
+    @staticmethod
+    def draw_dashed_rectangle(img, pt1, pt2, color, thickness=2, dash_length=10, gap_length=6):
+        x1, y1 = pt1
+        x2, y2 = pt2
+
+        def draw_dashed_line(p1, p2):
+            lx1, ly1 = p1
+            lx2, ly2 = p2
+            dist = int(np.hypot(lx2 - lx1, ly2 - ly1))
+            if dist == 0:
+                return
+            dx = (lx2 - lx1) / dist
+            dy = (ly2 - ly1) / dist
+
+            pos = 0
+            draw = True
+            while pos < dist:
+                seg_len = dash_length if draw else gap_length
+                end_pos = min(pos + seg_len, dist)
+                if draw:
+                    start = (int(lx1 + dx * pos), int(ly1 + dy * pos))
+                    end = (int(lx1 + dx * end_pos), int(ly1 + dy * end_pos))
+                    cv2.line(img, start, end, color, thickness)
+                pos = end_pos
+                draw = not draw
+
+        draw_dashed_line((x1, y1), (x2, y1))
+        draw_dashed_line((x2, y1), (x2, y2))
+        draw_dashed_line((x2, y2), (x1, y2))
+        draw_dashed_line((x1, y2), (x1, y1))
+
+    @staticmethod
+    def draw_results(frame: np.ndarray, config: dict, ativos: List[Tuple[int, int, int]], abs_detections: List[Detection], x_inicio: int, y_inicio: int, x_fim: int, y_fim: int) -> np.ndarray:
+        result = frame.copy()
+
+        Visualizer.draw_dashed_rectangle(
+            result,
+            (x_inicio, y_inicio),
+            (x_fim, y_fim),
+            color=(255, 255, 255),
+            thickness=2,
+            dash_length=12,
+            gap_length=8,
+        )
+
+        linha_orientacao = config.get("linha_orientacao", "vertical")
+        linha_posicao_percent = config.get("linha_posicao_percent", 50)
+        
+        largura = x_fim - x_inicio
+        altura = y_fim - y_inicio
+
+        if linha_orientacao == "horizontal":
+            linha_pos_abs = y_inicio + int(altura * (linha_posicao_percent / 100.0))
+            cv2.line(result, (x_inicio, linha_pos_abs), (x_fim, linha_pos_abs), (0, 165, 255), 2)
+        else:
+            linha_pos_abs = x_inicio + int(largura * (linha_posicao_percent / 100.0))
+            cv2.line(result, (linha_pos_abs, y_inicio), (linha_pos_abs, y_fim), (0, 165, 255), 2)
+
+        if config.get("apenas_area", False):
+            return result
+
+        for det in abs_detections:
+            abs_bx0, abs_by0, abs_bx1, abs_by1 = det.box
+            abs_cx, abs_cy = det.centroid
+            
+            obj_id = "?"
+            for (aid, ax, ay) in ativos:
+                if ax == abs_cx and ay == abs_cy:
+                    obj_id = str(aid)
+                    break
+                    
+            cv2.rectangle(result, (abs_bx0, abs_by0), (abs_bx1, abs_by1), (0, 255, 0), 3)
+            cv2.putText(result, f"#{obj_id}", (abs_bx0, max(0, abs_by0 - 6)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+
+        return result
 
 
 def to_grayscale(frame: np.ndarray) -> np.ndarray:

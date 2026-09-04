@@ -108,7 +108,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    const processingTimeMs = parseNumberParameter(processing_time_ms) ?? 0;
+    const processingTimeMs = parseNumberParameter(processing_time_ms) ?? 1;
     if (processing_time_ms !== undefined && processing_time_ms !== null && typeof processingTimeMs !== "number") {
       return res.status(400).json({ error: "Invalid processing_time_ms" });
     }
@@ -147,7 +147,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
            precision_percent, required_precision_percent, comparison_method,
            reference_color_hex, measured_color_hex, analysis_type, tissue_batch_code,
            analyzed_at, created_at
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now(), now()) RETURNING id`,
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now(), now()) RETURNING id`,
         [
           operator_user_id,
           reference_code,
@@ -170,7 +170,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(201).json({ data: result.rows[0] });
     } catch (error) {
       console.error(error);
-      return res.status(500).json({ error: "Unable to save analysis record" });
+      return res.status(500).json({
+        error: "Unable to save analysis record",
+        detail: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 

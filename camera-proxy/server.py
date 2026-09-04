@@ -10,7 +10,7 @@ import logging
 
 import cv2
 import numpy as np
-from detector import analyze_fabric, to_grayscale, get_defect_count, reset_defect_count
+from detector import to_grayscale, ColorDetector, DefectTracker, Visualizer, Detection
 from dotenv import load_dotenv
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -296,6 +296,121 @@ class CameraState:
 
 camera_state = CameraState()
 
+from pydantic import BaseModel
+
+class DetectorConfig(BaseModel):
+    w: int = 60
+    h: int = 50
+    apenas_area: bool = False
+    estampado: bool = False
+    ref_a: Optional[int] = None
+    ref_b: Optional[int] = None
+    linha_orientacao: str = "vertical"
+    linha_posicao_percent: int = 50
+
+current_detector_config = DetectorConfig()
+detector_lock = threading.Lock()
+global_tracker = DefectTracker()
+global_detector = ColorDetector()
+
+class PipelineState:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.latest_analyzed_frame: Optional[bytes] = None
+
+pipeline_state = PipelineState()
+
+def pipeline_worker():
+    frame_interval = 1.0 / OUTPUT_FPS if OUTPUT_FPS > 0 else 0.08
+    while True:
+        if not camera_state.running:
+            break
+            
+        started_at = time.time()
+        
+        with camera_state.lock:
+            frame_bytes = camera_state.latest_frame
+            
+        if frame_bytes is None:
+            time.sleep(0.1)
+            continue
+            
+        try:
+            frame_array = np.frombuffer(frame_bytes, dtype=np.uint8)
+            frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
+            
+            if frame is not None:
+                with detector_lock:
+                    config_dict = current_detector_config.dict()
+                    
+                w_pct = config_dict.get("w", 60)
+                h_pct = config_dict.get("h", 50)
+                h_frame, w_frame = frame.shape[:2]
+                largura = max(2, int(w_frame * (w_pct / 100.0)))
+                altura = max(2, int(h_frame * (h_pct / 100.0)))
+                x_inicio = max(0, int(w_frame / 2 - largura / 2))
+                y_inicio = max(0, int(h_frame / 2 - altura / 2))
+                x_fim = min(w_frame, x_inicio + largura)
+                y_fim = min(h_frame, y_inicio + altura)
+                
+                roi = frame[y_inicio:y_fim, x_inicio:x_fim]
+                
+                if not config_dict.get("apenas_area", False) and roi.size > 0:
+                    with color_reference_lock:
+                        if config_dict.get("ref_a") is None and config_dict.get("ref_b") is None:
+                            config_dict["paleta"] = saved_paleta
+                            config_dict["ref_a"] = saved_ref_a
+                            config_dict["ref_b"] = saved_ref_b
+                            
+                    detections = global_detector.detect(roi, config_dict)
+                    
+                    fixed_abs_detections = []
+                    for det in detections:
+                        abs_bx0 = det.box[0] + x_inicio
+                        abs_by0 = det.box[1] + y_inicio
+                        abs_bx1 = det.box[2] + x_inicio
+                        abs_by1 = det.box[3] + y_inicio
+                        abs_cx = det.centroid[0] + x_inicio
+                        abs_cy = det.centroid[1] + y_inicio
+                        fixed_abs_detections.append(Detection(box=(abs_bx0, abs_by0, abs_bx1, abs_by1), centroid=(abs_cx, abs_cy), area=det.area))
+                        
+                    if config_dict.get("linha_orientacao", "vertical") == "horizontal":
+                        linha_pos_abs = y_inicio + int(altura * (config_dict.get("linha_posicao_percent", 50) / 100.0))
+                    else:
+                        linha_pos_abs = x_inicio + int(largura * (config_dict.get("linha_posicao_percent", 50) / 100.0))
+                        
+                    ativos = global_tracker.update(fixed_abs_detections, linha_pos_abs)
+                    
+                    processed_frame = Visualizer.draw_results(frame, config_dict, ativos, fixed_abs_detections, x_inicio, y_inicio, x_fim, y_fim)
+                else:
+                    processed_frame = Visualizer.draw_results(frame, config_dict, [], [], x_inicio, y_inicio, x_fim, y_fim)
+
+                encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY]
+                encoded_ok, jpg = cv2.imencode(".jpg", processed_frame, encode_params)
+                if encoded_ok:
+                    with pipeline_state.lock:
+                        pipeline_state.latest_analyzed_frame = jpg.tobytes()
+        except Exception as e:
+            _log.error(f"Erro no pipeline worker: {e}")
+            
+        elapsed = time.time() - started_at
+        sleep_time = max(0, frame_interval - elapsed)
+        time.sleep(sleep_time)
+
+pipeline_thread = threading.Thread(target=pipeline_worker, daemon=True)
+pipeline_thread.start()
+
+@app.post("/detector-config")
+def update_detector_config(config: DetectorConfig) -> JSONResponse:
+    global current_detector_config
+    with detector_lock:
+        current_detector_config = config
+    return JSONResponse(current_detector_config.dict())
+
+@app.get("/detector-config")
+def get_detector_config() -> JSONResponse:
+    with detector_lock:
+        return JSONResponse(current_detector_config.dict())
 
 @app.get("/health")
 def health() -> JSONResponse:
@@ -340,71 +455,31 @@ def stream_mjpeg() -> StreamingResponse:
         headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
     )
 
-# AQUI: O w: int e h: int garantem que o Python não trate como texto e quebre a imagem
 @app.get("/stream-analyzed.mjpg")
-def stream_analyzed_mjpeg(
-    w: int = Query(60, ge=1, le=100, description="Largura da área de análise em %"),
-    h: int = Query(50, ge=1, le=100, description="Altura da área de análise em %"),
-    apenas_area: bool = Query(False),
-    estampado: bool = Query(False),
-    ref_r: Optional[int] = Query(None, ge=0, le=255),
-    ref_g: Optional[int] = Query(None, ge=0, le=255),
-    ref_b: Optional[int] = Query(None, ge=0, le=255),
-) -> StreamingResponse:
-    global saved_ref_a, saved_ref_b, saved_paleta
-
+def stream_analyzed_mjpeg() -> StreamingResponse:
     boundary = "frame"
-    with color_reference_lock:
-        ref_a = saved_ref_a
-        ref_b = saved_ref_b
-        paleta = saved_paleta
-
-    if None not in (ref_r, ref_g, ref_b):
-        reference_rgb = np.uint8([[[ref_r, ref_g, ref_b]]])
-        reference_lab = cv2.cvtColor(reference_rgb, cv2.COLOR_RGB2LAB)
-        ref_a = int(reference_lab[0, 0, 1])
-        ref_b = int(reference_lab[0, 0, 2])
-        paleta = [(ref_a, ref_b)]  # override manual vira paleta de 1 cor
 
     def analyzed_frame_generator():
         frame_interval = 1.0 / OUTPUT_FPS if OUTPUT_FPS > 0 else 0.08
         while True:
-            with camera_state.lock:
-                frame_bytes = camera_state.latest_frame
+            with pipeline_state.lock:
+                jpg_bytes = pipeline_state.latest_analyzed_frame
 
-            if frame_bytes is None:
+            if jpg_bytes is None:
                 time.sleep(0.1)
                 continue
-
+            
             try:
-                frame_array = np.frombuffer(frame_bytes, dtype=np.uint8)
-                frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
-
-                if frame is not None:
-                    processed_frame = analyze_fabric(
-                        frame,
-                        w,
-                        h,
-                        apenas_area=apenas_area,
-                        paleta=paleta,
-                        ref_a=ref_a,
-                        ref_b=ref_b,
-                        estampado=estampado,
-                    )
-                    encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY]
-                    encoded_ok, jpg = cv2.imencode(".jpg", processed_frame, encode_params)
-
-                    if encoded_ok:
-                        jpg_bytes = jpg.tobytes()
-                        yield (
-                            b"--" + boundary.encode() + b"\r\n"
-                            b"Content-Type: image/jpeg\r\n"
-                            b"Content-Length: " + str(len(jpg_bytes)).encode() + b"\r\n\r\n"
-                            + jpg_bytes
-                            + b"\r\n"
-                        )
+                yield (
+                    b"--" + boundary.encode() + b"\r\n"
+                    b"Content-Type: image/jpeg\r\n"
+                    b"Content-Length: " + str(len(jpg_bytes)).encode() + b"\r\n\r\n"
+                    + jpg_bytes
+                    + b"\r\n"
+                )
             except Exception as e:
-                _log.error(f"Erro ao processar frame analisado (w={w}, h={h}): {e}")
+                _log.debug(f"Cliente desconectado do stream analisado: {e}")
+                break
 
             time.sleep(frame_interval)
 
@@ -499,14 +574,14 @@ def stream_grayscale_mjpeg() -> StreamingResponse:
 @app.get("/defect-count")
 def defect_count() -> JSONResponse:
     """Retorna a contagem atual de falhas detectadas"""
-    return JSONResponse({"count": get_defect_count()})
+    return JSONResponse({"count": global_tracker.total_count})
 
 
 @app.post("/reset-count")
 def reset_count() -> JSONResponse:
     """Zera a contagem de falhas (usar ao iniciar um novo teste/rolo)"""
-    reset_defect_count()
-    return JSONResponse({"success": True, "count": get_defect_count()})
+    global_tracker.reset()
+    return JSONResponse({"success": True, "count": global_tracker.total_count})
 
 def _decode_latest_frame() -> np.ndarray:
     with camera_state.lock:
