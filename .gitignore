@@ -1,5 +1,11 @@
+# Dependencies
+node_modules/
+venv/
+.venv/
+env/
+
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,14 +13,42 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Environment files and local credentials
 *.local
-camera-proxy/calibrated-color-reference.json
-.next/
+.env
+.env.*
+!.env.example
+!.env.*.example
 
-# Editor directories and files
+# Next.js, TypeScript and test output
+.next/
+.turbo/
+.vercel/
+out/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# Python bytecode, tooling and test caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Application-generated local calibration data
+camera-proxy/calibrated-color-reference.json
+
+# Build output
+dist/
+dist-ssr/
+build/
+next/
+
+# Editor and operating-system files
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -24,6 +58,3 @@ camera-proxy/calibrated-color-reference.json
 *.njsproj
 *.sln
 *.sw?
-next/
-build/
-dist/
