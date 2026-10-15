@@ -5,7 +5,6 @@ import time
 from typing import Optional
 from pathlib import Path
 import subprocess
-import io
 import logging
 
 import cv2
@@ -15,7 +14,6 @@ from dotenv import load_dotenv
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
-from fastapi import Query
 import random 
 
 
@@ -25,8 +23,14 @@ os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
 CAMERA_IP = os.getenv("CAMERA_IP", "192.168.1.64")
 CAMERA_RTSP_PORT = int(os.getenv("CAMERA_RTSP_PORT", "554"))
 CAMERA_USER = os.getenv("CAMERA_USER", "admin")
-CAMERA_PASSWORD = os.getenv("CAMERA_PASSWORD", "Ratokalugi12")
+CAMERA_PASSWORD = os.getenv("CAMERA_PASSWORD")
 CAMERA_CHANNEL = os.getenv("CAMERA_CHANNEL", "101")
+
+if not CAMERA_PASSWORD:
+    raise RuntimeError(
+        "CAMERA_PASSWORD must be set in the environment before starting the camera proxy."
+    )
+
 CAMERA_RTSP_URL = os.getenv(
     "CAMERA_RTSP_URL",
     f"rtsp://{CAMERA_USER}:{CAMERA_PASSWORD}@{CAMERA_IP}:{CAMERA_RTSP_PORT}/Streaming/Channels/{CAMERA_CHANNEL}",
@@ -246,7 +250,11 @@ class CameraState:
             ]
 
             try:
-                _log.info("Launching ffmpeg: %s", " ".join(cmd))
+                _log.info(
+                    "Launching ffmpeg for camera host %s, channel %s",
+                    CAMERA_IP,
+                    CAMERA_CHANNEL,
+                )
                 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
                 stdout = proc.stdout
@@ -372,7 +380,15 @@ def pipeline_worker():
                         abs_by1 = det.box[3] + y_inicio
                         abs_cx = det.centroid[0] + x_inicio
                         abs_cy = det.centroid[1] + y_inicio
-                        fixed_abs_detections.append(Detection(box=(abs_bx0, abs_by0, abs_bx1, abs_by1), centroid=(abs_cx, abs_cy), area=det.area))
+                        fixed_abs_detections.append(
+                            Detection(
+                                box=(abs_bx0, abs_by0, abs_bx1, abs_by1),
+                                centroid=(abs_cx, abs_cy),
+                                area=det.area,
+                                label=det.label,
+                                confidence=det.confidence,
+                            )
+                        )
                         
                     if config_dict.get("linha_orientacao", "vertical") == "horizontal":
                         linha_pos_abs = y_inicio + int(altura * (config_dict.get("linha_posicao_percent", 50) / 100.0))
@@ -674,7 +690,7 @@ def _remove_color_outliers(colors: list) -> list:
     # Filter outliers
     cleaned = [c for i, c in enumerate(colors) if distances[i] <= threshold]
 
-    print(f"[server] Removed {len(colors) - len(cleaned)}/{len(colors)} outliers")
+    _log.debug("Removed %s/%s outliers", len(colors) - len(cleaned), len(colors))
     return cleaned if cleaned else colors
 
 
@@ -823,11 +839,13 @@ def capture_robust_sample(
     successful_captures = 0
     raw_point_samples: list[tuple[float, float, float]] = []
 
-    print(
-        "[server] Iniciando captura robusta: "
-        f"{sample_count} amostras, intervalo {interval_ms}ms, "
-        f"area {area_width_percent:.1f}%x{area_height_percent:.1f}%, "
-        f"pontos {sample_points}"
+    _log.info(
+        "Starting robust capture: %s samples, %sms interval, area %.1f%%x%.1f%%, %s points",
+        sample_count,
+        interval_ms,
+        area_width_percent,
+        area_height_percent,
+        sample_points,
     )
 
     for i in range(sample_count):
@@ -847,8 +865,8 @@ def capture_robust_sample(
                 luminance_values.append(_calculate_luminance(frame_mean))
                 successful_captures += 1
                 ...
-        except Exception as e:
-            print(f"[server] Erro na amostra {i + 1}: {e}")
+        except Exception:
+            _log.exception("Error capturing sample %s", i + 1)
 
         if i < sample_count - 1:
             time.sleep(interval_ms / 1000.0)
@@ -897,7 +915,7 @@ def capture_robust_sample(
             for (r, g, b) in raw_point_samples
         ]
 
-    print(f"[server] Captura robusta concluída: {result}")
+    _log.debug("Robust capture completed: %s", result)
     return JSONResponse(result)
 
 
