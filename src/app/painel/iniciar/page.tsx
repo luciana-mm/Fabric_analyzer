@@ -1,5 +1,5 @@
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import StartAnalysis from "@/pages/StartAnalysis";
+import StartAnalysis from "@/views/StartAnalysis";
 
 export default function PainelIniciarPage() {
   return (

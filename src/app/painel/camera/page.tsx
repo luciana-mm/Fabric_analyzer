@@ -1,5 +1,5 @@
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import CameraStream from "@/pages/CameraStream";
+import CameraStream from "@/views/CameraStream";
 
 export default function CameraPage() {
   return (

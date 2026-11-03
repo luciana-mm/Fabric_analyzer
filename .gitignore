@@ -58,3 +58,11 @@ next/
 *.njsproj
 *.sln
 *.sw?
+
+# Temporary and binary artifacts
+.codex_tmp_pdf/
+out.bin
+lint_results.json
+camera-proxy/runs/
+camera-proxy/models/best.pt
+

@@ -8,6 +8,7 @@ import {
   ReactNode,
 } from "react";
 import { fetchJson } from "@/lib/api-client";
+import { clearSystemConfigCache } from "@/lib/systemConfig";
 
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 
@@ -88,6 +89,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const triggerInactivitySignOut = async () => {
       try {
+        clearSystemConfigCache(user?.id);
         await fetch("/api/auth/logout", {
           method: "POST",
           credentials: "include",
@@ -141,6 +143,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     try {
+      clearSystemConfigCache(user?.id);
       await fetch("/api/auth/logout", {
         method: "POST",
         credentials: "include",

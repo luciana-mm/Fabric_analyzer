@@ -11,19 +11,24 @@ import type { SamplePointsValue } from "@/lib/systemConfig";
 function ConfigAnalysisAreaContent() {
   const router = useRouter();
   const { user } = useAuth();
-  const { config, persistPatch } = useOperatorSystemConfig(user?.id);
+  const { config, isLoading, persistPatch } = useOperatorSystemConfig(user?.id);
+
+  if (isLoading) {
+    return <div className="min-h-screen bg-[#050811]" />;
+  }
 
   return (
     <AnalysisArea
       onBack={() => {
         router.push("/painel/config");
       }}
-      onSave={async ({ samplePoints, sampleAreaWidthPercent, sampleAreaHeightPercent }) => {
+      onSave={async ({ samplePoints, sampleAreaWidthPercent, sampleAreaHeightPercent, estampado }) => {
         if (persistPatch) {
           await persistPatch({
             samplePoints,
             sampleAreaWidthPercent,
             sampleAreaHeightPercent,
+            estampado,
             analysisAreaConfigured: true,
           });
         }

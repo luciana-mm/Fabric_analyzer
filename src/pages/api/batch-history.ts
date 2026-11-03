@@ -43,21 +43,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const params: unknown[] = [];
   let sql = `SELECT
-      batch_id,
-      batch_code,
+      COALESCE(tissue_batch_code, tissue_type, 'SEM-LOTE') AS batch_id,
+      COALESCE(tissue_batch_code, tissue_type, 'SEM-LOTE') AS batch_code,
       MIN(analyzed_at) AS first_analyzed_at,
       MAX(analyzed_at) AS last_analyzed_at,
-      COUNT(*) AS total_fabrics,
-      SUM(CASE WHEN result = 'ok' THEN 1 ELSE 0 END) AS approved_count,
-      SUM(CASE WHEN result = 'fail' THEN 1 ELSE 0 END) AS rejected_count,
+      COUNT(*)::int AS total_fabrics,
+      SUM(CASE WHEN result = 'ok' THEN 1 ELSE 0 END)::int AS approved_count,
+      SUM(CASE WHEN result = 'fail' THEN 1 ELSE 0 END)::int AS rejected_count,
+      COALESCE(SUM(COALESCE(defect_count, 0)), 0)::int AS total_defects,
+      COALESCE(SUM(CASE WHEN COALESCE(is_patterned, false) THEN COALESCE(defect_count, 0) ELSE 0 END), 0)::int AS patterned_defects,
+      BOOL_OR(COALESCE(is_patterned, false)) AS is_patterned,
       ARRAY_AGG(DISTINCT operator_user_id) AS operator_user_ids,
-      COUNT(*) OVER() AS total_rows
+      COUNT(*) OVER()::int AS total_rows
     FROM analysis_records`;
 
   const conditions: string[] = [];
   if (search) {
     params.push(`%${search}%`);
-    conditions.push(`batch_code ILIKE $${params.length}`);
+    conditions.push(`COALESCE(tissue_batch_code, tissue_type, '') ILIKE $${params.length}`);
   }
 
   if (auth.role !== "gestor") {
@@ -67,7 +70,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     params.push(userId);
     conditions.push(`operator_user_id = $${params.length}`);
   }
-  if (start) {
+
+  if (start) {
     params.push(start);
     conditions.push(`analyzed_at >= $${params.length}`);
   }
@@ -80,7 +84,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     sql += ` WHERE ${conditions.join(" AND ")}`;
   }
 
-  sql += ` GROUP BY batch_id, batch_code ORDER BY last_analyzed_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+  sql += ` GROUP BY COALESCE(tissue_batch_code, tissue_type, 'SEM-LOTE') ORDER BY last_analyzed_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
   params.push(limit, offset);
 
   try {

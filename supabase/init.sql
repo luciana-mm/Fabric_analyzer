@@ -69,12 +69,21 @@ CREATE TABLE public.operator_configurations (
   delta_e SMALLINT DEFAULT 3 CHECK (delta_e IN (1, 2, 3)),
   sample_points SMALLINT DEFAULT 9 CHECK (sample_points IN (4, 9, 18)),
   sample_area_width_percent NUMERIC(5, 2) DEFAULT 60 CHECK (sample_area_width_percent >= 0 AND sample_area_width_percent <= 100),
+  sample_area_height_percent NUMERIC(5, 2) DEFAULT 50 CHECK (sample_area_height_percent >= 0 AND sample_area_height_percent <= 100),
+  estampado BOOLEAN DEFAULT false,
   
   -- Cor de Referência (Hex)
   reference_color_hex VARCHAR(7) CHECK (reference_color_hex IS NULL OR reference_color_hex ~ '^#[0-9A-Fa-f]{6}$'),
   reference_color_r SMALLINT CHECK (reference_color_r IS NULL OR (reference_color_r >= 0 AND reference_color_r <= 255)),
   reference_color_g SMALLINT CHECK (reference_color_g IS NULL OR (reference_color_g >= 0 AND reference_color_g <= 255)),
   reference_color_b SMALLINT CHECK (reference_color_b IS NULL OR (reference_color_b >= 0 AND reference_color_b <= 255)),
+  
+  -- Luz Ambiente de Referência
+  ambient_light_configured BOOLEAN DEFAULT false,
+  ambient_light_reference_hex VARCHAR(7) CHECK (ambient_light_reference_hex IS NULL OR ambient_light_reference_hex ~ '^#[0-9A-Fa-f]{6}$'),
+  ambient_light_reference_r SMALLINT CHECK (ambient_light_reference_r IS NULL OR (ambient_light_reference_r >= 0 AND ambient_light_reference_r <= 255)),
+  ambient_light_reference_g SMALLINT CHECK (ambient_light_reference_g IS NULL OR (ambient_light_reference_g >= 0 AND ambient_light_reference_g <= 255)),
+  ambient_light_reference_b SMALLINT CHECK (ambient_light_reference_b IS NULL OR (ambient_light_reference_b >= 0 AND ambient_light_reference_b <= 255)),
   
   -- Status de Configuração
   delta_configured BOOLEAN DEFAULT false,

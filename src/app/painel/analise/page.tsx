@@ -1,5 +1,5 @@
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import SelectAnalysisType from "@/pages/SelectAnalysisType";
+import SelectAnalysisType from "@/views/SelectAnalysisType";
 
 export default function AnalysisPage() {
   return (

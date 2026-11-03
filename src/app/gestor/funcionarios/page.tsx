@@ -1,5 +1,5 @@
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import ManagerEmployees from "@/pages/ManagerEmployees";
+import ManagerEmployees from "@/views/ManagerEmployees";
 
 export default function GestorFuncionariosPage() {
   return (

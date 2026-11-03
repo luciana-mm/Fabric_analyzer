@@ -46,6 +46,7 @@ interface ColorCaptureProps {
   }) => void;
   initialSampleAreaWidthPercent?: number;
   initialSampleAreaHeightPercent?: number;
+  estampado?: boolean;
 }
 
 const LIGHT_CALIBRATION_SAMPLES = 5;
@@ -71,6 +72,7 @@ export const ColorCapture = ({
   onSave,
   initialSampleAreaWidthPercent = defaultSystemConfig.sampleAreaWidthPercent,
   initialSampleAreaHeightPercent = defaultSystemConfig.sampleAreaHeightPercent,
+  estampado = false,
 }: ColorCaptureProps) => {
   const [displayColor, setDisplayColor] = useState({
     hex: initialColorHex,
@@ -79,6 +81,8 @@ export const ColorCapture = ({
   const [isLightCalibrated, setIsLightCalibrated] = useState(
     initialLightCalibrated,
   );
+  const [isCalibratingPattern, setIsCalibratingPattern] = useState(false);
+  const [patternCapturedCount, setPatternCapturedCount] = useState<number>(0);
   const [isRgbPickerOpen, setIsRgbPickerOpen] = useState(false);
   const captureAreaWidth = clampCapturePercent(
     initialSampleAreaWidthPercent,
@@ -141,7 +145,61 @@ export const ColorCapture = ({
     { r: number; g: number; b: number }[]
   >([]);
 
+  const handleCapturePatternImages = async () => {
+    if (!isLightCalibrated) {
+      toast.error("Calibre a luz primeiro!", {
+        description: 'Clique em "Calibrar Luz Ambiente" antes de capturar as imagens',
+      });
+      return;
+    }
+
+    try {
+      setIsCalibratingPattern(true);
+      toast.loading(
+        "Capturando 15 imagens detalhadas do tecido bom e aprendendo padrão no Anomalib...",
+        { id: "anomalib-pattern-calibration" },
+      );
+
+      const patternRes = await fetch(`${CAMERA_PROXY_URL}/calibrate-pattern`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          w: captureAreaWidth,
+          h: captureAreaHeight,
+          num_frames: 15,
+          interval_ms: 120,
+        }),
+      });
+
+      setIsCalibratingPattern(false);
+
+      if (!patternRes.ok) {
+        throw new Error("Falha ao capturar imagens da estampa na câmera");
+      }
+
+      const patternData = await patternRes.json();
+      const savedCount = patternData?.metadata?.num_frames ?? 15;
+      setPatternCapturedCount(savedCount);
+
+      toast.success("Imagens detalhadas capturadas com sucesso!", {
+        id: "anomalib-pattern-calibration",
+        description: `${savedCount} fotos do tecido bom aprendidas pelo Anomalib.`,
+      });
+    } catch (err) {
+      setIsCalibratingPattern(false);
+      console.error("Erro ao capturar imagens da estampa:", err);
+      toast.error("Erro ao capturar imagens do tecido na câmera", {
+        id: "anomalib-pattern-calibration",
+      });
+    }
+  };
+
   const handleCaptureColor = async () => {
+    if (estampado) {
+      await handleCapturePatternImages();
+      return;
+    }
+
     if (!colorCalibration.isLightCalibrated()) {
       toast.error("Calibre a luz primeiro!", {
         description: 'Clique em "Calibrar Luz" antes de capturar a cor',
@@ -174,7 +232,7 @@ export const ColorCapture = ({
         const rgb8Bit = rgbToRgb8Bit(result.correctedColor);
 
         setDisplayColor({ hex, rgb: rgb8Bit });
-        setCapturedRawSamples(allRawSamples);   // <-- guarda pra usar no Salvar
+        setCapturedRawSamples(allRawSamples);
 
         toast.success("Cor capturada com sucesso!", {
           id: "color-capture-progress",
@@ -201,26 +259,64 @@ export const ColorCapture = ({
     }
     const hasNewLightReference = colorCalibration.isLightCalibrated();
     try {
-      const samplesToSend =
-        capturedRawSamples.length > 0
-          ? capturedRawSamples
-          : [displayColor.rgb]; // fallback: sem amostras cruas, manda só a cor final
+      if (estampado) {
+        if (patternCapturedCount === 0) {
+          setIsCalibratingPattern(true);
+          toast.loading(
+            "Capturando 15 imagens detalhadas do tecido bom no Anomalib...",
+            { id: "anomalib-pattern-calibration" },
+          );
 
-      const response = await fetch(`${CAMERA_PROXY_URL}/reference-palette`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ samples: samplesToSend }),
-      });
-      if (!response.ok) {
-        throw new Error("Falha ao salvar paleta de cor no proxy da câmera");
+          const patternRes = await fetch(`${CAMERA_PROXY_URL}/calibrate-pattern`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              w: captureAreaWidth,
+              h: captureAreaHeight,
+              num_frames: 15,
+              interval_ms: 120,
+            }),
+          });
+
+          setIsCalibratingPattern(false);
+
+          if (!patternRes.ok) {
+            throw new Error("Falha ao calibrar padrão da estampa no Anomalib");
+          }
+
+          const patternData = await patternRes.json();
+          const savedCount = patternData?.metadata?.num_frames ?? 15;
+          setPatternCapturedCount(savedCount);
+          toast.success("Padrão da estampa aprendido no Anomalib!", {
+            id: "anomalib-pattern-calibration",
+            description: `${savedCount} fotos do tecido bom salvas.`,
+          });
+        }
+      } else {
+        const samplesToSend =
+          capturedRawSamples.length > 0
+            ? capturedRawSamples
+            : [displayColor.rgb];
+
+        const response = await fetch(`${CAMERA_PROXY_URL}/reference-palette`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ samples: samplesToSend }),
+        });
+        if (!response.ok) {
+          throw new Error("Falha ao salvar paleta de cor no proxy da câmera");
+        }
       }
     } catch (error) {
-      console.error("Erro ao salvar paleta de cor:", error);
-      toast.error("Não foi possível salvar a paleta de cor na câmera");
+      setIsCalibratingPattern(false);
+      console.error("Erro ao salvar calibração no proxy:", error);
+      toast.error("Não foi possível concluir a calibração na câmera", {
+        id: "anomalib-pattern-calibration",
+      });
       return;
     }
 
-    onSave({
+    await onSave({
       referenceColorHex: displayColor.hex.toUpperCase(),
       referenceColorRgb: displayColor.rgb,
       colorConfigured: true,
@@ -239,7 +335,10 @@ export const ColorCapture = ({
     onBack();
   };
 
-  const isBusy = colorCalibration.isCalibrating || cameraCapture.isCapturing;
+  const isBusy =
+    colorCalibration.isCalibrating ||
+    cameraCapture.isCapturing ||
+    isCalibratingPattern;
 
   return (
     <div className="fixed inset-0 z-20 overflow-hidden bg-[#0a0c14] text-white">
@@ -266,7 +365,7 @@ export const ColorCapture = ({
         <div className="flex items-start gap-3">
           <div className="hidden rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-right backdrop-blur-md md:block">
             <h2 className="font-sansserief text-sm uppercase tracking-[0.25em] text-white">
-              Calibracao de Luz (D65)
+              {estampado ? "Calibracao de Estampa (Anomalib)" : "Calibracao de Luz (D65)"}
             </h2>
             <p className="mt-1 text-xs text-white/55">
               {colorCalibration.statusMessage}
@@ -282,44 +381,75 @@ export const ColorCapture = ({
                 Procedimento de Medicao
               </h3>
               <p className="text-slate-300">
-                A amostra usa somente a regiao pontilhada central definida na
-                area de analise.
+                {estampado
+                  ? "Posicione um trecho do tecido BOM (sem defeito) na regiao pontilhada para o Anomalib aprender a estampa."
+                  : "A amostra usa somente a regiao pontilhada central definida na area de analise."}
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      <RgbScreen
-        open={isRgbPickerOpen}
-        initialHex={displayColor.hex}
-        onOpenChange={setIsRgbPickerOpen}
-        onSelect={(color) => {
-          setDisplayColor(color);
-          setIsRgbPickerOpen(false);
-          toast.success("Cor atualizada", {
-            description: `${color.hex.toUpperCase()} selecionado`,
-          });
-        }}
-      />
+      {!estampado && (
+        <RgbScreen
+          open={isRgbPickerOpen}
+          initialHex={displayColor.hex}
+          onOpenChange={setIsRgbPickerOpen}
+          onSelect={(color) => {
+            setDisplayColor(color);
+            setIsRgbPickerOpen(false);
+            toast.success("Cor atualizada", {
+              description: `${color.hex.toUpperCase()} selecionado`,
+            });
+          }}
+        />
+      )}
 
       <div className="absolute bottom-4 left-1/2 z-30 w-[calc(100%-2rem)] max-w-6xl -translate-x-1/2 md:bottom-6">
         <div className="rounded-2xl border border-white/10 bg-black/50 p-4 shadow-2xl backdrop-blur-md">
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-3">
-              <div
-                className="h-11 w-16 rounded-lg border-2 border-white/20 shadow-lg"
-                style={{ backgroundColor: displayColor.hex }}
-              />
-              <div>
-                <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
-                  Cor selecionada
-                </p>
-                <p className="text-sm font-medium text-white">
-                  {displayColor.hex.toUpperCase()}
-                </p>
+            {estampado ? (
+              <div className="flex items-center gap-3">
+                <div
+                  className={`flex h-11 w-16 items-center justify-center rounded-lg border-2 shadow-lg ${
+                    patternCapturedCount > 0
+                      ? "border-emerald-400/40 bg-emerald-500/20 text-emerald-300"
+                      : "border-amber-400/35 bg-amber-500/15 text-amber-300"
+                  }`}
+                >
+                  {patternCapturedCount > 0 ? (
+                    <CheckCircle className="h-5 w-5" />
+                  ) : (
+                    <Camera className="h-5 w-5" />
+                  )}
+                </div>
+                <div>
+                  <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-amber-300/80">
+                    Padrão de Imagens Detalhadas (Anomalib)
+                  </p>
+                  <p className="text-sm font-medium text-white">
+                    {patternCapturedCount > 0
+                      ? `${patternCapturedCount} fotos do tecido bom aprendidas`
+                      : "Aguardando captura das imagens do tecido bom"}
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div
+                  className="h-11 w-16 rounded-lg border-2 border-white/20 shadow-lg"
+                  style={{ backgroundColor: displayColor.hex }}
+                />
+                <div>
+                  <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
+                    Cor selecionada
+                  </p>
+                  <p className="text-sm font-medium text-white">
+                    {displayColor.hex.toUpperCase()}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {colorCalibration.error && (
               <p className="max-w-md rounded-lg border border-red-500/30 bg-red-950/45 px-3 py-2 text-xs text-red-200">
@@ -328,7 +458,11 @@ export const ColorCapture = ({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div
+            className={`grid grid-cols-1 gap-2 ${
+              estampado ? "sm:grid-cols-3" : "sm:grid-cols-4"
+            }`}
+          >
             <button
               onClick={handleCalibrateLight}
               disabled={colorCalibration.isCalibrating}
@@ -362,14 +496,30 @@ export const ColorCapture = ({
               disabled={isBusy || !isLightCalibrated}
               className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${!isLightCalibrated
                 ? "cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500"
-                : "border-violet-500/45 bg-violet-950/45 text-violet-200 hover:bg-violet-900/55"
+                : estampado && patternCapturedCount > 0
+                  ? "border-emerald-500/45 bg-emerald-950/45 text-emerald-200 hover:bg-emerald-900/55"
+                  : "border-violet-500/45 bg-violet-950/45 text-violet-200 hover:bg-violet-900/55"
                 } ${isBusy ? "opacity-60" : ""}`}
             >
               {isBusy ? (
                 <>
                   <Loader className="h-5 w-5 animate-spin" />
-                  <span>Capturando</span>
+                  <span>
+                    {estampado ? "Capturando Imagens..." : "Capturando"}
+                  </span>
                 </>
+              ) : estampado ? (
+                patternCapturedCount > 0 ? (
+                  <>
+                    <CheckCircle className="h-5 w-5" />
+                    <span>Imagens Capturadas ({patternCapturedCount})</span>
+                  </>
+                ) : (
+                  <>
+                    <Camera className="h-5 w-5" />
+                    <span>Capturar Imagens Detalhadas</span>
+                  </>
+                )
               ) : (
                 <>
                   <Camera className="h-5 w-5" />
@@ -380,8 +530,8 @@ export const ColorCapture = ({
 
             <button
               onClick={handleSave}
-              disabled={!isLightCalibrated}
-              className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${!isLightCalibrated
+              disabled={!isLightCalibrated || isBusy}
+              className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${!isLightCalibrated || isBusy
                 ? "cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500"
                 : "border-emerald-500/45 bg-emerald-950/45 text-emerald-200 hover:bg-emerald-900/55"
                 }`}
@@ -390,17 +540,19 @@ export const ColorCapture = ({
               <span>Salvar</span>
             </button>
 
-            <button
-              onClick={() => isLightCalibrated && setIsRgbPickerOpen(true)}
-              disabled={!isLightCalibrated}
-              className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${isLightCalibrated
-                ? "border-white/15 bg-white/10 text-slate-100 hover:bg-white/15"
-                : "cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500"
-                }`}
-            >
-              <Pipette className="h-5 w-5" />
-              <span>Selecionar cor</span>
-            </button>
+            {!estampado && (
+              <button
+                onClick={() => isLightCalibrated && setIsRgbPickerOpen(true)}
+                disabled={!isLightCalibrated}
+                className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${isLightCalibrated
+                  ? "border-white/15 bg-white/10 text-slate-100 hover:bg-white/15"
+                  : "cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500"
+                  }`}
+              >
+                <Pipette className="h-5 w-5" />
+                <span>Selecionar cor</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

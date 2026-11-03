@@ -25,6 +25,7 @@ export default async function handler(
     try {
       const result = await query(
         `SELECT user_id, active_tissue_code, delta_e, sample_points, sample_area_width_percent, sample_area_height_percent,
+                estampado,
                 reference_color_hex, reference_color_r, reference_color_g, reference_color_b,
                 delta_configured, analysis_area_configured, color_configured, light_calibrated,
                 ambient_light_configured, ambient_light_reference_hex,
@@ -53,6 +54,7 @@ export default async function handler(
       sample_points,
       sample_area_width_percent,
       sample_area_height_percent,
+      estampado,
       reference_color_hex,
       reference_color_r,
       reference_color_g,
@@ -82,19 +84,20 @@ export default async function handler(
       await query(
         `INSERT INTO operator_configurations (
            user_id, active_tissue_code, delta_e, sample_points,
-           sample_area_width_percent, sample_area_height_percent,
+           sample_area_width_percent, sample_area_height_percent, estampado,
            reference_color_hex, reference_color_r, reference_color_g, reference_color_b,
            delta_configured, analysis_area_configured, color_configured, light_calibrated,
            ambient_light_configured, ambient_light_reference_hex,
            ambient_light_reference_r, ambient_light_reference_g, ambient_light_reference_b,
            system_step, active_view, updated_at, created_at
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, now(), now())
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, now(), now())
          ON CONFLICT (user_id) DO UPDATE SET
            active_tissue_code = EXCLUDED.active_tissue_code,
            delta_e = EXCLUDED.delta_e,
            sample_points = EXCLUDED.sample_points,
            sample_area_width_percent = EXCLUDED.sample_area_width_percent,
            sample_area_height_percent = EXCLUDED.sample_area_height_percent,
+           estampado = EXCLUDED.estampado,
            reference_color_hex = EXCLUDED.reference_color_hex,
            reference_color_r = EXCLUDED.reference_color_r,
            reference_color_g = EXCLUDED.reference_color_g,
@@ -118,6 +121,7 @@ export default async function handler(
           sample_points ?? null,
           sample_area_width_percent ?? null,
           sample_area_height_percent ?? null,
+          estampado ?? false,
           reference_color_hex ?? null,
           reference_color_r ?? null,
           reference_color_g ?? null,

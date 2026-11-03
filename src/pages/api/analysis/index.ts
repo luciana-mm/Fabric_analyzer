@@ -14,11 +14,28 @@ function parseNumberParameter(value: unknown) {
   return Number.isFinite(numberValue) ? numberValue : null;
 }
 
+let schemaEnsured = false;
+async function ensureAnalysisColumns() {
+  if (schemaEnsured) return;
+  try {
+    await query(`
+      ALTER TABLE analysis_records
+        ADD COLUMN IF NOT EXISTS defect_count integer NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS is_patterned boolean NOT NULL DEFAULT false
+    `);
+    schemaEnsured = true;
+  } catch {
+    // ignore if lacks DDL permission
+  }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const auth = await requireAuth(req, res);
   if (!auth) {
     return;
   }
+
+  await ensureAnalysisColumns();
 
   if (req.method === "GET") {
     const requestedUserId = typeof req.query.userId === "string" ? req.query.userId : null;
@@ -38,7 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const params: unknown[] = [];
-    let sql = `SELECT id, operator_user_id, reference_code, tissue_type, result, failure_reason, processing_time_ms, analyzed_at, delta_e_measured, delta_e_threshold, precision_percent, required_precision_percent, comparison_method, reference_color_hex, measured_color_hex, analysis_type, tissue_batch_code
+    let sql = `SELECT id, operator_user_id, reference_code, tissue_type, result, failure_reason, processing_time_ms, analyzed_at, delta_e_measured, delta_e_threshold, precision_percent, required_precision_percent, comparison_method, reference_color_hex, measured_color_hex, analysis_type, tissue_batch_code, COALESCE(defect_count, 0) AS defect_count, COALESCE(is_patterned, false) AS is_patterned
                  FROM analysis_records`;
 
     const conditions: string[] = [];
@@ -93,6 +110,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       measured_color_hex,
       analysis_type,
       tissue_batch_code,
+      defect_count,
+      is_patterned,
     } = req.body ?? {};
 
     if (
@@ -108,10 +127,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    const processingTimeMs = parseNumberParameter(processing_time_ms) ?? 1;
-    if (processing_time_ms !== undefined && processing_time_ms !== null && typeof processingTimeMs !== "number") {
-      return res.status(400).json({ error: "Invalid processing_time_ms" });
-    }
+    const processingTimeMs = Math.max(1, Math.round(parseNumberParameter(processing_time_ms) ?? 1));
+    const parsedDefectCount = Math.max(0, Math.round(parseNumberParameter(defect_count) ?? 0));
+    const parsedIsPatterned = Boolean(is_patterned) || comparison_method === "ANOMALIB_PATCHCORE";
 
     const optionalNumberFields = {
       delta_e_measured,
@@ -146,8 +164,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
            failure_reason, processing_time_ms, delta_e_measured, delta_e_threshold,
            precision_percent, required_precision_percent, comparison_method,
            reference_color_hex, measured_color_hex, analysis_type, tissue_batch_code,
+           defect_count, is_patterned,
            analyzed_at, created_at
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now(), now()) RETURNING id`,
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, now(), now()) RETURNING id`,
         [
           operator_user_id,
           reference_code,
@@ -159,11 +178,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           numericValues.delta_e_threshold ?? null,
           numericValues.precision_percent ?? null,
           numericValues.required_precision_percent ?? null,
-          comparison_method ?? null,
+          comparison_method ?? (parsedIsPatterned ? "ANOMALIB_PATCHCORE" : "CIEDE2000"),
           reference_color_hex ?? null,
           measured_color_hex ?? null,
           analysis_type ?? null,
           tissue_batch_code ?? null,
+          parsedDefectCount,
+          parsedIsPatterned,
         ],
       );
 

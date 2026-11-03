@@ -12,6 +12,9 @@ type AnalysisRecord = {
   failure_reason: string | null;
   processing_time_ms: number;
   analyzed_at: string;
+  defect_count?: number | null;
+  is_patterned?: boolean | null;
+  comparison_method?: string | null;
 };
 
 type ProfileSummary = {
@@ -32,6 +35,11 @@ export type OperatorDashboardStats = {
   totalVerified: number;
   totalSuccess: number;
   totalFailure: number;
+  totalDefects: number;
+  patternedVerified: number;
+  patternedDefects: number;
+  plainVerified: number;
+  plainDefects: number;
   successRate: number;
   failureRate: number;
   averageTimeMs: number;
@@ -40,6 +48,9 @@ export type OperatorDashboardStats = {
     type: string;
     result: "ok" | "fail";
     analyzedAt: string;
+    defectCount: number;
+    isPatterned: boolean;
+    failureReason: string | null;
   }>;
   errorBreakdown: Array<{
     label: string;
@@ -57,6 +68,9 @@ export type ManagerEmployeeRow = {
   verified: number;
   success: number;
   failure: number;
+  totalDefects: number;
+  patternedVerified: number;
+  patternedDefects: number;
   avgTime: string;
   avgTimeMs: number;
   shift: string;
@@ -65,6 +79,9 @@ export type ManagerEmployeeRow = {
     type: string;
     result: "ok" | "fail";
     analyzedAt: string;
+    defectCount: number;
+    isPatterned: boolean;
+    failureReason: string | null;
   }>;
   errorBreakdown: Array<{
     label: string;
@@ -86,6 +103,8 @@ export type ManagerDailyStats = {
   totalVerified: number;
   totalSuccess: number;
   totalFailure: number;
+  totalDefects: number;
+  patternedDefects: number;
   successRate: number;
   failureRate: number;
 };
@@ -99,6 +118,11 @@ export type GlobalReportStats = {
   verified: number;
   success: number;
   failure: number;
+  totalDefects: number;
+  patternedVerified: number;
+  patternedDefects: number;
+  plainVerified: number;
+  plainDefects: number;
   avgTime: string;
   employeePerformance: Array<{
     userId: string;
@@ -109,6 +133,8 @@ export type GlobalReportStats = {
     verified: number;
     success: number;
     failure: number;
+    totalDefects: number;
+    patternedDefects: number;
     avgTime: string;
   }>;
   errorBreakdown: Array<{
@@ -271,6 +297,19 @@ export const useOperatorDashboardData = (userId: string | null | undefined) => {
       (record) => record.result === "ok",
     ).length;
     const totalFailure = totalVerified - totalSuccess;
+    const totalDefects = records.reduce(
+      (sum, record) => sum + Math.max(0, Number(record.defect_count ?? 0)),
+      0,
+    );
+    const patternedRecords = records.filter((record) => Boolean(record.is_patterned));
+    const patternedVerified = patternedRecords.length;
+    const patternedDefects = patternedRecords.reduce(
+      (sum, record) => sum + Math.max(0, Number(record.defect_count ?? 0)),
+      0,
+    );
+    const plainVerified = totalVerified - patternedVerified;
+    const plainDefects = totalDefects - patternedDefects;
+
     const successRate =
       totalVerified === 0
         ? 0
@@ -295,12 +334,20 @@ export const useOperatorDashboardData = (userId: string | null | undefined) => {
       type: record.tissue_type,
       result: record.result,
       analyzedAt: record.analyzed_at,
+      defectCount: Math.max(0, Number(record.defect_count ?? 0)),
+      isPatterned: Boolean(record.is_patterned),
+      failureReason: record.failure_reason ?? null,
     }));
 
     return {
       totalVerified,
       totalSuccess,
       totalFailure,
+      totalDefects,
+      patternedVerified,
+      patternedDefects,
+      plainVerified,
+      plainDefects,
       successRate,
       failureRate,
       averageTimeMs,
@@ -320,6 +367,11 @@ const emptyGlobalReportStats: GlobalReportStats = {
   verified: 0,
   success: 0,
   failure: 0,
+  totalDefects: 0,
+  patternedVerified: 0,
+  patternedDefects: 0,
+  plainVerified: 0,
+  plainDefects: 0,
   avgTime: formatMsToSecondsLabel(0),
   employeePerformance: [],
   errorBreakdown: [],
@@ -381,6 +433,19 @@ export const useGlobalReportData = (
     const verified = records.length;
     const success = records.filter((record) => record.result === "ok").length;
     const failure = verified - success;
+    const totalDefects = records.reduce(
+      (sum, record) => sum + Math.max(0, Number(record.defect_count ?? 0)),
+      0,
+    );
+    const patternedRecords = records.filter((record) => Boolean(record.is_patterned));
+    const patternedVerified = patternedRecords.length;
+    const patternedDefects = patternedRecords.reduce(
+      (sum, record) => sum + Math.max(0, Number(record.defect_count ?? 0)),
+      0,
+    );
+    const plainVerified = verified - patternedVerified;
+    const plainDefects = totalDefects - patternedDefects;
+
     const averageTimeMs =
       verified === 0
         ? 0
@@ -408,6 +473,16 @@ export const useGlobalReportData = (
           (item) => item.result === "ok",
         ).length;
         const employeeFailure = employeeVerified - employeeSuccess;
+        const employeeTotalDefects = items.reduce(
+          (sum, item) => sum + Math.max(0, Number(item.defect_count ?? 0)),
+          0,
+        );
+        const employeePatternedDefects = items
+          .filter((item) => Boolean(item.is_patterned))
+          .reduce(
+            (sum, item) => sum + Math.max(0, Number(item.defect_count ?? 0)),
+            0,
+          );
         const employeeAvgTimeMs =
           employeeVerified === 0
             ? 0
@@ -425,6 +500,8 @@ export const useGlobalReportData = (
           verified: employeeVerified,
           success: employeeSuccess,
           failure: employeeFailure,
+          totalDefects: employeeTotalDefects,
+          patternedDefects: employeePatternedDefects,
           avgTime: formatMsToSecondsLabel(employeeAvgTimeMs),
         };
       })
@@ -434,6 +511,11 @@ export const useGlobalReportData = (
       verified,
       success,
       failure,
+      totalDefects,
+      patternedVerified,
+      patternedDefects,
+      plainVerified,
+      plainDefects,
       avgTime: formatMsToSecondsLabel(averageTimeMs),
       employeePerformance,
       errorBreakdown: buildErrorBreakdown(records).map((entry) => ({
@@ -524,6 +606,16 @@ export const useManagerDashboardData = (options?: {
         const verified = items.length;
         const success = items.filter((item) => item.result === "ok").length;
         const failure = verified - success;
+        const totalDefects = items.reduce(
+          (sum, item) => sum + Math.max(0, Number(item.defect_count ?? 0)),
+          0,
+        );
+        const patternedItems = items.filter((item) => Boolean(item.is_patterned));
+        const patternedVerified = patternedItems.length;
+        const patternedDefects = patternedItems.reduce(
+          (sum, item) => sum + Math.max(0, Number(item.defect_count ?? 0)),
+          0,
+        );
         const avgTimeMs =
           verified === 0
             ? 0
@@ -537,6 +629,9 @@ export const useManagerDashboardData = (options?: {
           type: item.tissue_type,
           result: item.result,
           analyzedAt: item.analyzed_at,
+          defectCount: Math.max(0, Number(item.defect_count ?? 0)),
+          isPatterned: Boolean(item.is_patterned),
+          failureReason: item.failure_reason ?? null,
         }));
 
         const errorBreakdown = buildErrorBreakdown(items).map((entry) => ({
@@ -556,6 +651,9 @@ export const useManagerDashboardData = (options?: {
           verified,
           success,
           failure,
+          totalDefects,
+          patternedVerified,
+          patternedDefects,
           avgTime: formatMsToSecondsLabel(avgTimeMs),
           avgTimeMs,
           shift: profile.shift ?? "Não informado",
@@ -596,12 +694,24 @@ export const useManagerDashboardData = (options?: {
       (record) => record.result === "ok",
     ).length;
     const totalFailure = totalVerified - totalSuccess;
+    const totalDefects = activeRecords.reduce(
+      (sum, record) => sum + Math.max(0, Number(record.defect_count ?? 0)),
+      0,
+    );
+    const patternedDefects = activeRecords
+      .filter((record) => Boolean(record.is_patterned))
+      .reduce(
+        (sum, record) => sum + Math.max(0, Number(record.defect_count ?? 0)),
+        0,
+      );
 
     return {
       activeEmployeesToday: activeUserIds.size,
       totalVerified,
       totalSuccess,
       totalFailure,
+      totalDefects,
+      patternedDefects,
       successRate:
         totalVerified === 0
           ? 0

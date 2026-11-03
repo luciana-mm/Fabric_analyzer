@@ -315,11 +315,76 @@ class DetectorConfig(BaseModel):
     ref_b: Optional[int] = None
     linha_orientacao: str = "vertical"
     linha_posicao_percent: int = 50
+    anomalib_threshold_mult: Optional[float] = 1.0
+
+
+class DetectorModePayload(BaseModel):
+    mode: str = "classic"  # "classic" | "anomalib"
+
+
+class CalibratePatternPayload(BaseModel):
+    w: int = 60
+    h: int = 50
+    num_frames: int = 15
+    interval_ms: int = 120
+
 
 current_detector_config = DetectorConfig()
 detector_lock = threading.Lock()
 global_tracker = DefectTracker()
-global_detector = ColorDetector()
+classic_detector = ColorDetector()
+anomalib_detector_instance = None
+current_detector_mode = os.getenv("DETECTOR_MODE", "classic").lower()
+
+
+_anomalib_mtime: float = 0.0
+
+
+def _get_or_load_anomalib_detector():
+    global anomalib_detector_instance, _anomalib_mtime
+    anomalib_file = Path(__file__).with_name("anomalib_detector.py")
+    current_mtime = anomalib_file.stat().st_mtime if anomalib_file.exists() else 0.0
+
+    if anomalib_detector_instance is not None and current_mtime == _anomalib_mtime:
+        return anomalib_detector_instance
+
+    import importlib
+    import anomalib_detector
+
+    if anomalib_detector_instance is not None and current_mtime != _anomalib_mtime:
+        _log.info("Detectada alteração em anomalib_detector.py — recarregando detector automaticamente...")
+        importlib.reload(anomalib_detector)
+
+    models_dir = Path(__file__).with_name("models")
+    backbone_path = models_dir / "resnet18_backbone.pth"
+    anomalib_detector_instance = anomalib_detector.AnomalibDetector(backbone_path=str(backbone_path))
+    _anomalib_mtime = current_mtime
+    _log.info("AnomalibDetector carregado com backbone: %s", backbone_path)
+    return anomalib_detector_instance
+
+
+
+def _resolve_detector_for_config(estampado: bool):
+    """
+    Regra de negócio:
+    - Tecido liso (estampado=False) -> OpenCV clássico (ColorDetector)
+    - Tecido detalhado/estampado (estampado=True) -> Anomalib (AnomalibDetector), com fallback seguro
+      para OpenCV caso o modelo falhe ao carregar.
+    """
+    global current_detector_mode, global_detector
+    if estampado:
+        try:
+            det = _get_or_load_anomalib_detector()
+            current_detector_mode = "anomalib"
+            global_detector = det
+            return det
+        except Exception as err:
+            _log.warning("Falha ao ativar Anomalib para tecido estampado, usando OpenCV como fallback: %s", err)
+
+    current_detector_mode = "classic"
+    global_detector = classic_detector
+    return classic_detector
+
 
 class PipelineState:
     def __init__(self):
@@ -349,7 +414,11 @@ def pipeline_worker():
             
             if frame is not None:
                 with detector_lock:
-                    config_dict = current_detector_config.dict()
+                    config_dict = (
+                        current_detector_config.model_dump()
+                        if hasattr(current_detector_config, "model_dump")
+                        else current_detector_config.dict()
+                    )
                     
                 w_pct = config_dict.get("w", 60)
                 h_pct = config_dict.get("h", 50)
@@ -369,8 +438,9 @@ def pipeline_worker():
                             config_dict["paleta"] = saved_paleta
                             config_dict["ref_a"] = saved_ref_a
                             config_dict["ref_b"] = saved_ref_b
-                            
-                    detections = global_detector.detect(roi, config_dict)
+
+                    active_detector = _resolve_detector_for_config(bool(config_dict.get("estampado", False)))
+                    detections = active_detector.detect(roi, config_dict)
                     
                     fixed_abs_detections = []
                     for det in detections:
@@ -390,7 +460,9 @@ def pipeline_worker():
                             )
                         )
                         
-                    if config_dict.get("linha_orientacao", "vertical") == "horizontal":
+                    orientacao = config_dict.get("linha_orientacao", "vertical")
+                    global_tracker.linha_orientacao = orientacao
+                    if orientacao == "horizontal":
                         linha_pos_abs = y_inicio + int(altura * (config_dict.get("linha_posicao_percent", 50) / 100.0))
                     else:
                         linha_pos_abs = x_inicio + int(largura * (config_dict.get("linha_posicao_percent", 50) / 100.0))
@@ -421,12 +493,110 @@ def update_detector_config(config: DetectorConfig) -> JSONResponse:
     global current_detector_config
     with detector_lock:
         current_detector_config = config
-    return JSONResponse(current_detector_config.dict())
+        _resolve_detector_for_config(bool(config.estampado))
+        data = (
+            current_detector_config.model_dump()
+            if hasattr(current_detector_config, "model_dump")
+            else current_detector_config.dict()
+        )
+    return JSONResponse(data)
 
 @app.get("/detector-config")
 def get_detector_config() -> JSONResponse:
     with detector_lock:
-        return JSONResponse(current_detector_config.dict())
+        data = (
+            current_detector_config.model_dump()
+            if hasattr(current_detector_config, "model_dump")
+            else current_detector_config.dict()
+        )
+        return JSONResponse(data)
+
+
+@app.get("/detector-mode")
+def get_detector_mode() -> JSONResponse:
+    models_dir = Path(__file__).with_name("models")
+    det_status = {}
+    if anomalib_detector_instance is not None:
+        det_status = anomalib_detector_instance.get_status()
+    return JSONResponse(
+        {
+            "mode": current_detector_mode,
+            "estampado": current_detector_config.estampado,
+            "backbone_available": (models_dir / "resnet18_backbone.pth").exists(),
+            "pattern_status": det_status,
+        }
+    )
+
+
+@app.post("/detector-mode")
+def set_detector_mode(payload: DetectorModePayload) -> JSONResponse:
+    mode = payload.mode.strip().lower()
+    if mode not in ("classic", "anomalib", "yolo"):
+        raise HTTPException(status_code=400, detail="mode deve ser 'classic' ou 'anomalib'")
+
+    with detector_lock:
+        current_detector_config.estampado = mode in ("anomalib", "yolo")
+        _resolve_detector_for_config(current_detector_config.estampado)
+
+    return JSONResponse({"mode": current_detector_mode, "estampado": current_detector_config.estampado})
+
+
+@app.get("/pattern-status")
+def get_pattern_status() -> JSONResponse:
+    det = _get_or_load_anomalib_detector()
+    return JSONResponse(det.get_status())
+
+
+@app.post("/clear-pattern")
+def clear_pattern() -> JSONResponse:
+    det = _get_or_load_anomalib_detector()
+    det.clear_pattern()
+    return JSONResponse({"success": True, "calibrated": False})
+
+
+@app.post("/calibrate-pattern")
+def calibrate_pattern(payload: CalibratePatternPayload = Body(default=CalibratePatternPayload())) -> JSONResponse:
+    """
+    Captura automaticamente `num_frames` recortes (ROI) do tecido BOM na câmera ao vivo,
+    salva as imagens em `camera-proxy/reference_patterns/active_pattern/frames/` e
+    constrói o Memory Bank do Anomalib para inspecionar aquela estampa.
+    """
+    w_pct = max(5, min(100, int(payload.w)))
+    h_pct = max(5, min(100, int(payload.h)))
+    num_frames = max(3, min(40, int(payload.num_frames)))
+    interval_ms = max(40, min(2000, int(payload.interval_ms)))
+
+    captured_rois: list[np.ndarray] = []
+    for i in range(num_frames):
+        frame = _decode_latest_frame()
+        h_frame, w_frame = frame.shape[:2]
+        largura = max(2, int(w_frame * (w_pct / 100.0)))
+        altura = max(2, int(h_frame * (h_pct / 100.0)))
+        x_inicio = max(0, int(w_frame / 2 - largura / 2))
+        y_inicio = max(0, int(h_frame / 2 - altura / 2))
+        x_fim = min(w_frame, x_inicio + largura)
+        y_fim = min(h_frame, y_inicio + altura)
+
+        roi = frame[y_inicio:y_fim, x_inicio:x_fim]
+        if roi.size > 0:
+            captured_rois.append(roi.copy())
+
+        if i < num_frames - 1:
+            time.sleep(interval_ms / 1000.0)
+
+    if not captured_rois:
+        raise HTTPException(status_code=503, detail="Não foi possível capturar frames válidos da câmera.")
+
+    det = _get_or_load_anomalib_detector()
+    metadata = det.fit_from_frames(captured_rois)
+
+    return JSONResponse(
+        {
+            "success": True,
+            "status": "calibrated",
+            "metadata": metadata,
+        }
+    )
 
 @app.get("/health")
 def health() -> JSONResponse:
@@ -472,7 +642,30 @@ def stream_mjpeg() -> StreamingResponse:
     )
 
 @app.get("/stream-analyzed.mjpg")
-def stream_analyzed_mjpeg() -> StreamingResponse:
+def stream_analyzed_mjpeg(
+    w: Optional[int] = None,
+    h: Optional[int] = None,
+    apenas_area: Optional[bool] = None,
+    estampado: Optional[bool] = None,
+    linha_orientacao: Optional[str] = None,
+    linha_posicao_percent: Optional[int] = None,
+) -> StreamingResponse:
+    with detector_lock:
+        if w is not None:
+            current_detector_config.w = max(5, min(100, int(w)))
+        if h is not None:
+            current_detector_config.h = max(5, min(100, int(h)))
+        if apenas_area is not None:
+            current_detector_config.apenas_area = bool(apenas_area)
+        else:
+            current_detector_config.apenas_area = False
+        if estampado is not None:
+            current_detector_config.estampado = bool(estampado)
+        if linha_orientacao in ("vertical", "horizontal"):
+            current_detector_config.linha_orientacao = linha_orientacao
+        if linha_posicao_percent is not None:
+            current_detector_config.linha_posicao_percent = max(0, min(100, int(linha_posicao_percent)))
+
     boundary = "frame"
 
     def analyzed_frame_generator():

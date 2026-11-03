@@ -1,5 +1,5 @@
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import PanelConfiguration from "@/pages/PanelConfiguration";
+import PanelConfiguration from "@/views/PanelConfiguration";
 
 export default function ConfigPage() {
   return (

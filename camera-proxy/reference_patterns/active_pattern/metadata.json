@@ -1,0 +1,36 @@
+{
+  "calibrated_at": "2026-10-28T13:52:30.381490+00:00",
+  "num_frames": 15,
+  "coreset_size": 2048,
+  "embedding_dim": 201,
+  "grid_size": [
+    32,
+    32
+  ],
+  "input_size": [
+    256,
+    256
+  ],
+  "mean_dist": 0.23995,
+  "std_dist": 0.07343,
+  "p99_dist": 0.4369,
+  "threshold": 0.57671,
+  "frames_dir": "/home/lua/Documentos/fabric-analyzer-interface/camera-proxy/reference_patterns/active_pattern/frames",
+  "saved_files": [
+    "good_001.jpg",
+    "good_002.jpg",
+    "good_003.jpg",
+    "good_004.jpg",
+    "good_005.jpg",
+    "good_006.jpg",
+    "good_007.jpg",
+    "good_008.jpg",
+    "good_009.jpg",
+    "good_010.jpg",
+    "good_011.jpg",
+    "good_012.jpg",
+    "good_013.jpg",
+    "good_014.jpg",
+    "good_015.jpg"
+  ]
+}

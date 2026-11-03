@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Grip, Save, Eye, Info, ArrowLeft } from "lucide-react";
 import { CameraPreview } from "./CameraPreview";
 import type { SamplePointsValue } from "@/lib/systemConfig";
@@ -10,7 +10,7 @@ interface AnalysisAreaProps {
     sampleAreaWidthPercent: number;
     sampleAreaHeightPercent: number;
     estampado: boolean;
-  }) => void;
+  }) => Promise<void> | void;
   initialWidth: number;
   initialHeight: number;
   initialPoints: SamplePointsValue;
@@ -22,217 +22,272 @@ export const AnalysisArea = ({ onBack, onSave, initialWidth, initialHeight, init
   const [heightRangeValue, setHeightRangeValue] = useState(initialHeight);
   const [widthRangeValue, setWidthRangeValue] = useState(initialWidth);
   const [selectedPoints, setSelectedPoints] = useState<SamplePointsValue>(initialPoints);
-
   const [isEstampado, setIsEstampado] = useState(initialEstampado);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setWidthRangeValue(initialWidth);
+    setHeightRangeValue(initialHeight);
+    setSelectedPoints(initialPoints);
+    setIsEstampado(initialEstampado);
+  }, [initialWidth, initialHeight, initialPoints, initialEstampado]);
 
   // Simple local Switch component to avoid external dependency import
   const Switch = ({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (v: boolean) => void }) => (
     <button
+      type="button"
       aria-pressed={checked}
       onClick={() => onCheckedChange(!checked)}
-      className={`w-12 h-7 rounded-full p-1 transition-colors ${checked ? 'bg-blue-600' : 'bg-slate-600'}`}
+      className={`w-12 h-7 rounded-full p-1 transition-all duration-300 border ${
+        checked
+          ? "bg-amber-500/30 border-amber-400/50 shadow-[0_0_15px_rgba(245,158,11,0.3)]"
+          : "bg-slate-800 border-white/10"
+      }`}
     >
       <span
-        className={`block w-5 h-5 bg-white rounded-full shadow transform transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`}
+        className={`block w-4.5 h-4.5 rounded-full shadow transform transition-transform duration-300 ${
+          checked ? "translate-x-5 bg-amber-300" : "translate-x-0 bg-slate-300"
+        }`}
+        style={{ width: "18px", height: "18px" }}
       />
     </button>
   );
 
   const getPointStyle = (value: SamplePointsValue) => {
-    const baseClasses =
-      "flex flex-col text-xs justify-center items-center w-full h-full cursor-pointer transition-colors";
-    const activeClasses = "bg-blue-600 text-white";
-    const hoverClasses = "hover:bg-slate-700";
-
-    return `${baseClasses} ${selectedPoints === value ? activeClasses : hoverClasses}`;
+    const active = selectedPoints === value;
+    return `flex flex-col gap-1.5 text-xs font-medium justify-center items-center py-4 px-3 rounded-xl border cursor-pointer transition-all duration-200 ${
+      active
+        ? "bg-cyan-500/20 border-cyan-400 text-cyan-200 shadow-[0_0_20px_rgba(6,182,212,0.2)]"
+        : "bg-slate-950/60 border-white/10 text-slate-400 hover:bg-slate-900 hover:text-white hover:border-white/20"
+    }`;
   };
 
   return (
-    <div className="fixed inset-0 z-20 overflow-hidden bg-[#0a0c14] flex items-center justify-center">
+    <div className="fixed inset-0 z-20 overflow-hidden bg-[#050811] flex items-center justify-center p-4">
       <CameraPreview
         className="absolute inset-0 z-0 rounded-none border-0"
-        imageClassName="w-full h-full object-contain opacity-55"
-        fallbackMessage="Preview indisponivel para a area de analise."
+        imageClassName="w-full h-full object-contain opacity-65"
+        fallbackMessage="Preview indisponível para a área de análise."
         showRetryButton={false}
-        streamPath={`/stream-analyzed.mjpg?w=${widthRangeValue}&h=${heightRangeValue}&apenas_area=true`}
+        streamPath={`/stream-analyzed.mjpg?w=${widthRangeValue}&h=${heightRangeValue}&apenas_area=true&estampado=${isEstampado}`}
       />
+      <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black/70 via-transparent to-black/50" />
+
       {isVisible && (
-        <div className="relative z-20 w-full max-w-2xl mx-auto bg-[#0a0c14]/90 backdrop-blur-sm p-8 rounded-xl border border-slate-800 text-white text-sm">
-          <div className="mb-6">
+        <div className="relative z-20 w-full max-w-xl mx-auto rounded-2xl border border-white/10 bg-slate-900/80 backdrop-blur-xl p-7 text-white text-sm shadow-[0_24px_64px_-12px_rgba(0,0,0,0.8)]">
+          <div className="flex items-center justify-between mb-6">
             <button
               onClick={onBack}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-700/70 hover:bg-slate-600 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-950/80 border border-white/10 hover:border-cyan-400/40 hover:text-cyan-300 transition-all text-xs font-medium text-slate-200"
             >
               <ArrowLeft size={14} />
               Voltar
             </button>
-          </div>
-          <div className="relative flex items-center justify-center mb-10">
-            <h2 className="text-xl font-bold cursor-default text-center">
-              Selecione o n.º de pontos e medidas da área
-            </h2>
-            <div className="absolute right-0">
-              <div className="group relative flex items-center justify-center">
-                <Info
-                  size={20}
-                  className="cursor-pointer text-slate-400 group-hover:text-slate-100 transition-colors"
-                />
-                <div className="absolute left-full ml-3 hidden group-hover:block w-64 p-3 bg-slate-800 text-xs text-white rounded shadow-lg border border-slate-700 glow-box z-50">
-                  <p className="mb-1">Selecione o número de pontos de amostragem e as medidas da área de análise.</p>
-                  <ul className="space-y-1 text-[11px] text-slate-300">
-                    <li><strong className="text-white">4 Pontos:</strong> Amostragem básica para análise de cor.</li>
-                    <li><strong className="text-white">9 Pontos:</strong> Amostragem moderada para análise de cor.</li>
-                    <li><strong className="text-white">18 Pontos:</strong> Amostragem detalhada para análise de cor.</li>
-                  </ul>
 
-                  <div className="absolute top-1/2 -translate-y-1/2 right-full border-8 border-transparent border-r-slate-800"></div>
-                </div>
+            <div className="group relative flex items-center justify-center">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-950/70 border border-white/10 text-xs text-slate-300 cursor-pointer hover:border-cyan-400/40">
+                <Info size={14} className="text-cyan-400" />
+                <span>Ajuda</span>
+              </div>
+              <div className="absolute right-0 top-full mt-2 hidden group-hover:block w-72 p-4 bg-slate-950/95 text-xs text-white rounded-xl shadow-2xl border border-white/15 z-50 backdrop-blur-xl">
+                <p className="font-semibold text-cyan-300 mb-1.5">Amostragem e ROI</p>
+                <p className="text-slate-300 mb-2 leading-relaxed">
+                  Defina os pontos de coleta e o tamanho da caixa tracejada (ROI) na câmera:
+                </p>
+                <ul className="space-y-1 text-[11px] text-slate-300">
+                  <li><strong className="text-white">4 Pontos:</strong> Coleta rápida para tecidos uniformes.</li>
+                  <li><strong className="text-white">9 Pontos:</strong> Coleta balanceada (recomendado).</li>
+                  <li><strong className="text-white">18 Pontos:</strong> Coleta densa de alta precisão.</li>
+                </ul>
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-3 border border-slate-700 rounded-[10px] w-[350px] h-[100px] m-auto mb-10 overflow-hidden">
-            <span
-              onClick={() => setSelectedPoints(4)}
-              className={`${getPointStyle(4)} rounded-tl-[10px] rounded-bl-[10px] border-r border-slate-800`}
-            >
-              <Grip />
-              <p>4 Pontos</p>
-            </span>
 
-            <span
-              onClick={() => setSelectedPoints(9)}
-              className={`${getPointStyle(9)} border-r border-slate-800`}
-            >
-              <Grip />
-              <p>9 Pontos</p>
-            </span>
-
-            <span
-              onClick={() => setSelectedPoints(18)}
-              className={`${getPointStyle(18)} rounded-tr-[10px] rounded-br-[10px]`}
-            >
-              <Grip />
-              <p>18 Pontos</p>
-            </span>
+          <div className="mb-6">
+            <h2 className="font-sansserief text-lg font-bold tracking-[0.12em] uppercase text-white">
+              Área de Análise e Detector
+            </h2>
+            <p className="text-xs text-slate-400 mt-1">
+              Ajuste o recorte espacial da câmera e escolha o motor de visão computacional.
+            </p>
           </div>
-          <div className="grid grid-cols-[1fr_4fr_1fr] gap-x-6 gap-y-4 items-center">
-            <div className="flex flex-col gap-y-4 text-sm font-medium text-slate-300">
-              <span className="h-6 flex items-center cursor-default">
-                Largura
-              </span>
-              <span className="h-6 flex items-center cursor-default">
-                Altura
-              </span>
+
+          <div className="mb-6">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-300 mb-2.5">
+              Pontos de Amostragem
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <button type="button" onClick={() => setSelectedPoints(4)} className={getPointStyle(4)}>
+                <Grip className="w-5 h-5" />
+                <span>4 Pontos</span>
+              </button>
+              <button type="button" onClick={() => setSelectedPoints(9)} className={getPointStyle(9)}>
+                <Grip className="w-5 h-5" />
+                <span>9 Pontos</span>
+              </button>
+              <button type="button" onClick={() => setSelectedPoints(18)} className={getPointStyle(18)}>
+                <Grip className="w-5 h-5" />
+                <span>18 Pontos</span>
+              </button>
             </div>
-            <div className="flex flex-col gap-y-4">
+          </div>
+
+          <div className="space-y-4 rounded-xl border border-white/10 bg-slate-950/60 p-4 mb-5">
+            <div>
+              <div className="flex justify-between text-xs mb-1.5">
+                <span className="font-medium text-slate-300 uppercase tracking-wider">Largura da Área (ROI)</span>
+                <span className="font-mono-tech font-semibold text-cyan-300">{widthRangeValue}%</span>
+              </div>
               <input
                 type="range"
-                min={0}
+                min={5}
                 max={100}
                 step={1}
                 value={widthRangeValue}
                 onChange={(e) => setWidthRangeValue(Number(e.target.value))}
-                className="w-full h-6 accent-blue-600 cursor-pointer"
+                className="w-full h-2 rounded-lg accent-cyan-400 cursor-pointer bg-slate-800"
               />
+            </div>
+
+            <div>
+              <div className="flex justify-between text-xs mb-1.5">
+                <span className="font-medium text-slate-300 uppercase tracking-wider">Altura da Área (ROI)</span>
+                <span className="font-mono-tech font-semibold text-cyan-300">{heightRangeValue}%</span>
+              </div>
               <input
                 type="range"
-                min={0}
+                min={5}
                 max={100}
                 step={1}
                 value={heightRangeValue}
                 onChange={(e) => setHeightRangeValue(Number(e.target.value))}
-                className="w-full h-6 accent-blue-600 cursor-pointer"
+                className="w-full h-2 rounded-lg accent-cyan-400 cursor-pointer bg-slate-800"
               />
             </div>
-            <div className="flex flex-col gap-y-4 cursor-default">
-              <span>{widthRangeValue}%</span>
-              <span>{heightRangeValue}%</span>
-            </div>
           </div>
-          <div className="flex justify-end gap-5 mt-8">
+
+          <div
+            className={`flex items-center justify-between gap-4 rounded-xl border p-4 transition-colors ${
+              isEstampado
+                ? "border-amber-500/40 bg-amber-500/10"
+                : "border-cyan-500/30 bg-cyan-500/5"
+            }`}
+          >
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-white">
+                  Tecido detalhado / estampado
+                </p>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                    isEstampado
+                      ? "bg-amber-500/25 text-amber-200 border border-amber-400/40"
+                      : "bg-cyan-500/20 text-cyan-200 border border-cyan-400/30"
+                  }`}
+                >
+                  {isEstampado ? "Anomalib Ativo" : "OpenCV Ativo"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-1">
+                {isEstampado
+                  ? "Usa Anomalib (PatchCore / ResNet18) para aprender o padrão do tecido bom com estampa, xadrez ou textura."
+                  : "Tecido liso selecionado: usa segmentação clássica OpenCV (CIE Lab) de alta velocidade."}
+              </p>
+            </div>
+            <Switch checked={isEstampado} onCheckedChange={setIsEstampado} />
+          </div>
+
+          <div className="flex items-center justify-end gap-3 mt-7">
             <button
+              type="button"
               onClick={() => setIsVisible(false)}
-              className="bg-gray-500 p-2 w-[100px] rounded-[10px] hover:bg-gray-400"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-950/80 border border-white/10 hover:border-white/25 text-xs font-medium text-slate-200 transition-all"
             >
-              Esconder
+              <Eye size={16} />
+              Ver Câmera Limpa
             </button>
             <button
-              onClick={() => {
-                onSave({
-                  samplePoints: selectedPoints,
-                  sampleAreaWidthPercent: widthRangeValue,
-                  sampleAreaHeightPercent: heightRangeValue,
-                  estampado: isEstampado,
-                });
-                onBack();
+              type="button"
+              disabled={isSaving}
+              onClick={async () => {
+                setIsSaving(true);
+                try {
+                  await onSave({
+                    samplePoints: selectedPoints,
+                    sampleAreaWidthPercent: widthRangeValue,
+                    sampleAreaHeightPercent: heightRangeValue,
+                    estampado: isEstampado,
+                  });
+                  onBack();
+                } finally {
+                  setIsSaving(false);
+                }
               }}
-              className="flex-col justify-items-center bg-gray-500 p-2 w-[100px] gap-2 rounded-[10px] hover:bg-gray-400"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-semibold text-xs tracking-wider uppercase shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all disabled:opacity-50"
             >
-              <Save />
-              <p>Salvar</p>
+              <Save size={16} />
+              <span>{isSaving ? "Salvando..." : "Salvar Área"}</span>
             </button>
           </div>
         </div>
       )}
 
       {!isVisible && (
-        <div className="absolute bottom-10 z-20 flex gap-10">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-2rem)] max-w-4xl rounded-2xl border border-white/15 bg-slate-900/85 backdrop-blur-xl p-4 shadow-2xl flex flex-wrap items-center justify-between gap-4 text-white">
           <button
             onClick={onBack}
-            className="bg-slate-700 p-2 w-[120px] rounded-[10px] hover:bg-slate-600"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-950/80 border border-white/10 hover:border-cyan-400/40 text-xs font-medium text-slate-200"
           >
+            <ArrowLeft size={14} />
             Voltar
           </button>
-          <div className="flex items-center justify-between mb-6 px-2">
+
+          <div className="flex items-center gap-3">
             <div>
-              <p className="text-sm font-medium text-white">Tecido estampado</p>
-              <p className="text-xs text-slate-400">Xadrez, listrado ou outro padrão repetido</p>
+              <p className="text-xs font-semibold text-white">Tecido detalhado / estampado</p>
+              <p className="text-[11px] text-slate-400">
+                {isEstampado ? "Modo Anomalib ativo" : "Modo OpenCV (liso)"}
+              </p>
             </div>
             <Switch checked={isEstampado} onCheckedChange={setIsEstampado} />
           </div>
-          <div className="flex gap-3">
-            <div className="flex flex-col gap-y-4 text-sm font-medium text-slate-300">
-              <span className="h-6 flex items-center cursor-default">
-                Largura
-              </span>
-              <span className="h-6 flex items-center cursor-default">
-                Altura
-              </span>
-            </div>
-            <div className="flex flex-col gap-y-4">
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={1}
-                value={widthRangeValue}
-                onChange={(e) => setWidthRangeValue(Number(e.target.value))}
-                className="w-full h-6 accent-blue-600 cursor-pointer"
-              />
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={1}
-                value={heightRangeValue}
-                onChange={(e) => setHeightRangeValue(Number(e.target.value))}
-                className="w-full h-6 accent-blue-600 cursor-pointer"
-              />
-            </div>
-            <div className="flex flex-col gap-y-4 cursor-default">
-              <span>{widthRangeValue}%</span>
-              <span>{heightRangeValue}%</span>
+
+          <div className="flex items-center gap-4 flex-1 min-w-[220px] max-w-sm">
+            <div className="w-full space-y-2">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-400">Largura: <strong className="text-cyan-300">{widthRangeValue}%</strong></span>
+                <input
+                  type="range"
+                  min={5}
+                  max={100}
+                  step={1}
+                  value={widthRangeValue}
+                  onChange={(e) => setWidthRangeValue(Number(e.target.value))}
+                  className="w-32 accent-cyan-400 cursor-pointer"
+                />
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-400">Altura: <strong className="text-cyan-300">{heightRangeValue}%</strong></span>
+                <input
+                  type="range"
+                  min={5}
+                  max={100}
+                  step={1}
+                  value={heightRangeValue}
+                  onChange={(e) => setHeightRangeValue(Number(e.target.value))}
+                  className="w-32 accent-cyan-400 cursor-pointer"
+                />
+              </div>
             </div>
           </div>
-          <div className="flex">
-            <button
-              onClick={() => setIsVisible(true)}
-              className="bg-gray-500 p-2 w-[150px] rounded-[10px] hover:bg-gray-400 "
-            >
-              <Eye className="m-auto" />
-              Mostrar Painel
-            </button>
-          </div>
+
+          <button
+            onClick={() => setIsVisible(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/30 text-xs font-semibold"
+          >
+            <Eye size={16} />
+            Mostrar Painel
+          </button>
         </div>
       )}
     </div>

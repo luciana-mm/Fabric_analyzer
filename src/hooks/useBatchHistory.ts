@@ -12,8 +12,31 @@ export type BatchHistoryRow = {
   total_fabrics: number;
   approved_count: number;
   rejected_count: number;
+  total_defects: number;
+  patterned_defects: number;
+  is_patterned: boolean;
   operator_user_ids: string[];
   total_rows: number;
+};
+
+export type BatchInspectionRecord = {
+  id: string;
+  reference_code: string;
+  analyzed_at: string;
+  result: "ok" | "fail";
+  failure_reason: string | null;
+  processing_time_ms: number;
+  defect_count: number;
+  is_patterned: boolean;
+  comparison_method: string;
+  delta_e_measured: number | null;
+  delta_e_threshold: number | null;
+  precision_percent: number | null;
+  required_precision_percent: number | null;
+  reference_color_hex: string | null;
+  measured_color_hex: string | null;
+  analysis_type: string | null;
+  operator_name: string;
 };
 
 export type BatchDetailsRow = {
@@ -22,12 +45,21 @@ export type BatchDetailsRow = {
   total_fabrics: number;
   approved_count: number;
   rejected_count: number;
+  total_defects: number;
+  patterned_defects: number;
+  plain_defects: number;
+  patterned_count: number;
+  plain_count: number;
+  is_patterned: boolean;
+  avg_precision: number | null;
+  avg_delta_e: number | null;
   first_analyzed_at: string;
   last_analyzed_at: string;
   operators: Array<{
     user_id: string;
     display_name: string;
   }>;
+  records: BatchInspectionRecord[];
 };
 
 export const useBatchHistory = (

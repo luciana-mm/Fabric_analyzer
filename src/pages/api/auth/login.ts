@@ -37,9 +37,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const role = roleResult.rows[0]?.role ?? null;
     const displayName = profileResult.rows[0]?.display_name ?? null;
+
+    await query(
+      `UPDATE operator_configurations
+       SET system_step = 'CONFIG',
+           active_tissue_code = 'TCD-NOVO',
+           delta_e = 3,
+           sample_points = 9,
+           sample_area_width_percent = 60,
+           sample_area_height_percent = 50,
+           estampado = false,
+           reference_color_hex = '#FFFFFF',
+           reference_color_r = 255,
+           reference_color_g = 255,
+           reference_color_b = 255,
+           ambient_light_reference_hex = NULL,
+           ambient_light_reference_r = NULL,
+           ambient_light_reference_g = NULL,
+           ambient_light_reference_b = NULL,
+           delta_configured = false,
+           analysis_area_configured = false,
+           color_configured = false,
+           ambient_light_configured = false,
+           light_calibrated = false,
+           active_view = 'home',
+           updated_at = NOW()
+       WHERE user_id = $1`,
+      [user.id],
+    );
+
     const sessionToken = createSessionToken(user.id);
     res.setHeader("Set-Cookie", createSessionCookie(sessionToken));
-    return res.status(200).json({
+
+    return res.status(200).json({
       user: {
         id: user.id,
         email: user.email,

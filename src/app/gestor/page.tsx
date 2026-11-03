@@ -1,5 +1,5 @@
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import Manager from "@/pages/Manager";
+import Manager from "@/views/Manager";
 
 export default function GestorPage() {
   return (

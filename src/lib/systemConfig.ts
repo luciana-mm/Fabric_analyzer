@@ -422,3 +422,27 @@ export const saveSystemConfigView = (
 
   window.localStorage.setItem(getSystemConfigViewStorageKey(scopeKey), view);
 };
+
+export const clearSystemConfigCache = (scopeKey?: string | null): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(SYSTEM_CONFIG_STORAGE_KEY);
+  window.localStorage.removeItem(SYSTEM_CONFIG_VIEW_STORAGE_KEY);
+  if (scopeKey) {
+    window.localStorage.removeItem(getSystemConfigStorageKey(scopeKey));
+    window.localStorage.removeItem(getSystemConfigViewStorageKey(scopeKey));
+  }
+
+  for (let i = window.localStorage.length - 1; i >= 0; i -= 1) {
+    const key = window.localStorage.key(i);
+    if (
+      key &&
+      (key.startsWith(SYSTEM_CONFIG_STORAGE_KEY) ||
+        key.startsWith(SYSTEM_CONFIG_VIEW_STORAGE_KEY))
+    ) {
+      window.localStorage.removeItem(key);
+    }
+  }
+};

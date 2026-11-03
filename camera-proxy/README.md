@@ -1,22 +1,24 @@
-# Camera Proxy (Hikvision RTSP -> MJPEG)
+# Camera Proxy & Motor Híbrido de Visão Computacional (OpenCV + Anomalib)
 
-Este servico local em Python conecta na camera Hikvision via RTSP e disponibiliza um stream continuo para o front-end em:
+Este serviço em Python (FastAPI) conecta na câmera Hikvision via RTSP, processa os frames em tempo real (`12 FPS`) e disponibiliza o stream analisado e as rotas de calibração para o frontend.
 
-- http://127.0.0.1:8090/stream.mjpg
+## Arquitetura de Detecção (`detector.py` + `anomalib_detector.py`)
 
-## Como usar
+1. **Tecidos Lisos (`estampado = false`) — `ColorDetector` (OpenCV Clássico):**
+   - Opera no espaço perceptual CIE L\*a\*b\* com normalização de iluminação local (`medianBlur 41x41`) e filtragem morfológica.
+   - Referência salva em: `camera-proxy/calibrated-color-reference.json`.
+2. **Tecidos Detalhados / Estampados (`estampado = true`) — `AnomalibDetector` (PatchCore / ResNet18):**
+   - Aprendizado Não-Supervisionado (*One-Class*): aprende o padrão da estampa usando **apenas fotos do tecido BOM** capturadas antes da análise (`POST /calibrate-pattern`).
+   - Fotos do tecido bom salvas em: `camera-proxy/reference_patterns/active_pattern/frames/`.
+   - Banco de memória salvo em: `camera-proxy/reference_patterns/active_pattern/memory_bank.npz`.
+   - Backbone local: `camera-proxy/models/resnet18_backbone.pth`.
 
-1. Copie `camera-proxy/.env.example` para `camera-proxy/.env` e ajuste os dados se necessario.
-2. Instale dependencias:
-   - `npm run camera:install`
-3. Inicie o proxy:
-   - `npm run camera:proxy`
-4. No front-end, configure a URL do proxy:
-   - copie `.env.local.example` para `.env.local`
-   - confirme `NEXT_PUBLIC_CAMERA_PROXY_URL=http://127.0.0.1:8090`
-5. Rode o app e acesse:
-   - `/painel/camera`
+## Endpoints Principais
 
-## Endpoint de status
-
-- http://127.0.0.1:8090/health
+- `GET /stream.mjpg` — Stream bruto da câmera
+- `GET /stream-analyzed.mjpg` — Stream com ROI, linha de contagem e detecções em tempo real
+- `POST /reference-palette` — Calibra a paleta de cor (OpenCV)
+- `POST /calibrate-pattern` — Captura fotos do tecido bom e constrói o Memory Bank da estampa (Anomalib)
+- `GET /pattern-status` — Retorna status e metadados da estampa calibrada no Anomalib
+- `GET /defect-count` / `POST /reset-count` — Leitura e reset do contador de defeitos (`DefectTracker`)
+- `GET /health` — Status de conexão com a câmera RTSP

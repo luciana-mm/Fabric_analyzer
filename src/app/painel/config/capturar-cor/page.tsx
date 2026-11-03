@@ -12,7 +12,11 @@ import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
 function ConfigCaptureColorContent() {
   const router = useRouter();
   const { user } = useAuth();
-  const { config, persistPatch } = useOperatorSystemConfig(user?.id);
+  const { config, isLoading, persistPatch } = useOperatorSystemConfig(user?.id);
+
+  if (isLoading) {
+    return <div className="min-h-screen bg-[#0a0c14]" />;
+  }
 
   return (
     <div className="relative min-h-screen flex flex-col overflow-hidden">
@@ -39,6 +43,7 @@ function ConfigCaptureColorContent() {
             initialLightCalibrated={config.ambientLightConfigured}
             initialSampleAreaWidthPercent={config.sampleAreaWidthPercent}
             initialSampleAreaHeightPercent={config.sampleAreaHeightPercent}
+            estampado={config.estampado}
             onSave={async (payload) => {
               if (persistPatch) {
                 await persistPatch(payload);

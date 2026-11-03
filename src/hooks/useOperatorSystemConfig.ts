@@ -25,6 +25,7 @@ type OperatorConfigRow = {
   sample_points: number;
   sample_area_width_percent: number;
   sample_area_height_percent: number;
+  estampado?: boolean;
   reference_color_hex: string;
   reference_color_r: number;
   reference_color_g: number;
@@ -51,6 +52,7 @@ const rowToSystemConfig = (row: OperatorConfigRow, localConfig: SystemConfig): S
     samplePoints: row.sample_points as SystemConfig["samplePoints"],
     sampleAreaWidthPercent: row.sample_area_width_percent,
     sampleAreaHeightPercent: row.sample_area_height_percent,
+    estampado: row.estampado ?? localConfig.estampado,
     referenceColorHex: row.reference_color_hex,
     referenceColorRgb: {
       r: row.reference_color_r,
@@ -95,6 +97,7 @@ const systemConfigToPayload = (
   sample_points: config.samplePoints,
   sample_area_width_percent: config.sampleAreaWidthPercent,
   sample_area_height_percent: config.sampleAreaHeightPercent,
+  estampado: config.estampado,
   reference_color_hex: config.referenceColorHex,
   reference_color_r: config.referenceColorRgb.r,
   reference_color_g: config.referenceColorRgb.g,
