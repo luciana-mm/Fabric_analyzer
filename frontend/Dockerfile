@@ -7,6 +7,11 @@ RUN npm ci
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+ARG NEXT_PUBLIC_CAMERA_PROXY_URL=http://localhost:8090
+ARG NEXT_PUBLIC_API_URL=http://localhost:8090
+ENV NEXT_PUBLIC_CAMERA_PROXY_URL=$NEXT_PUBLIC_CAMERA_PROXY_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
@@ -21,4 +26,5 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 3000
+
 CMD ["npm", "run", "start"]

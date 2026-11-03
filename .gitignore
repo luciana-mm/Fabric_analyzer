@@ -1,7 +1,10 @@
 # Dependencies
 node_modules/
+**/node_modules/
 venv/
+**/venv/
 .venv/
+**/.venv/
 env/
 
 # Logs
@@ -19,9 +22,18 @@ lerna-debug.log*
 .env.*
 !.env.example
 !.env.*.example
+**/calibrated-color-reference.json
+
+# Local Docker volumes and database data
+postgres_data/
+pgdata/
+db_data/
+volumes/
+data/
 
 # Next.js, TypeScript and test output
 .next/
+**/.next/
 .turbo/
 .vercel/
 out/
@@ -31,6 +43,7 @@ coverage/
 
 # Python bytecode, tooling and test caches
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
@@ -39,11 +52,9 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Application-generated local calibration data
-camera-proxy/calibrated-color-reference.json
-
 # Build output
 dist/
+**/dist/
 dist-ssr/
 build/
 next/
@@ -63,6 +74,6 @@ next/
 .codex_tmp_pdf/
 out.bin
 lint_results.json
-camera-proxy/runs/
-camera-proxy/models/best.pt
-
+backend/runs/
+backend/models/best.pt
+backend/dataset/raw/
