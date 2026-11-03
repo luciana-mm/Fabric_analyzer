@@ -6,8 +6,17 @@
 -- ============================================================
 -- 1. ENUMS
 -- ============================================================
-CREATE TYPE IF NOT EXISTS public.app_role AS ENUM ('operador', 'gestor');
-CREATE TYPE IF NOT EXISTS public.analysis_item_type AS ENUM ('tecido', 'pecas');
+DO $$ BEGIN
+  CREATE TYPE public.app_role AS ENUM ('operador', 'gestor');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE public.analysis_item_type AS ENUM ('tecido', 'pecas');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ============================================================
 -- 2. TABELA USERS (Autenticação)
@@ -130,6 +139,10 @@ CREATE TABLE public.analysis_records (
   required_precision_percent NUMERIC(5, 2) CHECK (required_precision_percent IS NULL OR (required_precision_percent >= 0 AND required_precision_percent <= 100)),
   comparison_method TEXT DEFAULT 'CIEDE2000',
   
+  -- Métricas de Defeitos Físicos e Tipo de Inspeção (OpenCV Liso vs Anomalib Detalhado)
+  defect_count INTEGER NOT NULL DEFAULT 0 CHECK (defect_count >= 0),
+  is_patterned BOOLEAN NOT NULL DEFAULT false,
+
   -- Cores (Hex)
   reference_color_hex VARCHAR(7) CHECK (reference_color_hex IS NULL OR reference_color_hex ~ '^#[0-9A-Fa-f]{6}$'),
   measured_color_hex VARCHAR(7) CHECK (measured_color_hex IS NULL OR measured_color_hex ~ '^#[0-9A-Fa-f]{6}$'),
@@ -145,6 +158,7 @@ CREATE INDEX idx_analysis_result ON public.analysis_records(result);
 CREATE INDEX idx_analysis_analyzed_at ON public.analysis_records(analyzed_at DESC);
 CREATE INDEX idx_analysis_tissue_batch ON public.analysis_records(tissue_batch_code);
 CREATE INDEX idx_analysis_type ON public.analysis_records(analysis_type);
+CREATE INDEX idx_analysis_is_patterned ON public.analysis_records(is_patterned);
 
 -- ============================================================
 -- 7. INSERIR USUÁRIOS PADRÃO
