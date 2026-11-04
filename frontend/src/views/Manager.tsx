@@ -12,6 +12,7 @@ import {
   Search,
   TrendingUp,
   Users,
+  Video,
   XCircle,
 } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
@@ -256,6 +257,13 @@ const Manager = () => {
               >
                 <ExternalLink className="w-3.5 h-3.5 text-cyan-400" />
                 Gerenciar Equipe
+              </button>
+              <button
+                onClick={() => router.push("/gestor/cftv")}
+                className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900/80 border border-white/10 hover:border-cyan-400/40 hover:text-cyan-300 transition-all text-xs font-medium text-slate-200"
+              >
+                <Video className="w-3.5 h-3.5 text-cyan-400" />
+                CFTV & Câmeras
               </button>
               <button
                 onClick={() => router.push("/gestor/historico")}
