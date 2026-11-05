@@ -64,8 +64,8 @@ abstract class BaseTsDvrAdapter implements DvrAdapter {
       name: config.name,
       brand: config.brand,
       host: config.host,
-      rtsp_port: config.rtsp_port ?? 554,
-      http_port: config.http_port ?? 80,
+      rtsp_port: config.rtsp_port ?? (config.brand === "droidcam" ? 4747 : 554),
+      http_port: config.http_port ?? (config.brand === "droidcam" ? 4747 : 80),
       sdk_port: config.sdk_port ?? (config.brand === "intelbras" ? 37777 : 8000),
       username: config.username || "admin",
       password: config.password || "****",
@@ -369,7 +369,120 @@ export class GenericOnvifAdapter extends BaseTsDvrAdapter {
 }
 
 /**
- * 4. GenericRtspAdapter:
+ * 4. DroidCamAdapter:
+ * Para celulares Android/iOS rodando o app DroidCam via Wi-Fi (porta padrão 4747).
+ * Stream HTTP MJPEG: `http://<host>:4747/video`
+ * Snapshot HTTP: `http://<host>:4747/cam/1/frame.jpg`
+ */
+export class DroidCamAdapter extends BaseTsDvrAdapter {
+  private getPort(): number {
+    if (this.config.rtsp_port && this.config.rtsp_port !== 554) {
+      return this.config.rtsp_port;
+    }
+    if (this.config.http_port && this.config.http_port !== 80) {
+      return this.config.http_port;
+    }
+    return 4747;
+  }
+
+  async getCameraStream(): Promise<string> {
+    const port = this.getPort();
+    const hasAuth =
+      this.config.username &&
+      this.config.username !== "admin" &&
+      this.config.password &&
+      this.config.password !== "****";
+    const authPrefix = hasAuth ? `${this.config.username}:${this.config.password}@` : "";
+    return maskRtspCredentials(`http://${authPrefix}${this.config.host}:${port}/video`);
+  }
+
+  async testConnection(): Promise<ConnectionResult> {
+    const port = this.getPort();
+    const probe = await probeTcpPort(this.config.host, port, 2500);
+    return {
+      success: probe.ok,
+      message: probe.ok
+        ? `DroidCam conectado no celular ${this.config.host}:${port}/video`
+        : `DroidCam inacessível em ${this.config.host}:${port} (verifique se o app DroidCam está aberto no mesmo Wi-Fi)`,
+      latencyMs: probe.latencyMs,
+      statusCode: probe.ok ? 200 : 504,
+      details: {
+        brand: "droidcam",
+        port,
+        portOpen: probe.ok,
+        streamUrl: `http://${this.config.host}:${port}/video`,
+        snapshotUrl: `http://${this.config.host}:${port}/cam/1/frame.jpg`,
+      },
+    };
+  }
+
+  async discoverCameras(): Promise<CameraDescriptor[]> {
+    const port = this.getPort();
+    const probe = await probeTcpPort(this.config.host, port, 2000);
+    const streamUrl = await this.getCameraStream();
+    return [
+      {
+        id: `droidcam-${this.config.host}-${port}-ch-1`,
+        channelNumber: 1,
+        name: `${this.config.name} (Celular DroidCam)`,
+        streamUrl,
+        snapshotUrl: `http://${this.config.host}:${port}/cam/1/frame.jpg`,
+        resolution: { width: 1280, height: 720 },
+        fps: 25,
+        online: probe.ok,
+      },
+    ];
+  }
+
+  async captureSnapshot(cameraId: string): Promise<ImageCaptureResult> {
+    const port = this.getPort();
+    try {
+      const resp = await fetch(`http://${this.config.host}:${port}/cam/1/frame.jpg`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (resp.ok) {
+        const arrayBuffer = await resp.arrayBuffer();
+        return {
+          cameraId,
+          mimeType: "image/jpeg",
+          buffer: Buffer.from(arrayBuffer).toString("base64"),
+          width: 1280,
+          height: 720,
+          capturedAt: new Date().toISOString(),
+        };
+      }
+    } catch {
+      // fallback to cameraProxyUrl
+    }
+
+    const cameraProxyUrl =
+      process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_CAMERA_PROXY_URL || "http://127.0.0.1:8090";
+    const resp = await fetch(`${cameraProxyUrl}/snapshot.jpg`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    const arrayBuffer = await resp.arrayBuffer();
+    return {
+      cameraId,
+      mimeType: "image/jpeg",
+      buffer: Buffer.from(arrayBuffer).toString("base64"),
+      width: 1280,
+      height: 720,
+      capturedAt: new Date().toISOString(),
+    };
+  }
+
+  async getDeviceStatus() {
+    const port = this.getPort();
+    const probe = await probeTcpPort(this.config.host, port, 2000);
+    return {
+      online: probe.ok,
+      activeChannels: probe.ok ? 1 : 0,
+    };
+  }
+}
+
+/**
+ * 5. GenericRtspAdapter:
  * Para câmeras IP avulsas que aceitam URLs RTSP diretas.
  */
 export class GenericRtspAdapter extends BaseTsDvrAdapter {
@@ -444,7 +557,7 @@ export class GenericRtspAdapter extends BaseTsDvrAdapter {
 }
 
 /**
- * 5. MockOrSimulatorAdapter:
+ * 6. MockOrSimulatorAdapter:
  * Para testes de desenvolvimento sem depender de hardware físico.
  */
 export class MockOrSimulatorAdapter extends BaseTsDvrAdapter {
@@ -535,6 +648,8 @@ export class DvrAdapterFactory {
         return new IntelbrasDvrAdapter(config);
       case "onvif":
         return new GenericOnvifAdapter(config);
+      case "droidcam":
+        return new DroidCamAdapter(config);
       case "mock":
         return new MockOrSimulatorAdapter(config);
       case "generic":

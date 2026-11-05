@@ -176,6 +176,11 @@ class StreamSessionManager:
                 self._devices[device_id].config = config
             return self._devices[device_id].to_dict()
 
+    def get_device_config(self, device_id: str) -> Optional[DvrDeviceConfig]:
+        with self._lock:
+            entry = self._devices.get(device_id)
+            return entry.config if entry else None
+
     def set_stream_subtype(self, device_id: str, subtype: str) -> Optional[Dict[str, Any]]:
         normalized = "sub" if subtype.lower() == "sub" else "main"
         with self._lock:

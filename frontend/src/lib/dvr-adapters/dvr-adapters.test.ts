@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DroidCamAdapter,
   DvrAdapterFactory,
   GenericOnvifAdapter,
   GenericRtspAdapter,
@@ -57,6 +58,19 @@ describe("DvrAdapterFactory & Brand Adapters (Fase 2)", () => {
     expect(subUrl).toBe(
       "rtsp://admin:****@192.168.1.100:554/cam/realmonitor?channel=2&subtype=1"
     );
+  });
+
+  it("instantiates DroidCamAdapter with default port 4747 and HTTP MJPEG stream URL", async () => {
+    const droidcam = DvrAdapterFactory.create({
+      name: "Celular Operário",
+      brand: "droidcam",
+      host: "192.168.1.105",
+      username: "admin",
+    });
+
+    expect(droidcam).toBeInstanceOf(DroidCamAdapter);
+    const streamUrl = await droidcam.getCameraStream("1");
+    expect(streamUrl).toBe("http://192.168.1.105:4747/video");
   });
 
   it("instantiates GenericOnvifAdapter and GenericRtspAdapter", async () => {
