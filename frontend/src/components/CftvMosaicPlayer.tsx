@@ -131,7 +131,7 @@ export function CftvMosaicPlayer({
               </span>
             </h3>
             <p className="text-[11px] text-slate-400">
-              Lazy-loading automático de streams fora de foco · Suporte a MJPEG & IA Overlay
+              Lazy-loading automático de streams fora de foco · Suporte a MJPEG, DroidCam & IA Overlay
             </p>
           </div>
         </div>
@@ -274,9 +274,17 @@ export function CftvMosaicPlayer({
           const streamSrc =
             dvr.brand === "mock"
               ? `${cameraProxyUrl}/dvr/mock/snapshot?channel=${camera.channel_number}&t=${refreshTick}`
-              : streamMode === "analyzed"
-              ? `${cameraProxyUrl}/stream-analyzed.mjpg?cam=${encodeURIComponent(camera.id)}`
-              : `${cameraProxyUrl}/stream.mjpg?cam=${encodeURIComponent(camera.id)}`;
+              : `${cameraProxyUrl}/dvr/channel-stream.mjpg?camId=${encodeURIComponent(
+                  camera.id
+                )}&dvrId=${encodeURIComponent(dvr.id)}&name=${encodeURIComponent(
+                  camera.name
+                )}&brand=${encodeURIComponent(dvr.brand)}&host=${encodeURIComponent(
+                  dvr.host
+                )}&port=${dvr.rtsp_port || 554}&httpPort=${
+                  dvr.http_port || 80
+                }&user=${encodeURIComponent(dvr.username || "admin")}&channel=${
+                  camera.channel_number
+                }&mode=${streamMode}`;
 
           return (
             <div
@@ -329,6 +337,11 @@ export function CftvMosaicPlayer({
                   <span className="text-xs font-semibold text-white truncate drop-shadow">
                     {camera.name}
                   </span>
+                  {camera.is_operator_default && (
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/25 border border-emerald-400/50 text-[9px] font-bold uppercase text-emerald-300 shrink-0">
+                      Operário
+                    </span>
+                  )}
                 </div>
                 <span className="px-2 py-0.5 rounded bg-black/60 border border-white/10 font-mono-tech text-[10px] text-cyan-300 uppercase shrink-0">
                   {dvr.brand} · CH {camera.channel_number}

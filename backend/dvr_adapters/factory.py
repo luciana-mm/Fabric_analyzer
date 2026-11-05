@@ -1,4 +1,5 @@
 from dvr_types import BaseDvrAdapter, DvrBrand, DvrDeviceConfig
+from .droidcam_adapter import DroidCamAdapter
 from .generic_rtsp_adapter import GenericRtspAdapter
 from .hikvision_adapter import HikvisionDvrAdapter
 from .intelbras_adapter import IntelbrasDvrAdapter
@@ -27,6 +28,8 @@ class DvrAdapterFactory:
             return IntelbrasDvrAdapter(config)
         if brand == DvrBrand.ONVIF:
             return GenericOnvifAdapter(config)
+        if brand == DvrBrand.DROIDCAM:
+            return DroidCamAdapter(config)
         if brand == DvrBrand.MOCK:
             return MockDvrAdapter(config)
         return GenericRtspAdapter(config)

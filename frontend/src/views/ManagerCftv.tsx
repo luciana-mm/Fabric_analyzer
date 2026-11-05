@@ -12,6 +12,7 @@ import {
   Edit3,
   Eye,
   LayoutGrid,
+  MonitorCheck,
   Plus,
   Power,
   Radar,
@@ -19,6 +20,7 @@ import {
   Server,
   ShieldAlert,
   Sliders,
+  Smartphone,
   Trash2,
   Video,
   Wifi,
@@ -46,6 +48,7 @@ const ADAPTER_LABELS: Record<DvrBrand, string> = {
   intelbras: "IntelbrasDvrAdapter (Port 37777 / RealMonitor)",
   dahua: "IntelbrasDvrAdapter (Dahua OEM CGI)",
   onvif: "GenericOnvifAdapter (SOAP Profile S/T)",
+  droidcam: "DroidCamAdapter (Celular HTTP :4747)",
   generic: "GenericRtspAdapter (Direct RTSP)",
   mock: "MockOrSimulatorAdapter (Frames Locais)",
 };
@@ -74,6 +77,7 @@ export default function ManagerCftv() {
   const [testingId, setTestingId] = useState<string | null>(null);
   const [discoveringId, setDiscoveringId] = useState<string | null>(null);
   const [capturingCamId, setCapturingCamId] = useState<string | null>(null);
+  const [switchingOperatorCamId, setSwitchingOperatorCamId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, ConnectionResult>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDvrId, setEditingDvrId] = useState<string | null>(null);
@@ -227,11 +231,11 @@ export default function ManagerCftv() {
           prev.map((d) =>
             d.id === dvrId
               ? {
-                  ...d,
-                  cameras: d.cameras?.map((c) =>
-                    c.id === cam.id ? { ...c, is_active: nextActive } : c
-                  ),
-                }
+                ...d,
+                cameras: d.cameras?.map((c) =>
+                  c.id === cam.id ? { ...c, is_active: nextActive } : c
+                ),
+              }
               : d
           )
         );
@@ -242,6 +246,50 @@ export default function ManagerCftv() {
       }
     } catch {
       toast.error("Erro ao alterar status do canal");
+    }
+  };
+
+  const handleSetOperatorCamera = async (dvr: DvrDevice, cam: CameraDevice) => {
+    setSwitchingOperatorCamId(cam.id);
+    try {
+      const res = await fetch("/api/gestor/dvrs/cameras", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set_operator_camera",
+          cameraId: cam.id,
+          dvrId: dvr.id,
+          name: cam.name,
+          channel: cam.channel_number,
+          brand: dvr.brand,
+          host: dvr.host,
+          rtsp_port: dvr.rtsp_port,
+          http_port: dvr.http_port,
+          username: dvr.username,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setDvrs((prev) =>
+          prev.map((d) => ({
+            ...d,
+            cameras: d.cameras?.map((c) => ({
+              ...c,
+              is_operator_default: c.id === cam.id,
+            })),
+          }))
+        );
+        void fetchMonitorEvents();
+        toast.success(
+          `Câmera '${cam.name}' agora está ATIVA no Painel do Operário (/painel/camera e IA)!`
+        );
+      } else {
+        toast.error(json.error || "Não foi possível trocar a câmera do operário");
+      }
+    } catch {
+      toast.error("Erro de comunicação ao trocar câmera do operário");
+    } finally {
+      setSwitchingOperatorCamId(null);
     }
   };
 
@@ -261,10 +309,9 @@ export default function ManagerCftv() {
         if (json.data.states) setMonitorStates(json.data.states);
         if (json.data.events) setStreamEvents(json.data.events);
         toast.success(
-          `Perfil de '${dvr.name}' alterado para ${
-            nextSubtype === "main"
-              ? "Main Stream (Alta Resolução)"
-              : "Sub Stream (Mosaico Leve)"
+          `Perfil de '${dvr.name}' alterado para ${nextSubtype === "main"
+            ? "Main Stream (Alta Resolução)"
+            : "Sub Stream (Mosaico Leve)"
           }`
         );
       }
@@ -376,21 +423,21 @@ export default function ManagerCftv() {
           prev.map((item) =>
             item.id === dvr.id
               ? {
-                  ...item,
-                  cameras: discovered.map((c) => ({
-                    id: c.id,
-                    dvr_id: dvr.id,
-                    name: c.name,
-                    channel_number: c.channelNumber,
-                    stream_url_main: c.streamUrl,
-                    snapshot_url: c.snapshotUrl,
-                    resolution_width: c.resolution?.width,
-                    resolution_height: c.resolution?.height,
-                    fps: c.fps || 12,
-                    is_active: true,
-                    status: c.online ? "online" : "offline",
-                  })),
-                }
+                ...item,
+                cameras: discovered.map((c) => ({
+                  id: c.id,
+                  dvr_id: dvr.id,
+                  name: c.name,
+                  channel_number: c.channelNumber,
+                  stream_url_main: c.streamUrl,
+                  snapshot_url: c.snapshotUrl,
+                  resolution_width: c.resolution?.width,
+                  resolution_height: c.resolution?.height,
+                  fps: c.fps || 12,
+                  is_active: true,
+                  status: c.online ? "online" : "offline",
+                })),
+              }
               : item
           )
         );
@@ -409,8 +456,8 @@ export default function ManagerCftv() {
 
   const handleSaveDvr = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName || !formHost || !formUsername) {
-      toast.error("Preencha todos os campos obrigatórios");
+    if (!formName || !formHost) {
+      toast.error("Preencha o Nome Identificador e o IP / Hostname");
       return;
     }
 
@@ -430,9 +477,10 @@ export default function ManagerCftv() {
           brand: formBrand,
           host: formHost,
           rtsp_port: formRtspPort,
-          username: formUsername,
+          http_port: formBrand === "droidcam" ? formRtspPort : 80,
+          username: formUsername || "admin",
           password: formPassword,
-          total_channels: formChannels,
+          total_channels: formBrand === "droidcam" ? 1 : formChannels,
         }),
       });
 
@@ -445,7 +493,7 @@ export default function ManagerCftv() {
           void fetchMonitorEvents();
           toast.success(`Dispositivo '${formName}' atualizado com sucesso!`);
         } else {
-          toast.success("Dispositivo DVR cadastrado e incluído no Health Monitor!");
+          toast.success("Dispositivo DVR/Câmera cadastrado e incluído no Health Monitor!");
           void fetchDvrs();
         }
         setIsModalOpen(false);
@@ -495,7 +543,7 @@ export default function ManagerCftv() {
               Gerenciamento CFTV & Câmeras
             </h1>
             <p className="text-[11px] tracking-[0.2em] text-slate-400 uppercase mt-0.5">
-              Central de Monitoramento, Mosaico Live & Adaptadores de DVR
+              Central de Monitoramento, Mosaico Live, DroidCam & Seleção de Câmera do Operário
             </p>
           </div>
         </div>
@@ -503,11 +551,10 @@ export default function ManagerCftv() {
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={() => setShowMosaicPlayer((v) => !v)}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs font-medium transition-all ${
-              showMosaicPlayer
-                ? "bg-cyan-500/15 border-cyan-400/40 text-cyan-300"
-                : "bg-slate-900/80 border-white/10 text-slate-400"
-            }`}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs font-medium transition-all ${showMosaicPlayer
+              ? "bg-cyan-500/15 border-cyan-400/40 text-cyan-300"
+              : "bg-slate-900/80 border-white/10 text-slate-400"
+              }`}
           >
             <LayoutGrid className="w-3.5 h-3.5" />
             {showMosaicPlayer ? "Ocultar Mosaico" : "Exibir Mosaico Live"}
@@ -515,17 +562,15 @@ export default function ManagerCftv() {
 
           <button
             onClick={() => setAutoMonitorEnabled((v) => !v)}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs font-medium transition-all ${
-              autoMonitorEnabled
-                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
-                : "bg-slate-900/80 border-white/10 text-slate-400"
-            }`}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs font-medium transition-all ${autoMonitorEnabled
+              ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+              : "bg-slate-900/80 border-white/10 text-slate-400"
+              }`}
             title="Ativa ou pausa o monitoramento periódico em background (a cada 12s)"
           >
             <Activity
-              className={`w-3.5 h-3.5 ${
-                autoMonitorEnabled ? "text-emerald-400 animate-pulse" : "text-slate-500"
-              }`}
+              className={`w-3.5 h-3.5 ${autoMonitorEnabled ? "text-emerald-400 animate-pulse" : "text-slate-500"
+                }`}
             />
             Auto-Monitor: {autoMonitorEnabled ? "ATIVO" : "PAUSADO"}
           </button>
@@ -536,9 +581,8 @@ export default function ManagerCftv() {
             className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/80 border border-white/10 hover:border-cyan-400/40 hover:text-cyan-300 text-xs font-medium text-slate-300 transition-all"
           >
             <RefreshCw
-              className={`w-3.5 h-3.5 ${
-                checkingAll || loading ? "animate-spin text-cyan-400" : ""
-              }`}
+              className={`w-3.5 h-3.5 ${checkingAll || loading ? "animate-spin text-cyan-400" : ""
+                }`}
             />
             Health Check
           </button>
@@ -587,18 +631,17 @@ export default function ManagerCftv() {
                   {totalCameras}
                 </p>
                 <p className="text-[10px] text-slate-400 font-medium uppercase mt-0.5">
-                  Main & Substream
+                  Main, Substream & DroidCam
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-4 p-5 rounded-2xl border border-white/10 bg-slate-900/65 backdrop-blur-xl">
               <div
-                className={`w-12 h-12 rounded-xl border flex items-center justify-center shrink-0 ${
-                  openCircuitsCount === 0
-                    ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
-                    : "bg-rose-500/10 border-rose-500/25 text-rose-400"
-                }`}
+                className={`w-12 h-12 rounded-xl border flex items-center justify-center shrink-0 ${openCircuitsCount === 0
+                  ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
+                  : "bg-rose-500/10 border-rose-500/25 text-rose-400"
+                  }`}
               >
                 {openCircuitsCount === 0 ? (
                   <Wifi className="w-6 h-6" />
@@ -611,9 +654,8 @@ export default function ManagerCftv() {
                   Circuit Breaker
                 </p>
                 <p
-                  className={`font-sansserief text-lg font-semibold mt-0.5 ${
-                    openCircuitsCount === 0 ? "text-emerald-300" : "text-rose-400"
-                  }`}
+                  className={`font-sansserief text-lg font-semibold mt-0.5 ${openCircuitsCount === 0 ? "text-emerald-300" : "text-rose-400"
+                    }`}
                 >
                   {openCircuitsCount === 0 ? "CLOSED (Estável)" : `${openCircuitsCount} OPEN`}
                 </p>
@@ -679,7 +721,11 @@ export default function ManagerCftv() {
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       <div className="flex items-center gap-3.5">
                         <div className="w-10 h-10 rounded-xl bg-cyan-500/15 border border-cyan-400/30 flex items-center justify-center text-cyan-300 font-bold uppercase text-xs">
-                          {dvr.brand.substring(0, 3)}
+                          {dvr.brand === "droidcam" ? (
+                            <Smartphone className="w-5 h-5" />
+                          ) : (
+                            dvr.brand.substring(0, 3)
+                          )}
                         </div>
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
@@ -687,11 +733,10 @@ export default function ManagerCftv() {
                               {dvr.name}
                             </h2>
                             <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
-                                dvr.status === "online"
-                                  ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
-                                  : "bg-rose-500/15 text-rose-400 border border-rose-500/30"
-                              }`}
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase ${dvr.status === "online"
+                                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                                : "bg-rose-500/15 text-rose-400 border border-rose-500/30"
+                                }`}
                             >
                               {dvr.status === "online" ? (
                                 <CheckCircle2 className="w-3 h-3" />
@@ -702,13 +747,12 @@ export default function ManagerCftv() {
                             </span>
 
                             <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono-tech uppercase border ${
-                                circuitState === "CLOSED"
-                                  ? "bg-slate-800/80 text-cyan-300 border-cyan-500/25"
-                                  : circuitState === "HALF_OPEN"
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono-tech uppercase border ${circuitState === "CLOSED"
+                                ? "bg-slate-800/80 text-cyan-300 border-cyan-500/25"
+                                : circuitState === "HALF_OPEN"
                                   ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
                                   : "bg-rose-500/20 text-rose-300 border-rose-500/40"
-                              }`}
+                                }`}
                             >
                               Circuit: {circuitState}
                               {monState && monState.consecutiveFailures > 0
@@ -732,11 +776,10 @@ export default function ManagerCftv() {
                           <button
                             type="button"
                             onClick={() => handleToggleSubtype(dvr, "main")}
-                            className={`px-2.5 py-1 rounded-lg font-medium transition-all flex items-center gap-1 ${
-                              activeSubtype === "main"
-                                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/30"
-                                : "text-slate-400 hover:text-white"
-                            }`}
+                            className={`px-2.5 py-1 rounded-lg font-medium transition-all flex items-center gap-1 ${activeSubtype === "main"
+                              ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/30"
+                              : "text-slate-400 hover:text-white"
+                              }`}
                           >
                             <Sliders className="w-3 h-3" />
                             Main
@@ -744,11 +787,10 @@ export default function ManagerCftv() {
                           <button
                             type="button"
                             onClick={() => handleToggleSubtype(dvr, "sub")}
-                            className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                              activeSubtype === "sub"
-                                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/30"
-                                : "text-slate-400 hover:text-white"
-                            }`}
+                            className={`px-2.5 py-1 rounded-lg font-medium transition-all ${activeSubtype === "sub"
+                              ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/30"
+                              : "text-slate-400 hover:text-white"
+                              }`}
                           >
                             Sub
                           </button>
@@ -760,9 +802,8 @@ export default function ManagerCftv() {
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/80 border border-white/10 hover:border-cyan-400/40 text-xs text-slate-300 transition-all"
                         >
                           <Radar
-                            className={`w-3.5 h-3.5 ${
-                              isDiscovering ? "animate-spin text-cyan-400" : "text-cyan-400"
-                            }`}
+                            className={`w-3.5 h-3.5 ${isDiscovering ? "animate-spin text-cyan-400" : "text-cyan-400"
+                              }`}
                           />
                           {isDiscovering ? "Varrendo..." : "Descobrir"}
                         </button>
@@ -773,9 +814,8 @@ export default function ManagerCftv() {
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/80 border border-white/10 hover:border-cyan-400/40 text-xs text-slate-300 transition-all"
                         >
                           <RefreshCw
-                            className={`w-3.5 h-3.5 ${
-                              isTesting ? "animate-spin text-cyan-400" : ""
-                            }`}
+                            className={`w-3.5 h-3.5 ${isTesting ? "animate-spin text-cyan-400" : ""
+                              }`}
                           />
                           {isTesting ? "Testando..." : "Testar"}
                         </button>
@@ -802,11 +842,10 @@ export default function ManagerCftv() {
 
                     {testResult && (
                       <div
-                        className={`p-3 rounded-xl border text-xs font-mono-tech flex items-center justify-between ${
-                          testResult.success
-                            ? "bg-emerald-950/30 border-emerald-500/30 text-emerald-300"
-                            : "bg-rose-950/30 border-rose-500/30 text-rose-300"
-                        }`}
+                        className={`p-3 rounded-xl border text-xs font-mono-tech flex items-center justify-between ${testResult.success
+                          ? "bg-emerald-950/30 border-emerald-500/30 text-emerald-300"
+                          : "bg-rose-950/30 border-rose-500/30 text-rose-300"
+                          }`}
                       >
                         <span>{testResult.message}</span>
                         <span className="font-semibold">{testResult.latencyMs} ms</span>
@@ -831,7 +870,9 @@ export default function ManagerCftv() {
                         {dvr.cameras?.map((cam) => {
                           const isSelected = selectedPreviewCamera?.camId === cam.id;
                           const isCapturing = capturingCamId === cam.id;
+                          const isSwitchingOp = switchingOperatorCamId === cam.id;
                           const isActive = cam.is_active !== false;
+                          const isOperatorCam = Boolean(cam.is_operator_default);
                           const displayedUrl =
                             activeSubtype === "sub" && cam.stream_url_sub
                               ? cam.stream_url_sub
@@ -840,20 +881,28 @@ export default function ManagerCftv() {
                           return (
                             <div
                               key={cam.id}
-                              className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 transition-opacity ${
-                                isActive
+                              className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-3 transition-all ${isOperatorCam
+                                ? "border-emerald-500/40 bg-emerald-950/20 shadow-[0_0_15px_rgba(16,185,129,0.12)]"
+                                : isActive
                                   ? "border-white/5 bg-slate-950/40"
                                   : "border-white/5 bg-slate-950/20 opacity-60"
-                              }`}
+                                }`}
                             >
                               <div className="flex items-center gap-3 min-w-0">
                                 <div className="w-8 h-8 rounded-lg bg-slate-800/80 border border-white/10 flex items-center justify-center text-cyan-400 shrink-0">
                                   <Video className="w-4 h-4" />
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="text-xs font-medium text-white truncate">
-                                    {cam.name}
-                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-xs font-medium text-white truncate">
+                                      {cam.name}
+                                    </p>
+                                    {isOperatorCam && (
+                                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0">
+                                        Ativa no Operário
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-[10px] text-slate-400 font-mono-tech truncate">
                                     {displayedUrl ||
                                       `Canal ${cam.channel_number} · ${cam.fps} FPS`}
@@ -861,15 +910,32 @@ export default function ManagerCftv() {
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-1.5 shrink-0">
+                              <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  disabled={isSwitchingOp}
+                                  onClick={() => handleSetOperatorCamera(dvr, cam)}
+                                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-medium transition-all ${isOperatorCam
+                                    ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                                    : "bg-slate-800/90 border-white/10 hover:border-emerald-400/40 text-slate-200 hover:text-emerald-300"
+                                    }`}
+                                  title="Define esta câmera como a câmera principal ao vivo do Painel do Operário (/painel/camera e IA)"
+                                >
+                                  <MonitorCheck className="w-3.5 h-3.5 text-emerald-400" />
+                                  {isSwitchingOp
+                                    ? "Ativando..."
+                                    : isOperatorCam
+                                      ? "No Operário"
+                                      : "Usar no Operário"}
+                                </button>
+
                                 <button
                                   type="button"
                                   onClick={() => handleToggleCameraActive(dvr.id, cam)}
-                                  className={`p-1.5 rounded-lg border text-[11px] transition-all ${
-                                    isActive
-                                      ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                                      : "bg-slate-800 border-white/10 text-slate-400"
-                                  }`}
+                                  className={`p-1.5 rounded-lg border text-[11px] transition-all ${isActive
+                                    ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                                    : "bg-slate-800 border-white/10 text-slate-400"
+                                    }`}
                                   title={
                                     isActive
                                       ? "Ativo no Mosaico (Clique para desativar)"
@@ -904,10 +970,10 @@ export default function ManagerCftv() {
                                       isSelected
                                         ? null
                                         : {
-                                            camId: cam.id,
-                                            brand: dvr.brand,
-                                            channelNumber: cam.channel_number,
-                                          }
+                                          camId: cam.id,
+                                          brand: dvr.brand,
+                                          channelNumber: cam.channel_number,
+                                        }
                                     )
                                   }
                                   className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/10 border border-cyan-400/25 hover:bg-cyan-500/20 text-cyan-300 text-[11px] font-medium transition-all"
@@ -930,12 +996,12 @@ export default function ManagerCftv() {
                                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                                 {selectedPreviewCamera.brand === "mock"
                                   ? `Frame Simulador CFTV (Canal ${selectedPreviewCamera.channelNumber})`
-                                  : "Live Stream Industrial (Proxy 8090)"}
+                                  : `Live Stream Independente · ${dvr.name} (${dvr.host}:${dvr.rtsp_port})`}
                               </span>
                               <span className="text-[10px] font-mono-tech text-slate-400">
                                 {selectedPreviewCamera.brand === "mock"
                                   ? `/dvr/mock/snapshot?channel=${selectedPreviewCamera.channelNumber}`
-                                  : "/stream.mjpg · Resolução Nativa"}
+                                  : `/dvr/channel-stream.mjpg · CH ${selectedPreviewCamera.channelNumber}`}
                               </span>
                             </div>
                             <div className="relative aspect-video rounded-lg overflow-hidden bg-black border border-white/10 flex items-center justify-center">
@@ -943,7 +1009,17 @@ export default function ManagerCftv() {
                                 src={
                                   selectedPreviewCamera.brand === "mock"
                                     ? `${CAMERA_PROXY_URL}/dvr/mock/snapshot?channel=${selectedPreviewCamera.channelNumber}`
-                                    : `${CAMERA_PROXY_URL}/stream.mjpg`
+                                    : `${CAMERA_PROXY_URL}/dvr/channel-stream.mjpg?camId=${encodeURIComponent(
+                                        selectedPreviewCamera.camId
+                                      )}&dvrId=${encodeURIComponent(dvr.id)}&name=${encodeURIComponent(
+                                        dvr.name
+                                      )}&brand=${encodeURIComponent(dvr.brand)}&host=${encodeURIComponent(
+                                        dvr.host
+                                      )}&port=${dvr.rtsp_port || 554}&httpPort=${
+                                        dvr.http_port || 80
+                                      }&user=${encodeURIComponent(
+                                        dvr.username || "admin"
+                                      )}&channel=${selectedPreviewCamera.channelNumber}&mode=raw`
                                 }
                                 alt="Live Stream CFTV"
                                 className="w-full h-full object-contain"
@@ -983,8 +1059,8 @@ export default function ManagerCftv() {
                       ev.severity === "critical" || ev.severity === "error"
                         ? "bg-rose-500/15 text-rose-300 border-rose-500/30"
                         : ev.severity === "warning"
-                        ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
-                        : "bg-cyan-500/15 text-cyan-300 border-cyan-500/30";
+                          ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+                          : "bg-cyan-500/15 text-cyan-300 border-cyan-500/30";
 
                     return (
                       <div
@@ -1104,7 +1180,7 @@ export default function ManagerCftv() {
                 <input
                   type="text"
                   required
-                  placeholder="Ex: NVR Linha de Tecelagem 02"
+                  placeholder="Ex: Celular DroidCam Linha 01 ou NVR Hikvision"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-slate-950/80 border border-white/10 focus:border-cyan-400 text-xs text-white outline-none"
@@ -1121,13 +1197,19 @@ export default function ManagerCftv() {
                     onChange={(e) => {
                       const nextBrand = e.target.value as DvrBrand;
                       setFormBrand(nextBrand);
-                      if (nextBrand === "mock" && !formHost) {
-                        setFormHost("127.0.0.1");
+                      if (nextBrand === "droidcam") {
+                        setFormRtspPort(4747);
+                        setFormChannels(1);
+                      } else if (nextBrand === "mock") {
+                        if (!formHost) setFormHost("127.0.0.1");
+                      } else if (formRtspPort === 4747) {
+                        setFormRtspPort(554);
                       }
                     }}
                     className="w-full mt-1.5 px-3 py-2 rounded-xl bg-slate-950/80 border border-white/10 focus:border-cyan-400 text-xs text-white outline-none"
                   >
-                    <option value="hikvision">Hikvision (ISAPI / RTSP)</option>
+                    <option value="droidcam">DroidCam / Celular Wi-Fi (HTTP :4747)</option>
+                    <option value="hikvision">Hikvision (ISAPI / RTSP :554)</option>
                     <option value="intelbras">Intelbras (DVR / 37777)</option>
                     <option value="dahua">Dahua (RealMonitor CGI)</option>
                     <option value="onvif">ONVIF Profile S/T</option>
@@ -1137,12 +1219,12 @@ export default function ManagerCftv() {
                 </div>
                 <div>
                   <label className="text-[11px] font-semibold uppercase text-slate-400 tracking-wider">
-                    IP / Hostname
+                    {formBrand === "droidcam" ? "IP Wi-Fi do Celular" : "IP / Hostname"}
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="192.168.1.65"
+                    placeholder={formBrand === "droidcam" ? "Ex: 192.168.1.105" : "192.168.1.65"}
                     value={formHost}
                     onChange={(e) => setFormHost(e.target.value)}
                     className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-slate-950/80 border border-white/10 focus:border-cyan-400 text-xs text-white outline-none"
@@ -1150,10 +1232,16 @@ export default function ManagerCftv() {
                 </div>
               </div>
 
+              {formBrand === "droidcam" && (
+                <div className="p-3 rounded-xl bg-cyan-950/30 border border-cyan-500/30 text-[11px] text-cyan-200 leading-relaxed">
+                  <strong>Dica DroidCam:</strong> Abra o app <strong>DroidCam</strong> no celular (conectado no mesmo Wi-Fi), veja o <strong>Wi-Fi IP</strong> e a <strong>DroidCam Port (4747)</strong> na tela do app, preencha acima e clique em Salvar. Depois clique em <strong>&quot;Usar no Operário&quot;</strong>!
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-[11px] font-semibold uppercase text-slate-400 tracking-wider">
-                    Porta RTSP
+                    {formBrand === "droidcam" ? "Porta DroidCam" : "Porta RTSP"}
                   </label>
                   <input
                     type="number"
@@ -1164,11 +1252,10 @@ export default function ManagerCftv() {
                 </div>
                 <div>
                   <label className="text-[11px] font-semibold uppercase text-slate-400 tracking-wider">
-                    Usuário
+                    Usuário {formBrand === "droidcam" ? "(Opcional)" : ""}
                   </label>
                   <input
                     type="text"
-                    required
                     value={formUsername}
                     onChange={(e) => setFormUsername(e.target.value)}
                     className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-slate-950/80 border border-white/10 focus:border-cyan-400 text-xs text-white outline-none"
@@ -1182,9 +1269,10 @@ export default function ManagerCftv() {
                     type="number"
                     min={1}
                     max={64}
-                    value={formChannels}
+                    disabled={formBrand === "droidcam"}
+                    value={formBrand === "droidcam" ? 1 : formChannels}
                     onChange={(e) => setFormChannels(Number(e.target.value))}
-                    className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-slate-950/80 border border-white/10 focus:border-cyan-400 text-xs text-white outline-none"
+                    className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-slate-950/80 border border-white/10 focus:border-cyan-400 text-xs text-white outline-none disabled:opacity-50"
                   />
                 </div>
               </div>
@@ -1193,7 +1281,9 @@ export default function ManagerCftv() {
                 <label className="text-[11px] font-semibold uppercase text-slate-400 tracking-wider">
                   {editingDvrId
                     ? "Nova Senha (deixe em branco para manter a atual)"
-                    : "Senha do Dispositivo"}
+                    : formBrand === "droidcam"
+                      ? "Senha (deixe em branco se o DroidCam não tiver senha)"
+                      : "Senha do Dispositivo"}
                 </label>
                 <input
                   type="password"
@@ -1220,8 +1310,8 @@ export default function ManagerCftv() {
                   {submitting
                     ? "Salvando..."
                     : editingDvrId
-                    ? "Atualizar Dispositivo"
-                    : "Salvar Dispositivo"}
+                      ? "Atualizar Dispositivo"
+                      : "Salvar Dispositivo"}
                 </button>
               </div>
             </form>
