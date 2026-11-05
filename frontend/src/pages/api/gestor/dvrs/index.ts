@@ -18,7 +18,7 @@ export default async function handler(
   if (req.method === "GET") {
     try {
       const dvrsResult = await query(`
-        SELECT id, name, brand, host, rtsp_port, http_port, sdk_port, username,
+        SELECT id, name, brand, host, rtsp_port, http_port, sdk_port, username, password_encrypted,
                total_channels, status, last_checked_at, metadata, created_at, updated_at
         FROM public.dvr_devices
         ORDER BY created_at ASC
@@ -27,6 +27,7 @@ export default async function handler(
       const camerasResult = await query(`
         SELECT id, dvr_id, name, channel_number, stream_url_main, stream_url_sub,
                snapshot_url, resolution_width, resolution_height, fps, is_active,
+               COALESCE(is_operator_default, false) AS is_operator_default,
                status, last_frame_at, created_at, updated_at
         FROM public.camera_devices
         ORDER BY channel_number ASC
@@ -40,10 +41,44 @@ export default async function handler(
         camerasByDvr[cam.dvr_id].push(cam);
       }
 
-      const dvrs: DvrDevice[] = dvrsResult.rows.map((row) => ({
-        ...row,
-        cameras: camerasByDvr[row.id] || [],
-      }));
+      const cameraProxyUrl =
+        process.env.BACKEND_API_URL ||
+        process.env.NEXT_PUBLIC_CAMERA_PROXY_URL ||
+        "http://127.0.0.1:8090";
+
+      // Sincroniza as credenciais de cada DVR com o backend Python para que cada canal do Mosaico tenha seu próprio stream
+      for (const row of dvrsResult.rows) {
+        const rawPwd =
+          row.password_encrypted && row.password_encrypted !== "configured"
+            ? String(row.password_encrypted)
+            : "";
+        void fetch(`${cameraProxyUrl}/dvr/monitor/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: String(row.id),
+            name: String(row.name),
+            brand: String(row.brand).toLowerCase(),
+            host: String(row.host),
+            rtsp_port: Number(row.rtsp_port || 554),
+            http_port: Number(row.http_port || 80),
+            sdk_port: Number(row.sdk_port || 8000),
+            username: String(row.username || "admin"),
+            password: rawPwd,
+            total_channels: Number(row.total_channels || 1),
+          }),
+          signal: AbortSignal.timeout(1500),
+        }).catch(() => null);
+      }
+
+      const dvrs: DvrDevice[] = dvrsResult.rows.map((row) => {
+        const { password_encrypted: _unused, ...safeRow } = row;
+        void _unused;
+        return {
+          ...safeRow,
+          cameras: camerasByDvr[row.id] || [],
+        };
+      });
 
       return res.status(200).json({ data: dvrs });
     } catch (error: unknown) {
@@ -77,6 +112,7 @@ export default async function handler(
             snapshot_url: "http://192.168.1.64:80/ISAPI/Streaming/channels/101/picture",
             fps: 12,
             is_active: true,
+            is_operator_default: true,
             status: "online",
             last_frame_at: new Date().toISOString(),
           },
@@ -109,6 +145,7 @@ export default async function handler(
             snapshot_url: "/dvr/mock/snapshot?channel=1",
             fps: 12,
             is_active: true,
+            is_operator_default: false,
             status: "online",
             last_frame_at: new Date().toISOString(),
           },
@@ -122,6 +159,7 @@ export default async function handler(
             snapshot_url: "/dvr/mock/snapshot?channel=2",
             fps: 12,
             is_active: true,
+            is_operator_default: false,
             status: "online",
             last_frame_at: new Date().toISOString(),
           },
@@ -138,31 +176,34 @@ export default async function handler(
         name,
         brand,
         host,
-        rtsp_port = 554,
-        http_port = 80,
+        rtsp_port,
+        http_port,
         sdk_port,
-        username,
+        username = "admin",
         password = "",
         total_channels = 1,
       } = req.body || {};
 
-      if (!name || !brand || !host || !username) {
-        return res.status(400).json({ error: "Campos obrigatórios: name, brand, host, username" });
+      if (!name || !brand || !host) {
+        return res.status(400).json({ error: "Campos obrigatórios: name, brand, host" });
       }
 
+      const resolvedRtspPort = Number(rtsp_port || (brand === "droidcam" ? 4747 : 554));
+      const resolvedHttpPort = Number(http_port || (brand === "droidcam" ? 4747 : 80));
       const defaultSdkPort = sdk_port ?? (brand === "intelbras" || brand === "dahua" ? 37777 : 8000);
+      const resolvedUsername = username || "admin";
 
       // Instancia o adaptador da Fase 2 para testar conectividade e descobrir canais com sintaxe da marca
       const adapter = DvrAdapterFactory.create({
         name,
         brand: brand as DvrBrand,
         host,
-        rtsp_port: Number(rtsp_port),
-        http_port: Number(http_port),
+        rtsp_port: resolvedRtspPort,
+        http_port: resolvedHttpPort,
         sdk_port: Number(defaultSdkPort),
-        username,
+        username: resolvedUsername,
         password,
-        total_channels: Number(total_channels),
+        total_channels: brand === "droidcam" ? 1 : Number(total_channels),
       });
 
       const connResult = await adapter.testConnection();
@@ -178,26 +219,36 @@ export default async function handler(
           name,
           brand,
           host,
-          rtsp_port,
-          http_port,
+          resolvedRtspPort,
+          resolvedHttpPort,
           defaultSdkPort,
-          username,
+          resolvedUsername,
           password || "configured",
-          total_channels,
+          brand === "droidcam" ? 1 : Number(total_channels),
           initialStatus,
         ]
       );
 
       const newDvr = insertResult.rows[0];
 
+      // Desmarca a câmera anterior caso este novo dispositivo passe a ser a câmera ativa do operário
+      await query(`UPDATE public.camera_devices SET is_operator_default = false`).catch(() => null);
+
+      let firstInsertedCamId: string | null = null;
+      let firstInsertedCamName = name;
+      let firstInsertedChannel = 1;
+
       // Persiste cada câmera descoberta pelo DvrAdapter da marca
-      for (const cam of discovered) {
+      for (let idx = 0; idx < discovered.length; idx++) {
+        const cam = discovered[idx];
+        const isOpDefault = idx === 0;
         const subUrl = await adapter.getCameraStream(String(cam.channelNumber), "sub");
-        await query(
+        const camInsert = await query(
           `INSERT INTO public.camera_devices (
             dvr_id, name, channel_number, stream_url_main, stream_url_sub,
-            snapshot_url, resolution_width, resolution_height, fps, is_active, status
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10)`,
+            snapshot_url, resolution_width, resolution_height, fps, is_active, is_operator_default, status
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11)
+          RETURNING id`,
           [
             newDvr.id,
             cam.name,
@@ -208,9 +259,40 @@ export default async function handler(
             cam.resolution?.width || 1920,
             cam.resolution?.height || 1080,
             cam.fps || 12,
+            isOpDefault,
             cam.online ? "online" : "offline",
           ]
         );
+        if (isOpDefault && camInsert.rows[0]?.id) {
+          firstInsertedCamId = String(camInsert.rows[0].id);
+          firstInsertedCamName = cam.name;
+          firstInsertedChannel = cam.channelNumber;
+        }
+      }
+
+      // Aciona imediatamente o servidor Python para que a nova câmera já funcione no Painel do Operário sem precisar de .env
+      if (firstInsertedCamId) {
+        const cameraProxyUrl =
+          process.env.BACKEND_API_URL ||
+          process.env.NEXT_PUBLIC_CAMERA_PROXY_URL ||
+          "http://127.0.0.1:8090";
+        await fetch(`${cameraProxyUrl}/dvr/active-camera`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cameraId: firstInsertedCamId,
+            dvrId: String(newDvr.id),
+            cameraName: firstInsertedCamName,
+            channel: String(firstInsertedChannel),
+            brand: String(brand).toLowerCase(),
+            host,
+            rtspPort: resolvedRtspPort,
+            httpPort: resolvedHttpPort,
+            username: resolvedUsername,
+            password,
+          }),
+          signal: AbortSignal.timeout(3500),
+        }).catch(() => null);
       }
 
       return res.status(201).json({ data: newDvr, connection: connResult });
