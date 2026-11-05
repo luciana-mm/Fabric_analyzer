@@ -156,6 +156,14 @@ const Manager = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => router.push("/gestor/cftv")}
+            className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 hover:bg-cyan-500/30 transition-all text-xs font-semibold text-cyan-200 shadow-[0_0_15px_rgba(6,182,212,0.2)]"
+          >
+            <Video className="w-3.5 h-3.5 text-cyan-300" />
+            CFTV & Câmeras
+          </button>
           {user?.email && (
             <span className="hidden md:inline-flex items-center px-3.5 py-1.5 rounded-full bg-slate-900/80 border border-white/10 font-mono-tech text-xs text-cyan-300">
               {user.email}

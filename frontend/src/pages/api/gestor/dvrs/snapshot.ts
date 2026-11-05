@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAuth } from "@/lib/auth";
+import { query } from "@/lib/db";
 import { streamMonitorService } from "@/lib/dvr-adapters/stream-monitor";
 
 function buildFallbackSyntheticSvgDataUrl(
@@ -62,7 +63,21 @@ export default async function handler(
     "http://127.0.0.1:8090";
 
   try {
-    // 1. Tenta o endpoint dedicado de captura de snapshot do backend Python (Fase 3)
+    let resolvedPassword = "";
+    if (dvrId && !String(dvrId).startsWith("dvr-default") && !String(dvrId).startsWith("dvr-mock")) {
+      const dvrRes = await query(
+        `SELECT password_encrypted FROM public.dvr_devices WHERE id::text = $1`,
+        [String(dvrId)]
+      ).catch(() => null);
+      if (dvrRes && dvrRes.rows.length > 0) {
+        const pwd = dvrRes.rows[0].password_encrypted;
+        if (pwd && pwd !== "configured") {
+          resolvedPassword = String(pwd);
+        }
+      }
+    }
+
+    // 1. Endpoint dedicado de captura de snapshot por câmera/canal no backend Python
     const pyResp = await fetch(
       `${cameraProxyUrl}/dvr/capture-snapshot?channel=${encodeURIComponent(String(channelNumber))}`,
       {
@@ -76,10 +91,10 @@ export default async function handler(
           rtsp_port: Number(rtsp_port),
           http_port: Number(http_port),
           username,
-          password: "",
+          password: resolvedPassword,
           total_channels: Math.max(1, Number(channelNumber)),
         }),
-        signal: AbortSignal.timeout(2500),
+        signal: AbortSignal.timeout(4500),
       }
     ).catch(() => null);
 
@@ -95,36 +110,7 @@ export default async function handler(
       return res.status(200).json({ data: json });
     }
 
-    // 2. Tenta o endpoint /snapshot.jpg padrão do proxy
-    const rawSnap = await fetch(`${cameraProxyUrl}/snapshot.jpg`, {
-      signal: AbortSignal.timeout(2000),
-    }).catch(() => null);
-
-    if (rawSnap && rawSnap.ok) {
-      const arrayBuf = await rawSnap.arrayBuffer();
-      const b64 = Buffer.from(arrayBuf).toString("base64");
-      const snapPayload = {
-        cameraId: `${dvrId}-ch-${channelNumber}`,
-        cameraName,
-        dvrName,
-        brand,
-        mimeType: "image/jpeg",
-        width: 1280,
-        height: 720,
-        capturedAt: new Date().toISOString(),
-        dataUrl: `data:image/jpeg;base64,${b64}`,
-      };
-      streamMonitorService.recordEvent({
-        camera_id: snapPayload.cameraId,
-        event_type: "connected",
-        severity: "info",
-        message: `Snapshot JPEG extraído do stream ativo para '${cameraName}'`,
-        details: { channelNumber },
-      });
-      return res.status(200).json({ data: snapPayload });
-    }
-
-    // 3. Fallback sintético caso o container Python esteja desligado
+    // 2. Fallback sintético caso a câmera específica esteja inacessível
     const fallbackUrl = buildFallbackSyntheticSvgDataUrl(
       String(cameraName),
       String(brand),
