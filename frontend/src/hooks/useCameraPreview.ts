@@ -1,11 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getCameraProxyUrl } from "@/lib/camera-proxy";
 
 export type CameraPreviewStatus = "connecting" | "online" | "offline" | "error";
-
-// AQUI ESTAVA O ERRO: Mudamos o fallback de 8090 para 8000
-const CAMERA_PROXY_URL = process.env.NEXT_PUBLIC_CAMERA_PROXY_URL ?? "http://127.0.0.1:8090";
 
 const getRetryDelayMs = (failures: number) => {
   const cappedFailures = Math.min(failures, 4);
@@ -14,25 +12,48 @@ const getRetryDelayMs = (failures: number) => {
 
 export const useCameraPreview = (
   streamPath: string = "/stream.mjpg",
-   params: Record<string, string | number> = {}
+  params: Record<string, string | number> = {}
 ) => {
   const [streamKey, setStreamKey] = useState(0);
   const [status, setStatus] = useState<CameraPreviewStatus>("connecting");
   const [checkedOnce, setCheckedOnce] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [activeCameraName, setActiveCameraName] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
   const timerRef = useRef<number | null>(null);
   const failuresRef = useRef(0);
+  const lastCameraIdRef = useRef<string | null>(null);
 
   const runHealthCheck = useCallback(async () => {
+    const proxyUrl = getCameraProxyUrl();
     try {
-      const response = await fetch(`${CAMERA_PROXY_URL}/health`, { cache: "no-store" });
+      const response = await fetch(`${proxyUrl}/health`, { cache: "no-store" });
       if (!response.ok) {
         throw new Error(`Proxy respondeu com status ${response.status}`);
       }
 
+      const data = await response.json().catch(() => null);
       if (!mountedRef.current) return;
+
+      const newCamId = data?.active_camera?.cameraId || null;
+      const newCamName = data?.active_camera?.cameraName || null;
+      if (newCamName) {
+        setActiveCameraName(newCamName);
+      }
+
+      // Se o Gestor trocou a câmera atribuída ao Operário em tempo real,
+      // renova o streamKey automaticamente sem que o operário precise dar F5 ou relogar
+      if (
+        newCamId &&
+        lastCameraIdRef.current !== null &&
+        lastCameraIdRef.current !== newCamId
+      ) {
+        lastCameraIdRef.current = newCamId;
+        setStreamKey((value) => value + 1);
+      } else if (newCamId && lastCameraIdRef.current === null) {
+        lastCameraIdRef.current = newCamId;
+      }
 
       failuresRef.current = 0;
       setStatus("online");
@@ -43,7 +64,7 @@ export const useCameraPreview = (
 
       failuresRef.current += 1;
       setStatus("offline");
-      setErrorMessage(`Nao foi possivel acessar ${CAMERA_PROXY_URL}`);
+      setErrorMessage(`Não foi possível acessar o servidor de câmera (${proxyUrl})`);
       setCheckedOnce(true);
     }
   }, []);
@@ -55,7 +76,7 @@ export const useCameraPreview = (
       await runHealthCheck();
       if (!mountedRef.current) return;
 
-      const delay = status === "online" ? 5000 : getRetryDelayMs(failuresRef.current);
+      const delay = status === "online" ? 3000 : getRetryDelayMs(failuresRef.current);
       timerRef.current = window.setTimeout(() => {
         void schedule();
       }, delay);
@@ -72,8 +93,9 @@ export const useCameraPreview = (
   }, [runHealthCheck, status]);
 
   const markStreamError = useCallback(() => {
+    const proxyUrl = getCameraProxyUrl();
     setStatus("error");
-    setErrorMessage(`Falha ao carregar o stream em ${CAMERA_PROXY_URL}`);
+    setErrorMessage(`Falha ao carregar o stream em ${proxyUrl}`);
   }, []);
 
   const retry = useCallback(() => {
@@ -86,9 +108,10 @@ export const useCameraPreview = (
   }, [runHealthCheck]);
 
   const streamUrl = useMemo(() => {
+    const proxyUrl = getCameraProxyUrl();
     const url = new URL(
       streamPath.startsWith("/") ? streamPath : `/${streamPath}`,
-      `${CAMERA_PROXY_URL}/`
+      `${proxyUrl}/`
     );
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
     url.searchParams.set("t", String(streamKey));
@@ -100,6 +123,7 @@ export const useCameraPreview = (
     checkedOnce,
     errorMessage,
     streamUrl,
+    activeCameraName,
     markStreamError,
     retry,
   };
