@@ -1,12 +1,11 @@
 node_modules
-dist
 .next
+*.log
 .git
 .gitignore
-.env
-.env.*
-coverage
-*.log
-*.tsbuildinfo
 Dockerfile
+docker-compose.yml
 .dockerignore
+.env*
+coverage
+dist

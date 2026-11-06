@@ -1,96 +1,44 @@
+version: "3.9"
+
 services:
   db:
     image: postgres:16-alpine
-    container_name: fabric-analyzer-db
     restart: unless-stopped
-    env_file:
-      - path: .env
-        required: false
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-app_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app_password}
-      POSTGRES_DB: ${POSTGRES_DB:-fabric_analyzer}
-    ports:
-      - "${POSTGRES_PORT:-5433}:5432"
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: app_password
+      POSTGRES_DB: fabric_analyzer
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./database:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-app_user} -d $${POSTGRES_DB:-fabric_analyzer}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - app-network
+      - db_data:/var/lib/postgresql/data
+      - ./supabase/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5433:5432"
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: fabric-analyzer-backend
+  pgadmin:
+    image: dpage/pgadmin4:latest
     restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8080:80"
     depends_on:
-      db:
-        condition: service_healthy
-    env_file:
-      - path: .env
-        required: false
-    environment:
-      DB_HOST: ${DB_HOST:-db}
-      DB_PORT: ${DB_PORT:-5432}
-      POSTGRES_USER: ${POSTGRES_USER:-app_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app_password}
-      POSTGRES_DB: ${POSTGRES_DB:-fabric_analyzer}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-app_user}:${POSTGRES_PASSWORD:-app_password}@db:5432/${POSTGRES_DB:-fabric_analyzer}}
-      CAMERA_IP: ${CAMERA_IP:-192.168.1.64}
-      CAMERA_RTSP_PORT: ${CAMERA_RTSP_PORT:-554}
-      CAMERA_USER: ${CAMERA_USER:-admin}
-      CAMERA_PASSWORD: ${CAMERA_PASSWORD:-sua_senha_aqui}
-      CAMERA_CHANNEL: ${CAMERA_CHANNEL:-101}
-      OUTPUT_FPS: ${OUTPUT_FPS:-12}
-      JPEG_QUALITY: ${JPEG_QUALITY:-80}
-      CONNECT_TIMEOUT_SECONDS: ${CONNECT_TIMEOUT_SECONDS:-5}
-    ports:
-      - "${BACKEND_PORT:-8090}:8090"
+      - db
     volumes:
-      - ./backend:/app
-    networks:
-      - app-network
+      - pgadmin_data:/var/lib/pgadmin
 
-  frontend:
+  web:
     build:
-      context: ./frontend
+      context: .
       dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_CAMERA_PROXY_URL: ${NEXT_PUBLIC_CAMERA_PROXY_URL:-http://localhost:8090}
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8090}
-    container_name: fabric-analyzer-frontend
     restart: unless-stopped
-    depends_on:
-      - backend
     env_file:
-      - path: .env
-        required: false
-    environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-app_user}:${POSTGRES_PASSWORD:-app_password}@db:5432/${POSTGRES_DB:-fabric_analyzer}}
-      SESSION_SECRET: ${SESSION_SECRET:-change_this_to_a_strong_secret}
-      BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:8090}
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8090}
-      NEXT_PUBLIC_CAMERA_PROXY_URL: ${NEXT_PUBLIC_CAMERA_PROXY_URL:-http://localhost:8090}
+      - .env.docker
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
-    networks:
-      - app-network
-
-networks:
-  app-network:
-    driver: bridge
+      - "3000:3000"
+    depends_on:
+      - db
 
 volumes:
-  postgres_data:
+  db_data:
+  pgadmin_data:

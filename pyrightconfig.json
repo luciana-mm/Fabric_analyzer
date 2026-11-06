@@ -1,0 +1,10 @@
+{
+  "venvPath": "./camera-proxy",
+  "venv": "venv",
+  "extraPaths": [
+    "./camera-proxy",
+    "./camera-proxy/venv/lib/python3.12/site-packages"
+  ],
+  "pythonVersion": "3.12",
+  "pythonPath": "./camera-proxy/venv/bin/python"
+}

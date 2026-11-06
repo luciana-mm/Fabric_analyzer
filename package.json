@@ -8,8 +8,8 @@
     "build": "next build",
     "lint": "eslint .",
     "start": "next start",
-    "camera:install": "python -m pip install -r ../backend/requirements.txt",
-    "camera:proxy": "python -m uvicorn server:app --host 0.0.0.0 --port 8090 --app-dir ../backend",
+    "camera:install": "python -m pip install -r camera-proxy/requirements.txt",
+    "camera:proxy": "python -m uvicorn server:app --host 0.0.0.0 --port 8090 --app-dir camera-proxy",
     "test": "vitest run",
     "test:watch": "vitest"
   },
