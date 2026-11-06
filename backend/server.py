@@ -218,8 +218,6 @@ class CameraState:
             self.active_channel = str(channel)
             self._switch_version += 1
             self.connected = False
-            self.latest_frame = None
-            self.last_frame_ts = 0.0
             proc = self._active_ffmpeg_proc
             self._persist_camera()
 
@@ -229,16 +227,6 @@ class CameraState:
             except Exception:
                 pass
 
-        # Limpa o frame analisado anterior e encerra qualquer worker duplicado do Mosaico para esta mesma câmera
-        try:
-            if "pipeline_state" in globals():
-                with pipeline_state.lock:
-                    pipeline_state.latest_analyzed_frame = None
-            if "channel_stream_pool" in globals():
-                channel_stream_pool.stop_matching(stream_url)
-        except Exception:
-            pass
-
         _log.info(
             "Switched active operator camera to id=%s name=%s brand=%s",
             self.active_camera_id,
@@ -246,63 +234,6 @@ class CameraState:
             self.active_brand,
         )
         return self.get_active_info()
-
-    def build_status_frame(self, status_text: str) -> bytes:
-        with self.lock:
-            cam_name = self.active_camera_name
-            brand = self.active_brand
-            channel = self.active_channel
-
-        canvas = np.full((360, 640, 3), (15, 23, 42), dtype=np.uint8)
-        for y in range(0, 360, 24):
-            cv2.line(canvas, (0, y), (640, y), (25, 35, 58), 1)
-        for x in range(0, 640, 24):
-            cv2.line(canvas, (x, 0), (x, 360), (25, 35, 58), 1)
-
-        cv2.rectangle(canvas, (20, 20), (620, 340), (56, 189, 248), 1)
-        cv2.putText(
-            canvas,
-            f"CAMERA DO OPERARIO ({brand.upper()} - CH {channel})",
-            (40, 70),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.65,
-            (56, 189, 248),
-            2,
-            cv2.LINE_AA,
-        )
-        cv2.putText(
-            canvas,
-            cam_name[:48],
-            (40, 115),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.58,
-            (226, 232, 240),
-            1,
-            cv2.LINE_AA,
-        )
-        cv2.putText(
-            canvas,
-            status_text[:55],
-            (40, 185),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.58,
-            (251, 191, 36),
-            1,
-            cv2.LINE_AA,
-        )
-        ts_str = time.strftime("%H:%M:%S")
-        cv2.putText(
-            canvas,
-            f"Sincronizado em tempo real | {ts_str}",
-            (40, 310),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.48,
-            (148, 163, 184),
-            1,
-            cv2.LINE_AA,
-        )
-        _, jpg = cv2.imencode(".jpg", canvas, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
-        return jpg.tobytes()
 
     def get_active_info(self) -> dict:
         from dvr_adapters.utils import mask_rtsp_url
@@ -315,58 +246,7 @@ class CameraState:
                 "streamUrlMasked": mask_rtsp_url(self.active_stream_url),
                 "connected": self.connected,
                 "lastFrameTs": self.last_frame_ts,
-                "switchVersion": self._switch_version,
             }
-
-    def _read_http_mjpeg_stream(self, url: str, version: int) -> bool:
-        """
-        Leitor nativo de streams HTTP MJPEG (DroidCam / IP Webcam).
-        Evita o erro do OpenCV quando OPENCV_FFMPEG_CAPTURE_OPTIONS contém rtsp_transport;tcp
-        e detecta imediatamente quando o DroidCam retorna página HTML 'DroidCam is Busy'.
-        """
-        import urllib.request
-
-        try:
-            req = urllib.request.Request(
-                url,
-                headers={"User-Agent": "Mozilla/5.0 (FabricAnalyzer CameraProxy)"},
-            )
-            with urllib.request.urlopen(req, timeout=5.0) as resp:
-                content_type = (resp.headers.get("Content-Type") or "").lower()
-                if "text/html" in content_type:
-                    html_preview = resp.read(512).decode("utf-8", errors="ignore")
-                    _log.warning(
-                        "HTTP camera stream (%s) returned HTML instead of MJPEG (e.g. DroidCam is Busy): %s",
-                        self.active_camera_name,
-                        "DroidCam is Busy" if "droidcam_busy" in html_preview else content_type,
-                    )
-                    self.connected = False
-                    return False
-
-                buffer = b""
-                while self.running and self._switch_version == version:
-                    chunk = resp.read(4096)
-                    if not chunk:
-                        break
-                    buffer += chunk
-                    while True:
-                        start = buffer.find(b"\xff\xd8")
-                        end = buffer.find(b"\xff\xd9", start + 2) if start != -1 else -1
-                        if start != -1 and end != -1:
-                            jpg = buffer[start : end + 2]
-                            buffer = buffer[end + 2 :]
-                            with self.lock:
-                                self.latest_frame = jpg
-                                self.last_frame_ts = time.time()
-                                self.connected = True
-                        else:
-                            break
-                self.connected = False
-                return True
-        except Exception as err:
-            _log.warning("Direct HTTP MJPEG read failed for %s: %s", self.active_camera_name, err)
-            self.connected = False
-            return False
 
     def _capture_loop(self) -> None:
         backoff = 1.0
@@ -395,15 +275,7 @@ class CameraState:
                         time.sleep(frame_interval)
                     continue
 
-                # Para streams HTTP/HTTPS (ex: DroidCam / IP Webcam), usa o leitor HTTP MJPEG nativo primeiro
-                if url.lower().startswith(("http://", "https://")):
-                    _log.info("Opening direct HTTP MJPEG stream for active camera (%s)...", self.active_camera_name)
-                    ok_http = self._read_http_mjpeg_stream(url, version)
-                    if not ok_http and self._switch_version == version:
-                        time.sleep(1.5)
-                    continue
-
-                # Prefer OpenCV capture first for RTSP
+                # Prefer OpenCV capture first for RTSP and HTTP MJPEG (DroidCam)
                 _log.info("Attempting OpenCV capture for active camera (%s)...", self.active_camera_name)
                 capture = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
                 try:
@@ -455,10 +327,8 @@ class CameraState:
                         break
 
                 capture.release()
-                self.connected = False
                 time.sleep(0.3)
             except Exception as e:
-                self.connected = False
                 _log.exception("Unexpected error in capture loop: %s", e)
                 time.sleep(1.0)
 
@@ -519,17 +389,14 @@ class CameraState:
                     else:
                         break
 
-            self.connected = False
             try:
                 proc.kill()
             except Exception:
                 pass
         except FileNotFoundError:
-            self.connected = False
             _log.error("ffmpeg not found in PATH. Install ffmpeg to use fallback.")
             time.sleep(2.0)
         except Exception as e:
-            self.connected = False
             _log.exception("ffmpeg loop error: %s", e)
             time.sleep(2.0)
 
@@ -856,12 +723,10 @@ def stream_mjpeg() -> StreamingResponse:
         while True:
             with camera_state.lock:
                 frame = camera_state.latest_frame
-                age = time.time() - camera_state.last_frame_ts if camera_state.last_frame_ts else 999.0
 
-            if frame is None or age > 6.0:
-                frame = camera_state.build_status_frame(
-                    "Conectando ao stream da camera..." if frame is None else "Sinal interrompido - reconectando..."
-                )
+            if frame is None:
+                time.sleep(0.1)
+                continue
 
             yield (
                 b"--" + boundary.encode() + b"\r\n"
@@ -908,15 +773,12 @@ def stream_analyzed_mjpeg(
     def analyzed_frame_generator():
         frame_interval = 1.0 / OUTPUT_FPS if OUTPUT_FPS > 0 else 0.08
         while True:
-            with camera_state.lock:
-                age = time.time() - camera_state.last_frame_ts if camera_state.last_frame_ts else 999.0
             with pipeline_state.lock:
                 jpg_bytes = pipeline_state.latest_analyzed_frame
 
-            if jpg_bytes is None or age > 6.0:
-                jpg_bytes = camera_state.build_status_frame(
-                    "Conectando ao stream da camera..." if jpg_bytes is None else "Sinal interrompido - reconectando..."
-                )
+            if jpg_bytes is None:
+                time.sleep(0.1)
+                continue
             
             try:
                 yield (
@@ -1516,15 +1378,6 @@ def dvr_set_active_camera(payload: dict = Body(...)) -> JSONResponse:
         stream_url = f"mock://127.0.0.1/channel/{channel}"
     else:
         try:
-            raw_pwd = str(payload.get("password") or "")
-            if raw_pwd.lower() in ("configured", "none", "null"):
-                raw_pwd = ""
-            if not raw_pwd and brand_str != "droidcam":
-                raw_pwd = _resolve_dvr_password(
-                    str(payload.get("dvrId") or ""),
-                    str(payload.get("host") or CAMERA_IP),
-                    int(payload.get("rtspPort") or CAMERA_RTSP_PORT),
-                )
             dvr_cfg = DvrDeviceConfig(
                 id=str(payload.get("dvrId") or ""),
                 name=camera_name,
@@ -1534,7 +1387,7 @@ def dvr_set_active_camera(payload: dict = Body(...)) -> JSONResponse:
                 http_port=int(payload.get("httpPort") or (4747 if brand_str == "droidcam" else 80)),
                 sdk_port=int(payload.get("sdkPort") or 8000),
                 username=str(payload.get("username") or "admin"),
-                password=raw_pwd,
+                password=str(payload.get("password") or CAMERA_PASSWORD or ""),
                 total_channels=max(1, int(channel) if channel.isdigit() else 1),
             )
             adapter = DvrAdapterFactory.create(dvr_cfg)
@@ -1646,51 +1499,6 @@ class ChannelStreamWorker:
         _, jpg = cv2.imencode(".jpg", canvas, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
         return jpg.tobytes()
 
-    def stop(self) -> None:
-        self.running = False
-        if self._proc is not None:
-            try:
-                self._proc.kill()
-            except Exception:
-                pass
-
-    def _read_http_mjpeg_once(self) -> bool:
-        import urllib.request
-
-        try:
-            req = urllib.request.Request(
-                self.stream_url,
-                headers={"User-Agent": "Mozilla/5.0 (FabricAnalyzer Mosaic)"},
-            )
-            with urllib.request.urlopen(req, timeout=4.5) as resp:
-                ctype = (resp.headers.get("Content-Type") or "").lower()
-                if "text/html" in ctype:
-                    self.connected = False
-                    return False
-                buf = b""
-                while self.running and (time.time() - self.last_client_ts <= 25.0):
-                    chunk = resp.read(4096)
-                    if not chunk:
-                        break
-                    buf += chunk
-                    while True:
-                        s = buf.find(b"\xff\xd8")
-                        e = buf.find(b"\xff\xd9", s + 2) if s != -1 else -1
-                        if s != -1 and e != -1:
-                            jpg = buf[s : e + 2]
-                            buf = buf[e + 2 :]
-                            with self.lock:
-                                self.latest_frame = jpg
-                                self.last_frame_ts = time.time()
-                                self.connected = True
-                        else:
-                            break
-                self.connected = False
-                return True
-        except Exception:
-            self.connected = False
-            return False
-
     def _run_loop(self) -> None:
         from dvr_adapters.utils import load_or_generate_mock_frame
 
@@ -1708,12 +1516,6 @@ class ChannelStreamWorker:
                     self.last_frame_ts = time.time()
                     self.connected = True
                 time.sleep(1.0 / max(1.0, OUTPUT_FPS))
-                continue
-
-            if self.stream_url.lower().startswith(("http://", "https://")):
-                ok_http = self._read_http_mjpeg_once()
-                if not ok_http and self.running:
-                    time.sleep(1.5)
                 continue
 
             try:
@@ -1802,22 +1604,6 @@ class ChannelStreamPool:
         self._lock = threading.Lock()
         self._workers: dict[str, ChannelStreamWorker] = {}
 
-    def stop_worker(self, worker_key: str) -> None:
-        with self._lock:
-            existing = self._workers.pop(worker_key, None)
-            if existing:
-                existing.stop()
-
-    def stop_matching(self, stream_url: str) -> None:
-        with self._lock:
-            keys_to_stop = [
-                k for k, w in self._workers.items() if w.stream_url == stream_url or w.host in stream_url
-            ]
-            for k in keys_to_stop:
-                w = self._workers.pop(k, None)
-                if w:
-                    w.stop()
-
     def get_or_create(
         self,
         worker_key: str,
@@ -1834,7 +1620,7 @@ class ChannelStreamPool:
                 existing.touch()
                 return existing
             if existing:
-                existing.stop()
+                existing.running = False
             worker = ChannelStreamWorker(
                 worker_key=worker_key,
                 stream_url=stream_url,
@@ -1851,21 +1637,17 @@ class ChannelStreamPool:
 channel_stream_pool = ChannelStreamPool()
 
 
-def _resolve_dvr_password(dvr_id: str, host: str, port: int, brand: str = "") -> str:
+def _resolve_dvr_password(dvr_id: str, host: str, port: int) -> str:
     cfg = stream_session_manager.get_device_config(dvr_id)
-    if cfg and cfg.password and str(cfg.password).lower() not in ("configured", "none", "null"):
+    if cfg and cfg.password and cfg.password != "configured":
         return cfg.password
     # Procura também por host:port entre os dispositivos registrados no monitor
     with stream_session_manager._lock:
         for entry in stream_session_manager._devices.values():
             if entry.config.host == host and int(entry.config.rtsp_port) == int(port):
-                if entry.config.password and str(entry.config.password).lower() not in ("configured", "none", "null"):
+                if entry.config.password and entry.config.password != "configured":
                     return entry.config.password
-    if brand.lower() == "droidcam":
-        return ""
-    if CAMERA_PASSWORD and str(CAMERA_PASSWORD).lower() not in ("configured", "none", "null"):
-        return CAMERA_PASSWORD
-    return ""
+    return CAMERA_PASSWORD or ""
 
 
 @app.get("/dvr/channel-stream.mjpg")
@@ -1886,7 +1668,7 @@ def dvr_channel_stream_mjpeg(
     própria de cada câmera (sem repetir a câmera ativa do operário em todos os slots).
     """
     brand_clean = "generic" if brand.lower() in ("generic_rtsp", "generic") else brand.lower()
-    password = _resolve_dvr_password(dvrId, host, port, brand_clean)
+    password = _resolve_dvr_password(dvrId, host, port)
 
     if brand_clean == "mock":
         stream_url = f"mock://127.0.0.1/channel/{channel}"
@@ -1919,33 +1701,18 @@ def dvr_channel_stream_mjpeg(
     def channel_generator():
         frame_interval = 1.0 / OUTPUT_FPS if OUTPUT_FPS > 0 else 0.08
         while True:
-            # Se esta câmera específica for a câmera ativa do Operário, SEMPRE compartilha
-            # o CameraState/PipelineState e encerra qualquer worker duplicado (evita 'DroidCam is Busy')
+            # Se esta câmera específica for exatamente a câmera ativa do Operário e já estiver conectada,
+            # aproveita o frame já capturado pelo CameraState/PipelineState para não duplicar conexões RTSP
             is_same_as_operator = (
                 (camId and camId == camera_state.active_camera_id)
                 or (camera_state.active_stream_url == stream_url)
-                or (
-                    host
-                    and host != "127.0.0.1"
-                    and host in camera_state.active_stream_url
-                    and str(channel) == str(camera_state.active_channel)
-                )
             )
-            if is_same_as_operator:
-                channel_stream_pool.stop_worker(worker_key)
-                with camera_state.lock:
-                    op_frame = camera_state.latest_frame
-                    op_age = time.time() - camera_state.last_frame_ts if camera_state.last_frame_ts else 999.0
-
-                if op_frame is not None and op_age <= 6.0:
-                    if mode == "analyzed" and pipeline_state.latest_analyzed_frame is not None:
-                        frame_bytes = pipeline_state.latest_analyzed_frame
-                    else:
-                        frame_bytes = op_frame
+            if is_same_as_operator and camera_state.connected and camera_state.latest_frame is not None:
+                if mode == "analyzed" and pipeline_state.latest_analyzed_frame is not None:
+                    frame_bytes = pipeline_state.latest_analyzed_frame
                 else:
-                    frame_bytes = camera_state.build_status_frame(
-                        "Conectando ao stream da camera..." if op_frame is None else "Sinal interrompido - reconectando..."
-                    )
+                    with camera_state.lock:
+                        frame_bytes = camera_state.latest_frame
             else:
                 worker = channel_stream_pool.get_or_create(
                     worker_key=worker_key,
