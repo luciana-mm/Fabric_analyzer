@@ -77,3 +77,4 @@ lint_results.json
 backend/runs/
 backend/models/best.pt
 backend/dataset/raw/
+backend/active-operator-camera.json
