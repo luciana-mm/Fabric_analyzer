@@ -5,7 +5,6 @@
 
 import { useState, useCallback } from "react";
 import { RgbColor8Bit } from "@/utils/colorSpaceConversion";
-import { getCameraProxyUrl } from "@/lib/camera-proxy";
 
 export interface CameraRobustCaptureState {
   isCapturing: boolean;
@@ -89,7 +88,7 @@ export function useCameraRobustCapture(): UseCameraRobustCaptureReturn {
           query.set("pixel_puro", "true");
         }
         const response = await fetch(
-          `${getCameraProxyUrl()}/capture-robust-sample?${query.toString()}`,
+          `${CAMERA_PROXY_URL}/capture-robust-sample?${query.toString()}`,
           { method: "POST", headers: { "Content-Type": "application/json" } },
         );
 

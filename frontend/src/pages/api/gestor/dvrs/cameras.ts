@@ -53,7 +53,7 @@ export default async function handler(
         let resolvedRtspPort = Number(rtsp_port || (resolvedBrand === "droidcam" ? 4747 : 554));
         let resolvedHttpPort = Number(http_port || (resolvedBrand === "droidcam" ? 4747 : 80));
         let resolvedUsername = String(username || "admin");
-        let resolvedPassword = "";
+        let resolvedPassword = process.env.CAMERA_PASSWORD || "";
 
         if (!isSyntheticId) {
           // Marca apenas esta câmera como padrão do operário no PostgreSQL
@@ -83,11 +83,7 @@ export default async function handler(
             resolvedRtspPort = Number(row.rtsp_port || resolvedRtspPort);
             resolvedHttpPort = Number(row.http_port || resolvedHttpPort);
             resolvedUsername = row.username || resolvedUsername;
-            if (
-              row.password_encrypted &&
-              row.password_encrypted !== "configured" &&
-              row.password_encrypted !== "none"
-            ) {
+            if (row.password_encrypted && row.password_encrypted !== "configured") {
               resolvedPassword = row.password_encrypted;
             }
           }

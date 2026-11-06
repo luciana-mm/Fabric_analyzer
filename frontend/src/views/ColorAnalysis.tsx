@@ -23,7 +23,6 @@ import {
 } from "@/lib/systemConfig";
 import { evaluateColorMatch } from "@/utils/calibrationUtils";
 import { rgb8BitToNormalized, rgbToHex } from "@/utils/colorSpaceConversion";
-import { getCameraProxyUrl } from "@/lib/camera-proxy";
 
 const clampCapturePercent = (value: number | undefined, fallback: number) => {
   const numberValue = Number(value);
@@ -93,7 +92,7 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
   // Zera automaticamente o contador de falhas na câmera ao entrar na tela de análise
   useEffect(() => {
     if (analysisType !== "tecido") return;
-    fetch(`${getCameraProxyUrl()}/reset-count`, { method: "POST" })
+    fetch(`${CAMERA_API_URL}/reset-count`, { method: "POST" })
       .then(() => setDefectCount(0))
       .catch(() => {});
   }, [analysisType]);
@@ -104,7 +103,7 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
 
     const fetchDefects = async () => {
       try {
-        const response = await fetch(`${getCameraProxyUrl()}/defect-count`);
+        const response = await fetch(`${CAMERA_API_URL}/defect-count`);
         if (response.ok) {
           const data = await response.json();
           setDefectCount(data.count);
@@ -122,7 +121,7 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
 
   const handleResetDefects = async () => {
     try {
-      const response = await fetch(`${getCameraProxyUrl()}/reset-count`, { method: "POST" });
+      const response = await fetch(`${CAMERA_API_URL}/reset-count`, { method: "POST" });
       if (response.ok) {
         setDefectCount(0);
         toast.success("Contagem de falhas zerada.");
@@ -137,7 +136,7 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
       // Se for o primeiro início da sessão, zera o contador; se estava apenas pausado, mantém a contagem atual do lote
       if (!hasInspectedInSession) {
         try {
-          await fetch(`${getCameraProxyUrl()}/reset-count`, { method: "POST" });
+          await fetch(`${CAMERA_API_URL}/reset-count`, { method: "POST" });
           setDefectCount(0);
         } catch {
           // continua mesmo se falhar o reset
@@ -177,7 +176,7 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
       // Ativa a detecção de falhas no vídeo a partir do primeiro clique em Analisar Agora
       if (!isInspectionActive) {
         try {
-          await fetch(`${getCameraProxyUrl()}/reset-count`, { method: "POST" });
+          await fetch(`${CAMERA_API_URL}/reset-count`, { method: "POST" });
           setDefectCount(0);
         } catch {
           // ignora erro de rede
@@ -302,7 +301,7 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
     }
     if (enabled && !isInspectionActive) {
       try {
-        await fetch(`${getCameraProxyUrl()}/reset-count`, { method: "POST" });
+        await fetch(`${CAMERA_API_URL}/reset-count`, { method: "POST" });
         setDefectCount(0);
       } catch {
         // ignora erro de rede
@@ -349,7 +348,7 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
 
     // Zera automaticamente as falhas na câmera ao finalizar o lote
     try {
-      await fetch(`${getCameraProxyUrl()}/reset-count`, { method: "POST" });
+      await fetch(`${CAMERA_API_URL}/reset-count`, { method: "POST" });
     } catch {
       // ignora erro se câmera estiver offline
     }

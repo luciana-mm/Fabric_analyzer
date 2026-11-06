@@ -17,7 +17,6 @@ import { RgbScreen } from "./RgbScreen";
 import { useCameraRobustCapture } from "@/hooks/useCameraRobustCapture";
 import { useRobustColorCalibration } from "@/hooks/useRobustColorCalibration";
 import { defaultSystemConfig } from "@/lib/systemConfig";
-import { getCameraProxyUrl } from "@/lib/camera-proxy";
 
 interface ColorCaptureProps {
   onBack: () => void;
@@ -161,7 +160,7 @@ export const ColorCapture = ({
         { id: "anomalib-pattern-calibration" },
       );
 
-      const patternRes = await fetch(`${getCameraProxyUrl()}/calibrate-pattern`, {
+      const patternRes = await fetch(`${CAMERA_PROXY_URL}/calibrate-pattern`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -268,7 +267,7 @@ export const ColorCapture = ({
             { id: "anomalib-pattern-calibration" },
           );
 
-          const patternRes = await fetch(`${getCameraProxyUrl()}/calibrate-pattern`, {
+          const patternRes = await fetch(`${CAMERA_PROXY_URL}/calibrate-pattern`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -299,7 +298,7 @@ export const ColorCapture = ({
             ? capturedRawSamples
             : [displayColor.rgb];
 
-        const response = await fetch(`${getCameraProxyUrl()}/reference-palette`, {
+        const response = await fetch(`${CAMERA_PROXY_URL}/reference-palette`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ samples: samplesToSend }),
