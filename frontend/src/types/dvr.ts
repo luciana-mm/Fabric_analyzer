@@ -1,4 +1,4 @@
-export type DvrBrand = 'hikvision' | 'intelbras' | 'dahua' | 'onvif' | 'droidcam' | 'generic' | 'mock';
+export type DvrBrand = 'hikvision' | 'intelbras' | 'dahua' | 'onvif' | 'generic' | 'mock';
 
 export type DeviceConnectionStatus = 'online' | 'offline' | 'connecting' | 'error';
 
@@ -8,7 +8,7 @@ export interface CameraDescriptor {
   id: string;
   channelNumber: number;
   name: string;
-  streamUrl?: string;       // URL RTSP (mainstream ou substream) ou HTTP MJPEG (DroidCam)
+  streamUrl?: string;       // URL RTSP (mainstream ou substream)
   snapshotUrl?: string;     // URL HTTP/CGI/ISAPI para captura de frame estático
   resolution?: { width: number; height: number };
   fps?: number;
@@ -71,7 +71,6 @@ export interface CameraDevice {
   resolution_height?: number;
   fps: number;
   is_active: boolean;
-  is_operator_default?: boolean;
   status: DeviceConnectionStatus;
   last_frame_at?: string | null;
   created_at?: string;
@@ -95,7 +94,7 @@ export interface CreateDvrPayload {
   rtsp_port?: number;
   http_port?: number;
   sdk_port?: number;
-  username?: string;
+  username: string;
   password?: string;
   total_channels?: number;
 }

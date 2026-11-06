@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, scrypt as _scrypt, timingSafeEqual } from "crypto";
+﻿import { createHmac, randomBytes, scrypt as _scrypt, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import type { IncomingMessage } from "http";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -167,7 +167,7 @@ export function createSessionCookie(value: string) {
     maxAge: COOKIE_MAX_AGE,
     path: "/",
     httpOnly: true,
-    secure: process.env.COOKIE_SECURE === "true",
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
   });
 }
@@ -177,7 +177,7 @@ export function clearSessionCookie() {
     maxAge: 0,
     path: "/",
     httpOnly: true,
-    secure: process.env.COOKIE_SECURE === "true",
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     expires: new Date(0),
   });

@@ -23,7 +23,6 @@ lerna-debug.log*
 !.env.example
 !.env.*.example
 **/calibrated-color-reference.json
-**/active-operator-camera.json
 
 # Local Docker volumes and database data
 postgres_data/
@@ -44,7 +43,7 @@ coverage/
 
 # Python bytecode, tooling and test caches
 __pycache__/
-**/pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/

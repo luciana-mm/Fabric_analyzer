@@ -43,10 +43,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app_password}
       POSTGRES_DB: ${POSTGRES_DB:-fabric_analyzer}
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-app_user}:${POSTGRES_PASSWORD:-app_password}@db:5432/${POSTGRES_DB:-fabric_analyzer}}
-      CAMERA_IP: ${CAMERA_IP:-}
+      CAMERA_IP: ${CAMERA_IP:-192.168.1.64}
       CAMERA_RTSP_PORT: ${CAMERA_RTSP_PORT:-554}
       CAMERA_USER: ${CAMERA_USER:-admin}
-      CAMERA_PASSWORD: ${CAMERA_PASSWORD:-}
+      CAMERA_PASSWORD: ${CAMERA_PASSWORD:-sua_senha_aqui}
       CAMERA_CHANNEL: ${CAMERA_CHANNEL:-101}
       OUTPUT_FPS: ${OUTPUT_FPS:-12}
       JPEG_QUALITY: ${JPEG_QUALITY:-80}

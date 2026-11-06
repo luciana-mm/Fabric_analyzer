@@ -10,7 +10,6 @@ class DvrBrand(str, Enum):
     INTELBRAS = "intelbras"
     DAHUA = "dahua"
     ONVIF = "onvif"
-    DROIDCAM = "droidcam"
     GENERIC = "generic"
     MOCK = "mock"
 
@@ -72,8 +71,8 @@ class DvrDeviceConfig(BaseModel):
     rtsp_port: int = 554
     http_port: int = 80
     sdk_port: Optional[int] = None
-    username: str = "admin"
-    password: str = ""
+    username: str
+    password: str
     total_channels: int = 1
     metadata: Optional[Dict[str, Any]] = None
 
@@ -99,7 +98,7 @@ class BaseDvrAdapter(ABC):
 
     @abstractmethod
     def get_camera_stream_url(self, channel_or_id: str, subtype: str = "main") -> str:
-        """Gera a URL de stream (RTSP/HTTP/WebRTC) segura para o canal especificado."""
+        """Gera a URL de stream (RTSP/WebRTC) segura para o canal especificado."""
         pass
 
     @abstractmethod
