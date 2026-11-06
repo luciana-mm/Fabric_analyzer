@@ -35,7 +35,11 @@ class DroidCamAdapter(BaseDvrAdapter):
     def _build_raw_stream_url(self, subtype: str = "main") -> str:
         port = self._resolve_port()
         auth = ""
-        if self.config.username and self.config.password and self.config.password != "configured":
+        if (
+            self.config.username
+            and self.config.password
+            and str(self.config.password).lower() not in ("configured", "none", "null")
+        ):
             auth = f"{self.config.username}:{self.config.password}@"
         path = "/video" if subtype == "main" else "/mjpegfeed?640x480"
         return f"http://{auth}{self.config.host}:{port}{path}"
