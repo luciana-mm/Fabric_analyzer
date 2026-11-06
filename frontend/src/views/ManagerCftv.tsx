@@ -39,6 +39,7 @@ import type {
   StreamEvent,
 } from "@/types/dvr";
 import type { MonitoredDvrState } from "@/lib/dvr-adapters/stream-monitor";
+import { getCameraProxyUrl } from "@/lib/camera-proxy";
 
 const CAMERA_PROXY_URL =
   process.env.NEXT_PUBLIC_CAMERA_PROXY_URL ?? "http://localhost:8090";
@@ -688,7 +689,7 @@ export default function ManagerCftv() {
             <section className="space-y-4">
               <CftvMosaicPlayer
                 dvrs={dvrs}
-                cameraProxyUrl={CAMERA_PROXY_URL}
+                cameraProxyUrl={getCameraProxyUrl()}
                 onCaptureSnapshot={handleCaptureSnapshot}
                 capturingCamId={capturingCamId}
               />
@@ -1008,8 +1009,8 @@ export default function ManagerCftv() {
                               <img
                                 src={
                                   selectedPreviewCamera.brand === "mock"
-                                    ? `${CAMERA_PROXY_URL}/dvr/mock/snapshot?channel=${selectedPreviewCamera.channelNumber}`
-                                    : `${CAMERA_PROXY_URL}/dvr/channel-stream.mjpg?camId=${encodeURIComponent(
+                                    ? `${getCameraProxyUrl()}/dvr/mock/snapshot?channel=${selectedPreviewCamera.channelNumber}`
+                                    : `${getCameraProxyUrl()}/dvr/channel-stream.mjpg?camId=${encodeURIComponent(
                                         selectedPreviewCamera.camId
                                       )}&dvrId=${encodeURIComponent(dvr.id)}&name=${encodeURIComponent(
                                         dvr.name
