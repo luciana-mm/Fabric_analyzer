@@ -34,9 +34,6 @@ const clampCapturePercent = (value: number | undefined, fallback: number) => {
 };
 
 const AUTO_ANALYSIS_INTERVAL_MS = 2500;
-// URL base da câmera (ajuste se for diferente no seu ambiente)
-const CAMERA_API_URL =
-  process.env.NEXT_PUBLIC_CAMERA_PROXY_URL ?? "http://localhost:8090";
 
 interface ColorAnalysisProps {
   analysisType?: "tecido" | "pecas";

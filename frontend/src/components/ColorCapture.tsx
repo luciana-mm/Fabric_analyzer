@@ -53,8 +53,6 @@ interface ColorCaptureProps {
 const LIGHT_CALIBRATION_SAMPLES = 5;
 const COLOR_CAPTURE_SAMPLES = 5;
 const SAMPLE_INTERVAL_MS = 200;
-const CAMERA_PROXY_URL =
-  process.env.NEXT_PUBLIC_CAMERA_PROXY_URL ?? "http://127.0.0.1:8090";
 
 const clampCapturePercent = (value: number | undefined, fallback: number) => {
   const numberValue = Number(value);
