@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAuth } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { streamMonitorService } from "@/lib/dvr-adapters/stream-monitor";
+import { getCameraProxyUrl } from "@/lib/camera-proxy";
 
 function buildFallbackSyntheticSvgDataUrl(
   cameraName: string,
@@ -57,10 +58,7 @@ export default async function handler(
     channelNumber = 1,
   } = req.body || {};
 
-  const cameraProxyUrl =
-    process.env.BACKEND_API_URL ||
-    process.env.NEXT_PUBLIC_CAMERA_PROXY_URL ||
-    "http://127.0.0.1:8090";
+  const cameraProxyUrl = getCameraProxyUrl();
 
   try {
     let resolvedPassword = "";

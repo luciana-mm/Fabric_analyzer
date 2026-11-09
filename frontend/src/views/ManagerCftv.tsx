@@ -41,9 +41,6 @@ import type {
 import type { MonitoredDvrState } from "@/lib/dvr-adapters/stream-monitor";
 import { getCameraProxyUrl } from "@/lib/camera-proxy";
 
-const CAMERA_PROXY_URL =
-  process.env.NEXT_PUBLIC_CAMERA_PROXY_URL ?? "http://localhost:8090";
-
 const ADAPTER_LABELS: Record<DvrBrand, string> = {
   hikvision: "HikvisionDvrAdapter (ISAPI / RTSP)",
   intelbras: "IntelbrasDvrAdapter (Port 37777 / RealMonitor)",

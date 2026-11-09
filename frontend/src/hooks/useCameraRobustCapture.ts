@@ -35,9 +35,6 @@ export interface UseCameraRobustCaptureReturn extends CameraRobustCaptureState {
   ) => Promise<{ rgb: RgbColor8Bit; rawSamples: RgbColor8Bit[] } | null>;
 }
 
-const CAMERA_PROXY_URL =
-  process.env.NEXT_PUBLIC_CAMERA_PROXY_URL || "http://localhost:8090";
-
 export function useCameraRobustCapture(): UseCameraRobustCaptureReturn {
   const [state, setState] = useState<CameraRobustCaptureState>({
     isCapturing: false,

@@ -3,6 +3,7 @@ import { query } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { DvrAdapterFactory } from "@/lib/dvr-adapters";
 import type { DvrDevice, CameraDevice, DvrBrand } from "@/types/dvr";
+import { getCameraProxyUrl } from "@/lib/camera-proxy";
 
 export default async function handler(
   req: NextApiRequest,
@@ -41,10 +42,7 @@ export default async function handler(
         camerasByDvr[cam.dvr_id].push(cam);
       }
 
-      const cameraProxyUrl =
-        process.env.BACKEND_API_URL ||
-        process.env.NEXT_PUBLIC_CAMERA_PROXY_URL ||
-        "http://127.0.0.1:8090";
+      const cameraProxyUrl = getCameraProxyUrl();
 
       // Sincroniza as credenciais de cada DVR com o backend Python para que cada canal do Mosaico tenha seu próprio stream
       for (const row of dvrsResult.rows) {
@@ -272,10 +270,7 @@ export default async function handler(
 
       // Aciona imediatamente o servidor Python para que a nova câmera já funcione no Painel do Operário sem precisar de .env
       if (firstInsertedCamId) {
-        const cameraProxyUrl =
-          process.env.BACKEND_API_URL ||
-          process.env.NEXT_PUBLIC_CAMERA_PROXY_URL ||
-          "http://127.0.0.1:8090";
+        const cameraProxyUrl = getCameraProxyUrl();
         await fetch(`${cameraProxyUrl}/dvr/active-camera`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

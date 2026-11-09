@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAuth } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { streamMonitorService } from "@/lib/dvr-adapters/stream-monitor";
+import { getCameraProxyUrl } from "@/lib/camera-proxy";
 
 export default async function handler(
   req: NextApiRequest,
@@ -99,10 +100,7 @@ export default async function handler(
         }
 
         // Notifica o servidor Python de visão computacional (backend:8090) para chavear o stream ao vivo imediatamente
-        const cameraProxyUrl =
-          process.env.BACKEND_API_URL ||
-          process.env.NEXT_PUBLIC_CAMERA_PROXY_URL ||
-          "http://127.0.0.1:8090";
+        const cameraProxyUrl = getCameraProxyUrl();
 
         let backendSwitchInfo: Record<string, unknown> | null = null;
         try {
