@@ -36,7 +36,9 @@ export const useCameraPreview = (
       const data = await response.json().catch(() => null);
       if (!mountedRef.current) return;
 
-      const newCamId = data?.active_camera?.cameraId || null;
+      const rawCamId = data?.active_camera?.cameraId || null;
+      const switchVer = data?.active_camera?.switchVersion ?? 0;
+      const newCamId = rawCamId ? `${rawCamId}:v${switchVer}` : null;
       const newCamName = data?.active_camera?.cameraName || null;
       if (newCamName) {
         setActiveCameraName(newCamName);
