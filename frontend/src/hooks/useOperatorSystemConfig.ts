@@ -121,7 +121,7 @@ export const useOperatorSystemConfig = (userId: string | null | undefined) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [loadSource, setLoadSource] = useState<ConfigLoadSource>("local");
-  const [isRemoteConfigAvailable, setIsRemoteConfigAvailable] = useState(true);
+  const [isRemoteConfigAvailable] = useState(true)
 
   const saveToBackend = useCallback(
     async (nextConfig: SystemConfig, nextView: ConfigView): Promise<boolean> => {

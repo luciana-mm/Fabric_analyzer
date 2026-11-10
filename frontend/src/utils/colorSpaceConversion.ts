@@ -47,7 +47,6 @@ const SRGB_GAMMA_POWER = 2.4;
 // XYZ to Lab conversion constants
 const XYZ_EPSILON = 0.008856; // (6/29)³
 const XYZ_KAPPA = 903.3; // (29/3)² × 3
-const XYZ_CUBE_ROOT_THRESHOLD = 0.008856;
 
 // Official CIE RGB to XYZ matrix (D65)
 const RGB_TO_XYZ_MATRIX = [
