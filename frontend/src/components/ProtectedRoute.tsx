@@ -1,5 +1,16 @@
 "use client";
 
+/**
+ * Componente de guarda de rotas Client-Side (Controle de Acesso Baseado em Papel / RBAC).
+ *
+ * - Atua como segunda camada de segurança em conjunto com o `middleware.ts`.
+ * - Aguarda a restauração da sessão (`useAuth`) exibindo um indicador de carregamento.
+ * - Se não houver usuário autenticado, redireciona para a tela de login (`/`).
+ * - Quando `requireRole` é informado (`"operador"` ou `"gestor"`), aplica a política
+ *   *fail-closed*: qualquer papel diferente do exigido (incluindo `null`) tem a
+ *   renderização bloqueada e o usuário é redirecionado para sua área correspondente.
+ */
+
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, AppRole } from "@/hooks/useAuth";
@@ -24,8 +35,8 @@ export const ProtectedRoute = ({ children, requireRole }: ProtectedRouteProps) =
       return;
     }
 
-    if (requireRole && role && role !== requireRole) {
-      router.replace(role === "gestor" ? "/gestor" : "/painel");
+    if (requireRole && role !== requireRole) {
+      router.replace(role === "gestor" ? "/gestor" : role === "operador" ? "/painel" : "/");
     }
   }, [loading, user, role, requireRole, router]);
 
@@ -39,7 +50,7 @@ export const ProtectedRoute = ({ children, requireRole }: ProtectedRouteProps) =
 
   if (!user) return null;
 
-  if (requireRole && role && role !== requireRole) {
+  if (requireRole && role !== requireRole) {
     return null;
   }
 

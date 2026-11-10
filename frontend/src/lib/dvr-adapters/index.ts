@@ -1,3 +1,4 @@
+import { getCameraProxyUrl } from "../camera-proxy";
 import net from "net";
 import type {
   CameraDescriptor,
@@ -156,8 +157,7 @@ export class HikvisionDvrAdapter extends BaseTsDvrAdapter {
   }
 
   async captureSnapshot(cameraId: string): Promise<ImageCaptureResult> {
-    const cameraProxyUrl =
-      process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_CAMERA_PROXY_URL || "http://127.0.0.1:8090";
+    const cameraProxyUrl = getCameraProxyUrl();
     const resp = await fetch(`${cameraProxyUrl}/snapshot.jpg`, {
       signal: AbortSignal.timeout(3000),
     });
@@ -256,8 +256,7 @@ export class IntelbrasDvrAdapter extends BaseTsDvrAdapter {
   }
 
   async captureSnapshot(cameraId: string): Promise<ImageCaptureResult> {
-    const cameraProxyUrl =
-      process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_CAMERA_PROXY_URL || "http://127.0.0.1:8090";
+    const cameraProxyUrl = getCameraProxyUrl();
     const resp = await fetch(`${cameraProxyUrl}/snapshot.jpg`, {
       signal: AbortSignal.timeout(3000),
     });
@@ -343,8 +342,7 @@ export class GenericOnvifAdapter extends BaseTsDvrAdapter {
   }
 
   async captureSnapshot(cameraId: string): Promise<ImageCaptureResult> {
-    const cameraProxyUrl =
-      process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_CAMERA_PROXY_URL || "http://127.0.0.1:8090";
+    const cameraProxyUrl = getCameraProxyUrl();
     const resp = await fetch(`${cameraProxyUrl}/snapshot.jpg`, {
       signal: AbortSignal.timeout(3000),
     });
@@ -455,8 +453,7 @@ export class DroidCamAdapter extends BaseTsDvrAdapter {
       // fallback to cameraProxyUrl
     }
 
-    const cameraProxyUrl =
-      process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_CAMERA_PROXY_URL || "http://127.0.0.1:8090";
+    const cameraProxyUrl = getCameraProxyUrl();
     const resp = await fetch(`${cameraProxyUrl}/snapshot.jpg`, {
       signal: AbortSignal.timeout(3000),
     });
@@ -531,8 +528,7 @@ export class GenericRtspAdapter extends BaseTsDvrAdapter {
   }
 
   async captureSnapshot(cameraId: string): Promise<ImageCaptureResult> {
-    const cameraProxyUrl =
-      process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_CAMERA_PROXY_URL || "http://127.0.0.1:8090";
+    const cameraProxyUrl = getCameraProxyUrl();
     const resp = await fetch(`${cameraProxyUrl}/snapshot.jpg`, {
       signal: AbortSignal.timeout(3000),
     });
@@ -609,8 +605,7 @@ export class MockOrSimulatorAdapter extends BaseTsDvrAdapter {
   }
 
   async captureSnapshot(cameraId: string): Promise<ImageCaptureResult> {
-    const cameraProxyUrl =
-      process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_CAMERA_PROXY_URL || "http://127.0.0.1:8090";
+    const cameraProxyUrl = getCameraProxyUrl();
     const digits = cameraId.replace(/\D/g, "") || "1";
     const resp = await fetch(`${cameraProxyUrl}/dvr/mock/snapshot?channel=${digits}`, {
       signal: AbortSignal.timeout(3000),
