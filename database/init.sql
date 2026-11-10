@@ -21,6 +21,9 @@ END $$;
 -- ============================================================
 -- 2. TABELA USERS (Autenticação)
 -- ============================================================
+DROP TABLE IF EXISTS public.stream_events CASCADE;
+DROP TABLE IF EXISTS public.camera_devices CASCADE;
+DROP TABLE IF EXISTS public.dvr_devices CASCADE;
 DROP TABLE IF EXISTS public.analysis_records CASCADE;
 DROP TABLE IF EXISTS public.operator_configurations CASCADE;
 DROP TABLE IF EXISTS public.user_roles CASCADE;
@@ -258,6 +261,7 @@ DO $$ BEGIN
     'intelbras',
     'dahua',
     'onvif',
+    'droidcam',
     'generic',
     'mock'
   );
