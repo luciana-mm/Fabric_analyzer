@@ -106,7 +106,6 @@ export function useRobustColorCalibration(): UseRobustColorCalibrationReturn {
 
         const lightSamples: RgbColor[] = [];
         const luminanceValues: number[] = [];
-        let successfulCaptures = 0;
 
         // Capture multiple samples
         for (let i = 0; i < captureCount; i++) {
@@ -119,7 +118,6 @@ export function useRobustColorCalibration(): UseRobustColorCalibrationReturn {
               const normalizedRgb = rgb8BitToNormalized(rgbSample);
               lightSamples.push(normalizedRgb);
               luminanceValues.push(calculateLuminance(normalizedRgb));
-              successfulCaptures++;
 
               console.log(
                 `[useRobustColorCalibration] Sample ${i + 1}: RGB(${normalizedRgb.r.toFixed(3)}, ${normalizedRgb.g.toFixed(3)}, ${normalizedRgb.b.toFixed(3)}), Luminance=${(calculateLuminance(normalizedRgb) * 100).toFixed(1)}%`,
@@ -226,7 +224,6 @@ export function useRobustColorCalibration(): UseRobustColorCalibrationReturn {
         setProgress(5, 'Iniciando captura de cor...');
 
         const colorSamples: RgbColor[] = [];
-        let successfulCaptures = 0;
 
         // Capture multiple samples
         for (let i = 0; i < captureCount; i++) {
@@ -238,7 +235,6 @@ export function useRobustColorCalibration(): UseRobustColorCalibrationReturn {
             if (rgbSample) {
               const normalizedRgb = rgb8BitToNormalized(rgbSample);
               colorSamples.push(normalizedRgb);
-              successfulCaptures++;
             }
           } catch (err) {
             console.warn(`[useRobustColorCalibration] Falha na captura ${i + 1}:`, err);

@@ -1,8 +1,17 @@
 "use client";
 
+/**
+ * Componente de exibição do stream MJPEG ao vivo da câmera industrial.
+ *
+ * - Monitora continuamente a disponibilidade do servidor de vídeo via `useCameraPreview`.
+ * - Exibe fallback visual com diagnóstico e botão de reconexão quando a câmera está offline.
+ * - No desmonte (troca de tela), limpa explicitamente o atributo `src` da tag `<img>`
+ *   para forçar o navegador a encerrar imediatamente a conexão HTTP multipart aberta,
+ *   evitando vazamento de conexões concorrentes no backend e no DroidCam/RTSP.
+ */
+import { useEffect, useRef } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
-// Verifique se o caminho do import abaixo está correto no seu projeto!
-import { useCameraPreview } from "@/hooks/useCameraPreview"; 
+import { useCameraPreview } from "@/hooks/useCameraPreview";
 
 interface CameraPreviewProps {
   className?: string;
@@ -23,15 +32,25 @@ export const CameraPreview = ({
   overlay,
   streamPath,
 }: CameraPreviewProps) => {
-  // AQUI: Agora ele pega a streamUrl correta (da porta 8000) de dentro do hook
   const { checkedOnce, status, errorMessage, markStreamError, retry, streamUrl } = useCameraPreview(streamPath);
   const isOnline = status === "online" || status === "connecting";
+  const imgRef = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    const currentImg = imgRef.current;
+    return () => {
+      if (currentImg) {
+        currentImg.src = "";
+      }
+    };
+  }, []);
 
   return (
     <div className={className ?? "relative w-full h-full overflow-hidden rounded-xl border border-border/30 bg-black"}>
       {isOnline ? (
         <img
-          src={streamUrl} // A tag img agora usa a URL conectada no Python
+          ref={imgRef}
+          src={streamUrl}
           alt="Vídeo ao vivo da câmera"
           className={imageClassName ?? "w-full h-full object-contain bg-black"}
           onError={markStreamError}
