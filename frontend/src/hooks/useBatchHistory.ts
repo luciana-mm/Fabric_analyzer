@@ -2,7 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { fetchJson } from "@/lib/api-client";
-import { useState, useMemo } from "react";
 
 export type BatchHistoryRow = {
   batch_id: string;
