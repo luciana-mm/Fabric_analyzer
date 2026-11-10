@@ -1,7 +1,16 @@
+/**
+ * Rota de API (POST /api/gestor/dvrs/test) para teste de conectividade de DVRs e câmeras.
+ *
+ * - Delega prioritariamente o teste para o backend Python (`/dvr/test-connection`),
+ *   garantindo que a validação ocorra no mesmo ambiente de rede do motor de vídeo.
+ * - Mantém fallback para o `DvrAdapterFactory` local caso o servidor Python esteja indisponível.
+ * - Atualiza o status (`online` / `offline`) e `last_checked_at` do dispositivo no PostgreSQL.
+ */
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAuth } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { DvrAdapterFactory } from "@/lib/dvr-adapters";
+import { getCameraProxyUrl } from "@/lib/camera-proxy";
 import type { DvrBrand } from "@/types/dvr";
 
 export default async function handler(
@@ -37,20 +46,44 @@ export default async function handler(
   }
 
   try {
-    const adapter = DvrAdapterFactory.create({
-      id,
-      name,
-      brand: brand as DvrBrand,
-      host,
-      rtsp_port: Number(rtsp_port),
-      http_port: Number(http_port),
-      sdk_port: sdk_port ? Number(sdk_port) : undefined,
-      username,
-      password,
-      total_channels: Number(total_channels),
-    });
+    let result;
+    const pyBrand = brand === "generic" ? "generic_rtsp" : brand;
+    const pyResp = await fetch(`${getCameraProxyUrl()}/dvr/test-connection`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: String(id || "dvr-test"),
+        name,
+        brand: pyBrand,
+        host,
+        rtsp_port: Number(rtsp_port),
+        http_port: Number(http_port),
+        sdk_port: sdk_port ? Number(sdk_port) : undefined,
+        username,
+        password,
+        total_channels: Number(total_channels),
+      }),
+      signal: AbortSignal.timeout(6000),
+    }).catch(() => null);
 
-    const result = await adapter.testConnection();
+    if (pyResp && pyResp.ok) {
+      result = await pyResp.json();
+    } else {
+      const adapter = DvrAdapterFactory.create({
+        id,
+        name,
+        brand: brand as DvrBrand,
+        host,
+        rtsp_port: Number(rtsp_port),
+        http_port: Number(http_port),
+        sdk_port: sdk_port ? Number(sdk_port) : undefined,
+        username,
+        password,
+        total_channels: Number(total_channels),
+      });
+
+      result = await adapter.testConnection();
+    }
 
     // Atualiza o status no banco caso seja um DVR persistido
     if (id && !String(id).startsWith("dvr-default")) {
