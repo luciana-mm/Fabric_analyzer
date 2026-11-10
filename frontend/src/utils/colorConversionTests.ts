@@ -6,7 +6,6 @@
 import {
   rgbToLab,
   rgb8BitToNormalized,
-  normalizedToRgb8Bit,
   calculateDeltaE2000,
   calculateDeltaE76,
   rgbToHex,
