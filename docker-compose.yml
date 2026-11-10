@@ -42,7 +42,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-app_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app_password}
       POSTGRES_DB: ${POSTGRES_DB:-fabric_analyzer}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-app_user}:${POSTGRES_PASSWORD:-app_password}@db:5432/${POSTGRES_DB:-fabric_analyzer}}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app_user}:${POSTGRES_PASSWORD:-app_password}@${DB_HOST:-db}:${DB_PORT:-5432}/${POSTGRES_DB:-fabric_analyzer}
       CAMERA_IP: ${CAMERA_IP:-}
       CAMERA_RTSP_PORT: ${CAMERA_RTSP_PORT:-554}
       CAMERA_USER: ${CAMERA_USER:-admin}
@@ -74,7 +74,7 @@ services:
         required: false
     environment:
       NODE_ENV: ${NODE_ENV:-production}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-app_user}:${POSTGRES_PASSWORD:-app_password}@db:5432/${POSTGRES_DB:-fabric_analyzer}}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app_user}:${POSTGRES_PASSWORD:-app_password}@${DB_HOST:-db}:${DB_PORT:-5432}/${POSTGRES_DB:-fabric_analyzer}
       SESSION_SECRET: ${SESSION_SECRET:-change_this_to_a_strong_secret}
       BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:8090}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8090}
