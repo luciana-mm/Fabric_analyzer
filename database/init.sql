@@ -323,6 +323,7 @@ CREATE TABLE IF NOT EXISTS public.camera_devices (
   resolution_width INTEGER,
   resolution_height INTEGER,
   fps INTEGER DEFAULT 12,
+  is_operator_default BOOLEAN NOT NULL DEFAULT false,
   is_active BOOLEAN NOT NULL DEFAULT true,
   status public.device_connection_status NOT NULL DEFAULT 'offline',
   last_frame_at TIMESTAMPTZ,
@@ -332,6 +333,7 @@ CREATE TABLE IF NOT EXISTS public.camera_devices (
 
 CREATE INDEX IF NOT EXISTS idx_camera_devices_dvr_id ON public.camera_devices(dvr_id);
 CREATE INDEX IF NOT EXISTS idx_camera_devices_status ON public.camera_devices(status);
+CREATE INDEX IF NOT EXISTS idx_camera_devices_operator_default ON public.camera_devices(is_operator_default);
 
 CREATE TABLE IF NOT EXISTS public.stream_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -366,7 +368,7 @@ VALUES (
 ON CONFLICT DO NOTHING;
 
 INSERT INTO public.camera_devices (
-  dvr_id, name, channel_number, stream_url_main, stream_url_sub, snapshot_url, fps, is_active, status
+  dvr_id, name, channel_number, stream_url_main, stream_url_sub, snapshot_url, fps, is_operator_default, is_active, status
 )
 SELECT 
   d.id,
@@ -377,20 +379,24 @@ SELECT
   'http://192.168.1.64/ISAPI/Streaming/channels/101/picture',
   12,
   true,
+  true,
   'online'
 FROM public.dvr_devices d
 WHERE d.host = '192.168.1.64'
 LIMIT 1
 ON CONFLICT DO NOTHING;
 
+-- ============================================================
+-- 14. CONFIGURAÇÕES DINÂMICAS DE RUNTIME (Substituição de JSONs)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.system_runtime_settings (
+  key VARCHAR(100) PRIMARY KEY,
+  value JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
 
--- Suporte a DroidCam (Celular HTTP MJPEG :4747) e Câmera Principal do Operário
-ALTER TYPE public.dvr_brand ADD VALUE IF NOT EXISTS 'droidcam';
-ALTER TABLE public.camera_devices
-  ADD COLUMN IF NOT EXISTS is_operator_default BOOLEAN NOT NULL DEFAULT false;
-
-UPDATE public.camera_devices
-   SET is_operator_default = true
- WHERE id = (
-   SELECT id FROM public.camera_devices ORDER BY created_at ASC LIMIT 1
- );
+INSERT INTO public.system_runtime_settings (key, value)
+VALUES
+  ('color_reference', '{"ref_a": null, "ref_b": null, "paleta": null}'::jsonb),
+  ('active_operator_camera', '{"camera_id": "", "camera_name": "Câmera Superior Têxtil (Canal 101)", "brand": "hikvision", "stream_url": "rtsp://admin:****@192.168.1.64:554/Streaming/Channels/101", "channel": "101"}'::jsonb)
+ON CONFLICT (key) DO NOTHING;
