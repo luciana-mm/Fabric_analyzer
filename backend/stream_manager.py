@@ -16,6 +16,11 @@ from dvr_types import (
     ImageCaptureResult,
 )
 
+try:
+    from db import update_dvr_device_status
+except ImportError:
+    from backend.db import update_dvr_device_status
+
 _log = logging.getLogger("stream-manager")
 
 
@@ -302,6 +307,12 @@ class StreamSessionManager:
                         "circuitState": entry.circuit_state.value,
                     },
                 )
+            dvr_id = entry.config.id or ""
+            status_val = entry.status.value
+
+        # Atualiza o status individual da linha no PostgreSQL fora do lock em memória
+        if dvr_id:
+            update_dvr_device_status(dvr_id, status_val)
 
     def _health_monitor_loop(self) -> None:
         while self._running:

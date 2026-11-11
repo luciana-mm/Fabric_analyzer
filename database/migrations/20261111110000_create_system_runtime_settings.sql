@@ -13,5 +13,5 @@ CREATE INDEX IF NOT EXISTS idx_system_runtime_settings_key ON public.system_runt
 INSERT INTO public.system_runtime_settings (key, value)
 VALUES
   ('color_reference', '{"ref_a": null, "ref_b": null, "paleta": null}'::jsonb),
-  ('active_operator_camera', '{"camera_id": "", "camera_name": "Câmera Superior Têxtil (Canal 101)", "brand": "hikvision", "stream_url": "rtsp://admin:****@192.168.1.64:554/Streaming/Channels/101", "channel": "101"}'::jsonb)
+  ('active_operator_camera', '{"camera_id": "", "camera_name": "Câmera Superior Têxtil (Canal 101)", "brand": "hikvision", "stream_url": "", "channel": "101"}'::jsonb)
 ON CONFLICT (key) DO NOTHING;
