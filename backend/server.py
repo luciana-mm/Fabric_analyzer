@@ -69,6 +69,19 @@ except ImportError:
         DvrDiscoverResponse,
         DvrMonitorStatusResponse,
         DvrEventsResponse,
+    )
+
+try:
+    from db import (
+        get_runtime_setting,
+        set_runtime_setting,
+        set_operator_active_camera,
+    )
+except ImportError:
+    from backend.db import (
+        get_runtime_setting,
+        set_runtime_setting,
+        set_operator_active_camera,
     ) 
 
 
@@ -114,15 +127,35 @@ _log = logging.getLogger("camera-proxy")
 
 
 def _load_color_reference() -> tuple[Optional[int], Optional[int], Optional[list]]:
+    # 1. Tenta carregar do PostgreSQL (tabela system_runtime_settings)
     try:
-        saved = json.loads(COLOR_REFERENCE_PATH.read_text(encoding="utf-8"))
-        ref_a = int(saved["ref_a"]) if "ref_a" in saved else None
-        ref_b = int(saved["ref_b"]) if "ref_b" in saved else None
-        paleta_raw = saved.get("paleta")
-        paleta = None
-        if isinstance(paleta_raw, list) and paleta_raw:
-            paleta = [(int(p[0]), int(p[1])) for p in paleta_raw]
-        return ref_a, ref_b, paleta
+        saved = get_runtime_setting("color_reference")
+        if isinstance(saved, dict):
+            ref_a = int(saved["ref_a"]) if saved.get("ref_a") is not None else None
+            ref_b = int(saved["ref_b"]) if saved.get("ref_b") is not None else None
+            paleta_raw = saved.get("paleta")
+            paleta = None
+            if isinstance(paleta_raw, list) and paleta_raw:
+                paleta = [(int(p[0]), int(p[1])) for p in paleta_raw]
+            if ref_a is not None or paleta:
+                _log.info("Referência de cor carregada do PostgreSQL com sucesso")
+                return ref_a, ref_b, paleta
+    except Exception as err:
+        _log.warning("Falha ao recuperar referência de cor do PostgreSQL: %s", err)
+
+    # 2. Fallback de migração inicial (se existir JSON legado no disco)
+    try:
+        if COLOR_REFERENCE_PATH.exists():
+            saved = json.loads(COLOR_REFERENCE_PATH.read_text(encoding="utf-8"))
+            ref_a = int(saved["ref_a"]) if "ref_a" in saved else None
+            ref_b = int(saved["ref_b"]) if "ref_b" in saved else None
+            paleta_raw = saved.get("paleta")
+            paleta = None
+            if isinstance(paleta_raw, list) and paleta_raw:
+                paleta = [(int(p[0]), int(p[1])) for p in paleta_raw]
+            set_runtime_setting("color_reference", saved)
+            _log.info("Referência de cor migrada do disco legado para o PostgreSQL")
+            return ref_a, ref_b, paleta
     except (FileNotFoundError, KeyError, TypeError, ValueError, json.JSONDecodeError):
         pass
     return None, None, None
@@ -197,14 +230,16 @@ def save_reference_palette(payload: ReferencePalettePayload) -> JSONResponse:
         "n_cores": len(paleta),
     }
 
+    # Persistência centralizada no PostgreSQL
+    set_runtime_setting("color_reference", reference)
+
     try:
         COLOR_REFERENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
         temporary_path = COLOR_REFERENCE_PATH.with_suffix(".tmp")
         temporary_path.write_text(json.dumps(reference), encoding="utf-8")
         temporary_path.replace(COLOR_REFERENCE_PATH)
     except OSError as error:
-        _log.error("Não foi possível salvar a paleta de cor: %s", error)
-        raise HTTPException(status_code=500, detail="Falha ao salvar paleta de cor")
+        _log.debug("Aviso: cache local de cor não pôde ser gravado: %s", error)
 
     with color_reference_lock:
         saved_ref_a, saved_ref_b, saved_paleta = ref_a, ref_b, paleta
@@ -235,6 +270,25 @@ class CameraState:
         self._ffmpeg_thread: Optional[threading.Thread] = None
 
     def _load_persisted_camera(self) -> None:
+        # 1. Tenta recuperar do PostgreSQL (tabela system_runtime_settings)
+        try:
+            saved = get_runtime_setting("active_operator_camera")
+            if isinstance(saved, dict) and saved.get("stream_url"):
+                self.active_stream_url = str(saved["stream_url"])
+                self.active_camera_id = str(saved.get("camera_id") or self.active_camera_id)
+                self.active_camera_name = str(saved.get("camera_name") or self.active_camera_name)
+                self.active_brand = str(saved.get("brand") or self.active_brand)
+                self.active_channel = str(saved.get("channel") or self.active_channel)
+                _log.info(
+                    "Câmera ativa do operador restaurada do PostgreSQL: %s (%s)",
+                    self.active_camera_name,
+                    self.active_brand,
+                )
+                return
+        except Exception as err:
+            _log.warning("Falha ao recuperar câmera ativa do PostgreSQL: %s", err)
+
+        # 2. Fallback de migração inicial (se existir JSON legado no disco)
         try:
             if ACTIVE_CAMERA_STATE_PATH.exists():
                 saved = json.loads(ACTIVE_CAMERA_STATE_PATH.read_text(encoding="utf-8"))
@@ -245,15 +299,31 @@ class CameraState:
                     self.active_brand = str(saved.get("brand") or self.active_brand)
                     self.active_channel = str(saved.get("channel") or self.active_channel)
                     _log.info(
-                        "Restored active operator camera from disk: %s (%s)",
+                        "Câmera ativa migrada do disco legado para o PostgreSQL: %s (%s)",
                         self.active_camera_name,
                         self.active_brand,
+                    )
+                    set_operator_active_camera(
+                        self.active_camera_id,
+                        self.active_camera_name,
+                        self.active_brand,
+                        self.active_stream_url,
+                        self.active_channel,
                     )
         except Exception as err:
             _log.warning("Could not load persisted operator camera: %s", err)
 
     def _persist_camera(self) -> None:
         try:
+            # Persistência centralizada no PostgreSQL (system_runtime_settings e camera_devices)
+            set_operator_active_camera(
+                camera_id=self.active_camera_id,
+                camera_name=self.active_camera_name,
+                brand=self.active_brand,
+                stream_url=self.active_stream_url,
+                channel=self.active_channel,
+            )
+
             payload = {
                 "stream_url": self.active_stream_url,
                 "camera_id": self.active_camera_id,
@@ -899,6 +969,9 @@ def calibrate_pattern(payload: CalibratePatternPayload = Body(default=CalibrateP
     det = _get_or_load_anomalib_detector()
     metadata = det.fit_from_frames(captured_rois)
 
+    # Persiste metadados da calibração no PostgreSQL
+    set_runtime_setting("anomalib_active_pattern", metadata)
+
     return JSONResponse(
         {
             "success": True,
@@ -1040,14 +1113,16 @@ def save_reference_color(payload: ReferenceColorPayload) -> JSONResponse:
     paleta = [(ref_a, ref_b)]
     reference = {"ref_a": ref_a, "ref_b": ref_b, "paleta": [list(p) for p in paleta]}
 
+    # Persistência centralizada no PostgreSQL
+    set_runtime_setting("color_reference", reference)
+
     try:
         COLOR_REFERENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
         temporary_path = COLOR_REFERENCE_PATH.with_suffix(".tmp")
         temporary_path.write_text(json.dumps(reference), encoding="utf-8")
         temporary_path.replace(COLOR_REFERENCE_PATH)
     except OSError as error:
-        _log.error("Não foi possível salvar a referência de cor: %s", error)
-        raise HTTPException(status_code=500, detail="Falha ao salvar referência de cor")
+        _log.debug("Aviso: cache local de cor não pôde ser gravado: %s", error)
 
     with color_reference_lock:
         saved_ref_a, saved_ref_b, saved_paleta = ref_a, ref_b, paleta
