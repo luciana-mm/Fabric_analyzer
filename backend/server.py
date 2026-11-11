@@ -11,10 +11,65 @@ import cv2
 import numpy as np
 from detector import to_grayscale, ColorDetector, DefectTracker, Visualizer, Detection
 from dotenv import load_dotenv
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
-import random 
+import random
+
+try:
+    from schemas import (
+        HealthResponse,
+        MessageResponse,
+        RgbColor,
+        ReferenceColorPayload,
+        ReferencePalettePayload,
+        ReferencePaletteResponse,
+        SampleColorResponse,
+        RobustSamplingConfig,
+        RobustSampleResponse,
+        DetectorConfig,
+        DetectorModePayload,
+        DetectorModeResponse,
+        CalibratePatternPayload,
+        CalibratePatternResponse,
+        PatternStatusResponse,
+        ClearPatternResponse,
+        DefectCountResponse,
+        ResetCountResponse,
+        DvrSetStreamProfilePayload,
+        DvrSetActiveCameraPayload,
+        DvrActiveCameraResponse,
+        DvrDiscoverResponse,
+        DvrMonitorStatusResponse,
+        DvrEventsResponse,
+    )
+except ImportError:
+    from backend.schemas import (
+        HealthResponse,
+        MessageResponse,
+        RgbColor,
+        ReferenceColorPayload,
+        ReferencePalettePayload,
+        ReferencePaletteResponse,
+        SampleColorResponse,
+        RobustSamplingConfig,
+        RobustSampleResponse,
+        DetectorConfig,
+        DetectorModePayload,
+        DetectorModeResponse,
+        CalibratePatternPayload,
+        CalibratePatternResponse,
+        PatternStatusResponse,
+        ClearPatternResponse,
+        DefectCountResponse,
+        ResetCountResponse,
+        DvrSetStreamProfilePayload,
+        DvrSetActiveCameraPayload,
+        DvrActiveCameraResponse,
+        DvrDiscoverResponse,
+        DvrMonitorStatusResponse,
+        DvrEventsResponse,
+    ) 
 
 
 load_dotenv()
@@ -78,7 +133,13 @@ color_reference_lock = threading.Lock()
 saved_ref_a, saved_ref_b, saved_paleta = _load_color_reference()
 N_CORES_PALETA = 3
 
-app = FastAPI(title="hikvision-camera-proxy", version="1.0.0")
+app = FastAPI(
+    title="Fabric Analyzer - Backend & Computer Vision API",
+    version="2.0.0",
+    description="API de visão computacional (OpenCV e Anomalib), streaming MJPEG e gerenciamento de câmeras/DVRs.",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -86,8 +147,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.post("/reference-palette")
-def save_reference_palette(payload: dict = Body(...)) -> JSONResponse:
+@app.post(
+    "/reference-palette",
+    response_model=ReferencePaletteResponse,
+    tags=["Calibração"],
+    summary="Salva paleta de cores de referência do tecido",
+)
+def save_reference_palette(payload: ReferencePalettePayload) -> JSONResponse:
     """
     Recebe uma lista de amostras RGB coletadas na ROI (ex: vários pontos
     do xadrez), converte pra Lab e agrupa em N_CORES_PALETA clusters via
@@ -95,18 +161,13 @@ def save_reference_palette(payload: dict = Body(...)) -> JSONResponse:
     """
     global saved_ref_a, saved_ref_b, saved_paleta
 
-    samples = payload.get("samples")
-    if not isinstance(samples, list) or len(samples) == 0:
+    samples = payload.samples
+    if not samples:
         raise HTTPException(status_code=400, detail="Informe 'samples': lista de {r,g,b}")
 
     lab_points = []
     for s in samples:
-        try:
-            r, g, b = int(s["r"]), int(s["g"]), int(s["b"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        if not all(0 <= v <= 255 for v in (r, g, b)):
-            continue
+        r, g, b = s.r, s.g, s.b
         rgb_arr = np.uint8([[[r, g, b]]])
         lab_arr = cv2.cvtColor(rgb_arr, cv2.COLOR_RGB2LAB)
         lab_points.append([float(lab_arr[0, 0, 1]), float(lab_arr[0, 0, 2])])
@@ -129,7 +190,12 @@ def save_reference_palette(payload: dict = Body(...)) -> JSONResponse:
     ref_a = paleta[0][0]
     ref_b = paleta[0][1]
 
-    reference = {"ref_a": ref_a, "ref_b": ref_b, "paleta": [list(p) for p in paleta]}
+    reference = {
+        "ref_a": ref_a,
+        "ref_b": ref_b,
+        "paleta": [list(p) for p in paleta],
+        "n_cores": len(paleta),
+    }
 
     try:
         COLOR_REFERENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -143,7 +209,7 @@ def save_reference_palette(payload: dict = Body(...)) -> JSONResponse:
     with color_reference_lock:
         saved_ref_a, saved_ref_b, saved_paleta = ref_a, ref_b, paleta
 
-    return JSONResponse({"ref_a": ref_a, "ref_b": ref_b, "paleta": paleta, "n_cores": len(paleta)})
+    return JSONResponse(reference)
 
 class CameraState:
     def __init__(self) -> None:
@@ -536,31 +602,6 @@ class CameraState:
 
 camera_state = CameraState()
 
-from pydantic import BaseModel
-
-class DetectorConfig(BaseModel):
-    w: int = 60
-    h: int = 50
-    apenas_area: bool = False
-    estampado: bool = False
-    ref_a: Optional[int] = None
-    ref_b: Optional[int] = None
-    linha_orientacao: str = "vertical"
-    linha_posicao_percent: int = 50
-    anomalib_threshold_mult: Optional[float] = 1.0
-
-
-class DetectorModePayload(BaseModel):
-    mode: str = "classic"  # "classic" | "anomalib"
-
-
-class CalibratePatternPayload(BaseModel):
-    w: int = 60
-    h: int = 50
-    num_frames: int = 15
-    interval_ms: int = 120
-
-
 current_detector_config = DetectorConfig()
 detector_lock = threading.Lock()
 global_tracker = DefectTracker()
@@ -721,7 +762,12 @@ pipeline_thread = threading.Thread(target=pipeline_worker, daemon=True)
 pipeline_thread.start()
 
 
-@app.post("/detector-config")
+@app.post(
+    "/detector-config",
+    response_model=DetectorConfig,
+    tags=["Detector"],
+    summary="Atualiza a configuração do detector de defeitos",
+)
 def update_detector_config(config: DetectorConfig) -> JSONResponse:
     global current_detector_config
     with detector_lock:
@@ -734,7 +780,12 @@ def update_detector_config(config: DetectorConfig) -> JSONResponse:
         )
     return JSONResponse(data)
 
-@app.get("/detector-config")
+@app.get(
+    "/detector-config",
+    response_model=DetectorConfig,
+    tags=["Detector"],
+    summary="Obtém a configuração atual do detector de defeitos",
+)
 def get_detector_config() -> JSONResponse:
     with detector_lock:
         data = (
@@ -745,7 +796,12 @@ def get_detector_config() -> JSONResponse:
         return JSONResponse(data)
 
 
-@app.get("/detector-mode")
+@app.get(
+    "/detector-mode",
+    response_model=DetectorModeResponse,
+    tags=["Detector"],
+    summary="Retorna o modo ativo do detector e disponibilidade de modelos",
+)
 def get_detector_mode() -> JSONResponse:
     models_dir = Path(__file__).with_name("models")
     det_status = {}
@@ -761,7 +817,12 @@ def get_detector_mode() -> JSONResponse:
     )
 
 
-@app.post("/detector-mode")
+@app.post(
+    "/detector-mode",
+    response_model=DetectorModeResponse,
+    tags=["Detector"],
+    summary="Altera o modo ativo do detector ('classic' ou 'anomalib')",
+)
 def set_detector_mode(payload: DetectorModePayload) -> JSONResponse:
     mode = payload.mode.strip().lower()
     if mode not in ("classic", "anomalib", "yolo"):
@@ -774,24 +835,39 @@ def set_detector_mode(payload: DetectorModePayload) -> JSONResponse:
     return JSONResponse({"mode": current_detector_mode, "estampado": current_detector_config.estampado})
 
 
-@app.get("/pattern-status")
+@app.get(
+    "/pattern-status",
+    response_model=PatternStatusResponse,
+    tags=["Anomalib"],
+    summary="Retorna status e metadados da calibração ativa de estampa",
+)
 def get_pattern_status() -> JSONResponse:
     det = _get_or_load_anomalib_detector()
     return JSONResponse(det.get_status())
 
 
-@app.post("/clear-pattern")
+@app.post(
+    "/clear-pattern",
+    response_model=ClearPatternResponse,
+    tags=["Anomalib"],
+    summary="Limpa a calibração de estampa ativa em memória e disco",
+)
 def clear_pattern() -> JSONResponse:
     det = _get_or_load_anomalib_detector()
     det.clear_pattern()
     return JSONResponse({"success": True, "calibrated": False})
 
 
-@app.post("/calibrate-pattern")
+@app.post(
+    "/calibrate-pattern",
+    response_model=CalibratePatternResponse,
+    tags=["Anomalib"],
+    summary="Captura frames de tecido bom ao vivo e calibra a estampa no Anomalib",
+)
 def calibrate_pattern(payload: CalibratePatternPayload = Body(default=CalibratePatternPayload())) -> JSONResponse:
     """
     Captura automaticamente `num_frames` recortes (ROI) do tecido BOM na câmera ao vivo,
-    salva as imagens em `camera-proxy/reference_patterns/active_pattern/frames/` e
+    salva as imagens em `backend/reference_patterns/active_pattern/frames/` e
     constrói o Memory Bank do Anomalib para inspecionar aquela estampa.
     """
     w_pct = max(5, min(100, int(payload.w)))
@@ -831,7 +907,12 @@ def calibrate_pattern(payload: CalibratePatternPayload = Body(default=CalibrateP
         }
     )
 
-@app.get("/health")
+@app.get(
+    "/health",
+    response_model=HealthResponse,
+    tags=["Sistema"],
+    summary="Verifica a integridade do serviço e da câmera",
+)
 def health() -> JSONResponse:
     age_seconds = max(0.0, time.time() - camera_state.last_frame_ts) if camera_state.last_frame_ts else None
     active_info = camera_state.get_active_info()
@@ -939,20 +1020,18 @@ def stream_analyzed_mjpeg(
     )
 
 
-@app.post("/reference-color")
-def save_reference_color(payload: dict = Body(...)) -> JSONResponse:
+@app.post(
+    "/reference-color",
+    tags=["Calibração"],
+    summary="Converte a cor RGB calibrada para Lab OpenCV e a persiste",
+)
+def save_reference_color(payload: ReferenceColorPayload) -> JSONResponse:
     """Converte a cor RGB calibrada para Lab OpenCV e a persiste no proxy."""
     global saved_ref_a, saved_ref_b, saved_paleta
 
-    try:
-        ref_r = int(payload["r"])
-        ref_g = int(payload["g"])
-        ref_b = int(payload["b"])
-    except (KeyError, TypeError, ValueError):
-        raise HTTPException(status_code=400, detail="Informe r, g e b entre 0 e 255")
-
-    if not all(0 <= value <= 255 for value in (ref_r, ref_g, ref_b)):
-        raise HTTPException(status_code=400, detail="r, g e b devem estar entre 0 e 255")
+    ref_r = payload.r
+    ref_g = payload.g
+    ref_b = payload.b
 
     reference_rgb = np.uint8([[[ref_r, ref_g, ref_b]]])
     reference_lab = cv2.cvtColor(reference_rgb, cv2.COLOR_RGB2LAB)
@@ -1020,13 +1099,30 @@ def stream_grayscale_mjpeg() -> StreamingResponse:
         headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
     )
 
-@app.get("/defect-count")
+@app.get(
+    "/defect-count",
+    response_model=DefectCountResponse,
+    tags=["Inspeção"],
+    summary="Retorna a contagem atual de falhas detectadas",
+)
 def defect_count() -> JSONResponse:
     """Retorna a contagem atual de falhas detectadas"""
-    return JSONResponse({"count": global_tracker.total_count})
+    return JSONResponse(
+        {
+            "count": global_tracker.total_count,
+            "defect_count": global_tracker.total_count,
+            "mode": current_detector_mode,
+            "estampado": current_detector_config.estampado,
+        }
+    )
 
 
-@app.post("/reset-count")
+@app.post(
+    "/reset-count",
+    response_model=ResetCountResponse,
+    tags=["Inspeção"],
+    summary="Zera a contagem de falhas (usar ao iniciar um novo teste/rolo)",
+)
 def reset_count() -> JSONResponse:
     """Zera a contagem de falhas (usar ao iniciar um novo teste/rolo)"""
     global_tracker.reset()
@@ -1234,7 +1330,12 @@ def _collect_area_samples(
 
     return samples
 
-@app.get("/reference-palette")
+@app.get(
+    "/reference-palette",
+    response_model=ReferencePaletteResponse,
+    tags=["Calibração"],
+    summary="Obtém a paleta de cor de referência atualmente carregada",
+)
 def get_reference_palette() -> JSONResponse:
     with color_reference_lock:
         paleta = saved_paleta
@@ -1246,15 +1347,22 @@ def get_reference_palette() -> JSONResponse:
         "paleta": paleta,
         "n_cores": len(paleta) if paleta else 0,
     })
-@app.post("/capture-robust-sample")
+
+
+@app.post(
+    "/capture-robust-sample",
+    response_model=RobustSampleResponse,
+    tags=["Calibração"],
+    summary="Captura amostras robustas com remoção de outliers e estimativa de estabilidade",
+)
 def capture_robust_sample(
-    sample_count: int = 5,
-    interval_ms: int = 200,
-    area_width_percent: float = 60,
-    area_height_percent: float = 50,
-    sample_points: int = 9,
-    include_samples: bool = False,
-    pixel_puro: bool = False,
+    sample_count: int = Query(default=5, ge=1, le=20, description="Quantidade de frames a capturar"),
+    interval_ms: int = Query(default=200, ge=50, le=5000, description="Intervalo entre frames em ms"),
+    area_width_percent: float = Query(default=60.0, gt=0, le=100.0, description="Largura percentual da ROI"),
+    area_height_percent: float = Query(default=50.0, gt=0, le=100.0, description="Altura percentual da ROI"),
+    sample_points: int = Query(default=9, description="Quantidade de pontos (4, 9 ou 18)"),
+    include_samples: bool = Query(default=False, description="Incluir pontos brutos na resposta"),
+    pixel_puro: bool = Query(default=False, description="Usar amostragem de pixel puro sem filtro"),
 ) -> JSONResponse:
     if sample_count < 1 or sample_count > 20:
         raise HTTPException(status_code=400, detail="sample_count deve estar entre 1 e 20")
@@ -1365,7 +1473,11 @@ from dvr_types import DvrBrand, DvrDeviceConfig
 from dvr_adapters import DvrAdapterFactory
 
 
-@app.post("/dvr/test-connection")
+@app.post(
+    "/dvr/test-connection",
+    tags=["CFTV"],
+    summary="Testa conectividade e credenciais de um dispositivo DVR/Câmera",
+)
 def dvr_test_connection(payload: DvrDeviceConfig) -> JSONResponse:
     adapter = DvrAdapterFactory.create(payload)
     result = adapter.test_connection()
@@ -1373,7 +1485,12 @@ def dvr_test_connection(payload: DvrDeviceConfig) -> JSONResponse:
     return JSONResponse(data)
 
 
-@app.post("/dvr/discover")
+@app.post(
+    "/dvr/discover",
+    response_model=DvrDiscoverResponse,
+    tags=["CFTV"],
+    summary="Descobre canais e streams disponíveis em um DVR",
+)
 def dvr_discover_cameras(payload: DvrDeviceConfig) -> JSONResponse:
     adapter = DvrAdapterFactory.create(payload)
     cameras = adapter.discover_cameras()
@@ -1480,35 +1597,48 @@ def dvr_capture_snapshot_endpoint(
     return JSONResponse(snap_data)
 
 
-@app.post("/dvr/stream-profile")
-def dvr_set_stream_profile(payload: dict = Body(...)) -> JSONResponse:
-    device_id = str(payload.get("deviceId") or "")
-    subtype = str(payload.get("subtype") or "main")
+@app.post(
+    "/dvr/stream-profile",
+    tags=["CFTV"],
+    summary="Altera o perfil de stream (main/sub) no monitor",
+)
+def dvr_set_stream_profile(payload: DvrSetStreamProfilePayload) -> JSONResponse:
+    device_id = payload.deviceId
+    subtype = payload.subtype
     updated = stream_session_manager.set_stream_subtype(device_id, subtype)
     if not updated:
         raise HTTPException(status_code=404, detail="Dispositivo não encontrado no monitor")
     return JSONResponse({"device": updated})
 
 
-@app.get("/dvr/active-camera")
+@app.get(
+    "/dvr/active-camera",
+    response_model=DvrActiveCameraResponse,
+    tags=["CFTV"],
+    summary="Retorna qual câmera está atualmente alimentando o Painel do Operário",
+)
 def dvr_get_active_camera() -> JSONResponse:
     """Retorna qual câmera está atualmente alimentando o Painel do Operário (/stream.mjpg e IA)."""
     return JSONResponse(camera_state.get_active_info())
 
 
-@app.post("/dvr/active-camera")
-def dvr_set_active_camera(payload: dict = Body(...)) -> JSONResponse:
+@app.post(
+    "/dvr/active-camera",
+    tags=["CFTV"],
+    summary="Troca dinamicamente em tempo de execução a câmera que alimenta o operário e a IA",
+)
+def dvr_set_active_camera(payload: DvrSetActiveCameraPayload) -> JSONResponse:
     """
     Troca dinamicamente em tempo de execução a câmera que alimenta o Painel do Operário
     (/stream.mjpg, /stream-analyzed.mjpg, /snapshot.jpg e pipeline OpenCV/Anomalib).
     Aceita as configurações do DVR + canal ou uma streamUrl explícita.
     """
-    camera_id = str(payload.get("cameraId") or "")
-    camera_name = str(payload.get("cameraName") or "Câmera Operário")
-    channel = str(payload.get("channel") or "1")
-    raw_brand = str(payload.get("brand") or "generic").lower()
+    camera_id = payload.cameraId or ""
+    camera_name = payload.cameraName or "Câmera Operário"
+    channel = payload.channel or "1"
+    raw_brand = (payload.brand or "generic").lower()
     brand_str = "generic" if raw_brand in ("generic_rtsp", "generic") else raw_brand
-    explicit_url = str(payload.get("streamUrl") or "").strip()
+    explicit_url = (payload.streamUrl or "").strip()
 
     if explicit_url and "***" not in explicit_url:
         stream_url = explicit_url
@@ -1516,24 +1646,24 @@ def dvr_set_active_camera(payload: dict = Body(...)) -> JSONResponse:
         stream_url = f"mock://127.0.0.1/channel/{channel}"
     else:
         try:
-            raw_pwd = str(payload.get("password") or "")
+            raw_pwd = payload.password or ""
             if raw_pwd.lower() in ("configured", "none", "null"):
                 raw_pwd = ""
             if not raw_pwd and brand_str != "droidcam":
                 raw_pwd = _resolve_dvr_password(
-                    str(payload.get("dvrId") or ""),
-                    str(payload.get("host") or CAMERA_IP),
-                    int(payload.get("rtspPort") or CAMERA_RTSP_PORT),
+                    payload.dvrId or "",
+                    payload.host or CAMERA_IP,
+                    int(payload.rtspPort or CAMERA_RTSP_PORT),
                 )
             dvr_cfg = DvrDeviceConfig(
-                id=str(payload.get("dvrId") or ""),
+                id=payload.dvrId or "",
                 name=camera_name,
                 brand=DvrBrand(brand_str),
-                host=str(payload.get("host") or CAMERA_IP),
-                rtsp_port=int(payload.get("rtspPort") or (4747 if brand_str == "droidcam" else CAMERA_RTSP_PORT)),
-                http_port=int(payload.get("httpPort") or (4747 if brand_str == "droidcam" else 80)),
-                sdk_port=int(payload.get("sdkPort") or 8000),
-                username=str(payload.get("username") or "admin"),
+                host=payload.host or CAMERA_IP,
+                rtsp_port=int(payload.rtspPort or (4747 if brand_str == "droidcam" else CAMERA_RTSP_PORT)),
+                http_port=int(payload.httpPort or (4747 if brand_str == "droidcam" else 80)),
+                sdk_port=int(payload.sdkPort or 8000),
+                username=payload.username or "admin",
                 password=raw_pwd,
                 total_channels=max(1, int(channel) if channel.isdigit() else 1),
             )
