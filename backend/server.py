@@ -1654,6 +1654,7 @@ def dvr_set_active_camera(payload: DvrSetActiveCameraPayload) -> JSONResponse:
                     payload.dvrId or "",
                     payload.host or CAMERA_IP,
                     int(payload.rtspPort or CAMERA_RTSP_PORT),
+                    brand_str,
                 )
             dvr_cfg = DvrDeviceConfig(
                 id=payload.dvrId or "",

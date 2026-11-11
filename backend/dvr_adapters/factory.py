@@ -33,3 +33,9 @@ class DvrAdapterFactory:
         if brand == DvrBrand.MOCK:
             return MockDvrAdapter(config)
         return GenericRtspAdapter(config)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> BaseDvrAdapter:
+        """Instancia o adaptador a partir de um dicionário (ex: registro do banco de dados)."""
+        cfg = DvrDeviceConfig(**data)
+        return cls.create(cfg)
