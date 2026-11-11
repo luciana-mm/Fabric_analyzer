@@ -15,7 +15,7 @@
   "std_dist": 0.06389,
   "p99_dist": 0.43863,
   "threshold": 0.57899,
-  "frames_dir": "/home/lua/Documentos/fabric-analyzer-interface/camera-proxy/reference_patterns/active_pattern/frames",
+  "frames_dir": "backend/reference_patterns/active_pattern/frames",
   "saved_files": [
     "good_001.jpg",
     "good_002.jpg",

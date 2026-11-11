@@ -115,10 +115,9 @@ fabric-analyzer-interface/
 │   │   └── supabase/           # Supabase client + types
 │   ├── test/                   # Testes Vitest
 │   └── index.css               # Tailwind
-├── supabase/
-│   ├── config.toml
-│   └── migrations/             # SQL migrations
-├── camera-proxy/               # Python proxy da câmera
+├── backend/                    # Python FastAPI + OpenCV + Anomalib
+├── database/                   # Migrações SQL e scripts init.sql
+├── frontend/                   # Aplicação Next.js (Painel do Operador e Gestor)
 ├── public/                     # Static assets
 ├── IMPROVEMENTS.md             # ⭐ Plano de correções
 ├── IMPLEMENTATION_CHECKLIST.md # ⭐ Como implementar

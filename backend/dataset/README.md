@@ -6,7 +6,7 @@ Este documento descreve o fluxo completo para capturar, anotar e organizar o dat
 
 ## 📋 Lista Oficial de Classes
 
-As classes do projeto são definidas estritamente em `camera-proxy/detector.py` (`DEFECT_CLASSES`). **Não altere a ordem nem os nomes** para evitar dessincronizar com anotações existentes.
+As classes do projeto são definidas estritamente em `backend/detector.py` (`DEFECT_CLASSES`). **Não altere a ordem nem os nomes** para evitar dessincronizar com anotações existentes.
 
 | ID | Nome da Classe | Descrição |
 |---|---|---|
@@ -80,7 +80,7 @@ Certifique-se de que o serviço de proxy da câmera está em execução (`http:/
 
 Execute o script de captura em outro terminal:
 ```bash
-venv/bin/python camera-proxy/capture_snapshots.py --interval 2.0 --max-count 100 --output dataset/raw
+backend/venv/bin/python backend/capture_snapshots.py --interval 2.0 --max-count 100 --output backend/dataset/raw
 ```
 *Parâmetros úteis*:
 - `--interval 2.0`: Intervalo de 2 segundos entre cada foto.
@@ -88,26 +88,26 @@ venv/bin/python camera-proxy/capture_snapshots.py --interval 2.0 --max-count 100
 - `--prefix frame`: Prefixo dos arquivos gerados.
 
 ### Passo 2: Anotar os Defectos Manualmente
-Abra a ferramenta de anotação (ex: `labelImg`) apontando para `dataset/raw/`.
+Abra a ferramenta de anotação (ex: `labelImg`) apontando para `backend/dataset/raw/`.
 Desenhe os retângulos em volta dos defeitos reais e atribua as etiquetas corretas (`furo`, `mancha`, `fio_puxado`, `tonalidade`).
 
-Após a anotação, cada imagem `frame_XXXX.jpg` terá um arquivo equivalente `frame_XXXX.txt` contendo as coordenadas YOLO no mesmo diretório (`dataset/raw/`).
+Após a anotação, cada imagem `frame_XXXX.jpg` terá um arquivo equivalente `frame_XXXX.txt` contendo as coordenadas YOLO no mesmo diretório (`backend/dataset/raw/`).
 
 ### Passo 3: Dividir o Dataset (Treino / Validação)
 Execute o script `split_dataset.py` para separar automaticamente o dataset anotado:
 ```bash
-venv/bin/python dataset/split_dataset.py --source dataset/raw --ratio 0.8 --seed 42
+backend/venv/bin/python backend/dataset/split_dataset.py --source backend/dataset/raw --ratio 0.8 --seed 42
 ```
 Este comando move automaticamente:
-- 80% dos pares (imagem + txt) para `dataset/images/train` e `dataset/labels/train`
-- 20% dos pares (imagem + txt) para `dataset/images/val` e `dataset/labels/val`
+- 80% dos pares (imagem + txt) para `backend/dataset/images/train` e `backend/dataset/labels/train`
+- 20% dos pares (imagem + txt) para `backend/dataset/images/val` e `backend/dataset/labels/val`
 
 *(Se desejar manter uma cópia na pasta raw sem mover, adicione a flag `--copy`)*.
 
 ### Passo 4: Conferir o arquivo `data.yaml`
-Confira se o arquivo `dataset/data.yaml` está criado e atualizado. Caso queira regenerá-lo a qualquer momento a partir de `camera-proxy/detector.py`, execute:
+Confira se o arquivo `backend/dataset/data.yaml` está criado e atualizado. Caso queira regenerá-lo a qualquer momento a partir de `backend/detector.py`, execute:
 ```bash
-venv/bin/python dataset/generate_data_yaml.py
+backend/venv/bin/python backend/dataset/generate_data_yaml.py
 ```
 
 ---
