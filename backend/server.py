@@ -143,20 +143,21 @@ def _load_color_reference() -> tuple[Optional[int], Optional[int], Optional[list
     except Exception as err:
         _log.warning("Falha ao recuperar referência de cor do PostgreSQL: %s", err)
 
-    # 2. Fallback de migração inicial (se existir JSON legado no disco)
+    # 2. Fallback de migração inicial única (se existir JSON legado no disco)
     try:
         if COLOR_REFERENCE_PATH.exists():
             saved = json.loads(COLOR_REFERENCE_PATH.read_text(encoding="utf-8"))
-            ref_a = int(saved["ref_a"]) if "ref_a" in saved else None
-            ref_b = int(saved["ref_b"]) if "ref_b" in saved else None
+            ref_a = int(saved["ref_a"]) if "ref_a" in saved and saved["ref_a"] is not None else None
+            ref_b = int(saved["ref_b"]) if "ref_b" in saved and saved["ref_b"] is not None else None
             paleta_raw = saved.get("paleta")
             paleta = None
             if isinstance(paleta_raw, list) and paleta_raw:
                 paleta = [(int(p[0]), int(p[1])) for p in paleta_raw]
-            set_runtime_setting("color_reference", saved)
-            _log.info("Referência de cor migrada do disco legado para o PostgreSQL")
+            if set_runtime_setting("color_reference", saved):
+                COLOR_REFERENCE_PATH.unlink(missing_ok=True)
+                _log.info("Referência de cor migrada para o PostgreSQL e JSON legado removido")
             return ref_a, ref_b, paleta
-    except (FileNotFoundError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    except (FileNotFoundError, KeyError, TypeError, ValueError, json.JSONDecodeError, OSError):
         pass
     return None, None, None
 
@@ -230,25 +231,17 @@ def save_reference_palette(payload: ReferencePalettePayload) -> JSONResponse:
         "n_cores": len(paleta),
     }
 
-    # Persistência centralizada no PostgreSQL
-    set_runtime_setting("color_reference", reference)
-
-    try:
-        COLOR_REFERENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        temporary_path = COLOR_REFERENCE_PATH.with_suffix(".tmp")
-        temporary_path.write_text(json.dumps(reference), encoding="utf-8")
-        temporary_path.replace(COLOR_REFERENCE_PATH)
-    except OSError as error:
-        _log.debug("Aviso: cache local de cor não pôde ser gravado: %s", error)
-
+    # Atualização sincronizada entre memória e PostgreSQL sem escrita em JSON local
     with color_reference_lock:
         saved_ref_a, saved_ref_b, saved_paleta = ref_a, ref_b, paleta
+        set_runtime_setting("color_reference", reference)
 
     return JSONResponse(reference)
 
 class CameraState:
     def __init__(self) -> None:
         self.lock = threading.Lock()
+        self._persist_lock = threading.Lock()
         self.latest_frame: Optional[bytes] = None
         self.last_frame_ts = 0.0
         self.connected = False
@@ -262,8 +255,8 @@ class CameraState:
         )
         self.active_brand = "mock" if CAMERA_RTSP_URL.startswith("mock://") else "hikvision"
         self.active_channel = "1" if CAMERA_RTSP_URL.startswith("mock://") else str(CAMERA_CHANNEL)
-        self._load_persisted_camera()
         self._switch_version = 0
+        self._load_persisted_camera()
         self._active_ffmpeg_proc: Optional[subprocess.Popen] = None
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
@@ -273,70 +266,74 @@ class CameraState:
         # 1. Tenta recuperar do PostgreSQL (tabela system_runtime_settings)
         try:
             saved = get_runtime_setting("active_operator_camera")
-            if isinstance(saved, dict) and saved.get("stream_url"):
-                self.active_stream_url = str(saved["stream_url"])
-                self.active_camera_id = str(saved.get("camera_id") or self.active_camera_id)
-                self.active_camera_name = str(saved.get("camera_name") or self.active_camera_name)
-                self.active_brand = str(saved.get("brand") or self.active_brand)
-                self.active_channel = str(saved.get("channel") or self.active_channel)
-                _log.info(
-                    "Câmera ativa do operador restaurada do PostgreSQL: %s (%s)",
-                    self.active_camera_name,
-                    self.active_brand,
-                )
-                return
-        except Exception as err:
-            _log.warning("Falha ao recuperar câmera ativa do PostgreSQL: %s", err)
-
-        # 2. Fallback de migração inicial (se existir JSON legado no disco)
-        try:
-            if ACTIVE_CAMERA_STATE_PATH.exists():
-                saved = json.loads(ACTIVE_CAMERA_STATE_PATH.read_text(encoding="utf-8"))
-                if saved.get("stream_url"):
-                    self.active_stream_url = str(saved["stream_url"])
+            if isinstance(saved, dict):
+                stream_url = str(saved.get("stream_url") or "").strip()
+                # Ignora URLs vazias ou com senha mascarada (****) da seed inicial
+                if stream_url and "****" not in stream_url:
+                    self.active_stream_url = stream_url
                     self.active_camera_id = str(saved.get("camera_id") or self.active_camera_id)
                     self.active_camera_name = str(saved.get("camera_name") or self.active_camera_name)
                     self.active_brand = str(saved.get("brand") or self.active_brand)
                     self.active_channel = str(saved.get("channel") or self.active_channel)
                     _log.info(
-                        "Câmera ativa migrada do disco legado para o PostgreSQL: %s (%s)",
+                        "Câmera ativa do operador restaurada do PostgreSQL: %s (%s)",
                         self.active_camera_name,
                         self.active_brand,
                     )
-                    set_operator_active_camera(
+                    return
+        except Exception as err:
+            _log.warning("Falha ao recuperar câmera ativa do PostgreSQL: %s", err)
+
+        # 2. Fallback de migração inicial única (se existir JSON legado no disco)
+        try:
+            if ACTIVE_CAMERA_STATE_PATH.exists():
+                saved = json.loads(ACTIVE_CAMERA_STATE_PATH.read_text(encoding="utf-8"))
+                stream_url = str(saved.get("stream_url") or "").strip()
+                if stream_url and "****" not in stream_url:
+                    self.active_stream_url = stream_url
+                    self.active_camera_id = str(saved.get("camera_id") or self.active_camera_id)
+                    self.active_camera_name = str(saved.get("camera_name") or self.active_camera_name)
+                    self.active_brand = str(saved.get("brand") or self.active_brand)
+                    self.active_channel = str(saved.get("channel") or self.active_channel)
+                    if set_operator_active_camera(
                         self.active_camera_id,
                         self.active_camera_name,
                         self.active_brand,
                         self.active_stream_url,
                         self.active_channel,
-                    )
+                    ):
+                        ACTIVE_CAMERA_STATE_PATH.unlink(missing_ok=True)
+                        _log.info(
+                            "Câmera ativa migrada para o PostgreSQL e JSON legado removido: %s (%s)",
+                            self.active_camera_name,
+                            self.active_brand,
+                        )
         except Exception as err:
             _log.warning("Could not load persisted operator camera: %s", err)
 
-    def _persist_camera(self) -> None:
-        try:
-            # Persistência centralizada no PostgreSQL (system_runtime_settings e camera_devices)
-            set_operator_active_camera(
-                camera_id=self.active_camera_id,
-                camera_name=self.active_camera_name,
-                brand=self.active_brand,
-                stream_url=self.active_stream_url,
-                channel=self.active_channel,
-            )
-
-            payload = {
-                "stream_url": self.active_stream_url,
-                "camera_id": self.active_camera_id,
-                "camera_name": self.active_camera_name,
-                "brand": self.active_brand,
-                "channel": self.active_channel,
-                "updated_at": time.time(),
-            }
-            tmp_path = ACTIVE_CAMERA_STATE_PATH.with_suffix(".tmp")
-            tmp_path.write_text(json.dumps(payload), encoding="utf-8")
-            tmp_path.replace(ACTIVE_CAMERA_STATE_PATH)
-        except Exception as err:
-            _log.warning("Could not persist active operator camera: %s", err)
+    def _persist_camera(
+        self,
+        version: int,
+        camera_id: str,
+        camera_name: str,
+        brand: str,
+        stream_url: str,
+        channel: str,
+    ) -> None:
+        with self._persist_lock:
+            # Descarta gravação obsoleta se outra troca de câmera já tiver ocorrido
+            if version != self._switch_version:
+                return
+            try:
+                set_operator_active_camera(
+                    camera_id=camera_id,
+                    camera_name=camera_name,
+                    brand=brand,
+                    stream_url=stream_url,
+                    channel=channel,
+                )
+            except Exception as err:
+                _log.warning("Could not persist active operator camera: %s", err)
 
     def switch_camera(
         self,
@@ -353,11 +350,26 @@ class CameraState:
             self.active_brand = brand
             self.active_channel = str(channel)
             self._switch_version += 1
+            version_snapshot = self._switch_version
+            cam_id_snapshot = self.active_camera_id
+            cam_name_snapshot = self.active_camera_name
+            brand_snapshot = self.active_brand
+            url_snapshot = self.active_stream_url
+            ch_snapshot = self.active_channel
             self.connected = False
             self.latest_frame = None
             self.last_frame_ts = 0.0
             proc = self._active_ffmpeg_proc
-            self._persist_camera()
+
+        # Persiste no PostgreSQL FORA do self.lock para não bloquear o streaming MJPEG
+        self._persist_camera(
+            version=version_snapshot,
+            camera_id=cam_id_snapshot,
+            camera_name=cam_name_snapshot,
+            brand=brand_snapshot,
+            stream_url=url_snapshot,
+            channel=ch_snapshot,
+        )
 
         if proc is not None:
             try:
@@ -1113,19 +1125,10 @@ def save_reference_color(payload: ReferenceColorPayload) -> JSONResponse:
     paleta = [(ref_a, ref_b)]
     reference = {"ref_a": ref_a, "ref_b": ref_b, "paleta": [list(p) for p in paleta]}
 
-    # Persistência centralizada no PostgreSQL
-    set_runtime_setting("color_reference", reference)
-
-    try:
-        COLOR_REFERENCE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        temporary_path = COLOR_REFERENCE_PATH.with_suffix(".tmp")
-        temporary_path.write_text(json.dumps(reference), encoding="utf-8")
-        temporary_path.replace(COLOR_REFERENCE_PATH)
-    except OSError as error:
-        _log.debug("Aviso: cache local de cor não pôde ser gravado: %s", error)
-
+    # Atualização sincronizada entre memória e PostgreSQL sem escrita em JSON local
     with color_reference_lock:
         saved_ref_a, saved_ref_b, saved_paleta = ref_a, ref_b, paleta
+        set_runtime_setting("color_reference", reference)
 
     return JSONResponse({"ref_a": ref_a, "ref_b": ref_b})
 @app.get("/stream-grayscale.mjpg")
