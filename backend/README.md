@@ -1,17 +1,17 @@
-# Camera Proxy & Motor Híbrido de Visão Computacional (OpenCV + Anomalib)
+# Backend & Motor Híbrido de Visão Computacional (OpenCV + Anomalib)
 
-Este serviço em Python (FastAPI) conecta na câmera Hikvision via RTSP, processa os frames em tempo real (`12 FPS`) e disponibiliza o stream analisado e as rotas de calibração para o frontend.
+Este serviço em Python (FastAPI) conecta nas câmeras/DVRs via RTSP/HTTP, processa os frames em tempo real (`12 FPS`) e disponibiliza o stream analisado e as rotas de calibração para o frontend.
 
 ## Arquitetura de Detecção (`detector.py` + `anomalib_detector.py`)
 
 1. **Tecidos Lisos (`estampado = false`) — `ColorDetector` (OpenCV Clássico):**
    - Opera no espaço perceptual CIE L\*a\*b\* com normalização de iluminação local (`medianBlur 41x41`) e filtragem morfológica.
-   - Referência salva em: `camera-proxy/calibrated-color-reference.json`.
+   - Referência salva em: `backend/calibrated-color-reference.json` (ou tabela Postgres).
 2. **Tecidos Detalhados / Estampados (`estampado = true`) — `AnomalibDetector` (PatchCore / ResNet18):**
    - Aprendizado Não-Supervisionado (*One-Class*): aprende o padrão da estampa usando **apenas fotos do tecido BOM** capturadas antes da análise (`POST /calibrate-pattern`).
-   - Fotos do tecido bom salvas em: `camera-proxy/reference_patterns/active_pattern/frames/`.
-   - Banco de memória salvo em: `camera-proxy/reference_patterns/active_pattern/memory_bank.npz`.
-   - Backbone local: `camera-proxy/models/resnet18_backbone.pth`.
+   - Fotos do tecido bom salvas em: `backend/reference_patterns/active_pattern/frames/`.
+   - Banco de memória salvo em: `backend/reference_patterns/active_pattern/memory_bank.npz`.
+   - Backbone local: `backend/models/resnet18_backbone.pth`.
 
 ## Endpoints Principais
 

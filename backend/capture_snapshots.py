@@ -17,7 +17,7 @@ from pathlib import Path
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Captura snapshots do camera-proxy em intervalos regulares para montagem de dataset."
+        description="Captura snapshots do backend em intervalos regulares para montagem de dataset."
     )
     parser.add_argument(
         "--url",
@@ -34,8 +34,8 @@ def main():
     parser.add_argument(
         "--output",
         type=str,
-        default="dataset/raw",
-        help="Diretório de saída para salvar os frames (default: dataset/raw)",
+        default="backend/dataset/raw",
+        help="Diretório de saída para salvar os frames (default: backend/dataset/raw)",
     )
     parser.add_argument(
         "--prefix",

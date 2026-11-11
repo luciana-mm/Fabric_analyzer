@@ -75,6 +75,8 @@ next/
 .codex_tmp_pdf/
 out.bin
 lint_results.json
+camera-proxy/
+/dataset/
 backend/runs/
 backend/models/best.pt
 backend/dataset/raw/
