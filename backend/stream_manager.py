@@ -7,7 +7,7 @@ import time
 import urllib.request
 import uuid
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Deque, Dict, List, Optional
@@ -93,7 +93,7 @@ class StreamEventRecord:
         self.severity = severity
         self.message = message
         self.details = details or {}
-        self.created_at = datetime.utcnow().isoformat() + "Z"
+        self.created_at = datetime.now(timezone.utc).isoformat()
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -136,7 +136,7 @@ class DeviceMonitorEntry:
         self.consecutive_failures = 0
         self.backoff_seconds = 1.0
         self.last_latency_ms = latency_ms
-        self.last_checked_at = datetime.utcnow().isoformat() + "Z"
+        self.last_checked_at = datetime.now(timezone.utc).isoformat()
 
         if prev_status in (DeviceConnectionStatus.OFFLINE, DeviceConnectionStatus.ERROR):
             self.reconnect_count += 1
@@ -153,7 +153,7 @@ class DeviceMonitorEntry:
         prev_status = self.status
         self.consecutive_failures += 1
         self.last_latency_ms = latency_ms
-        self.last_checked_at = datetime.utcnow().isoformat() + "Z"
+        self.last_checked_at = datetime.now(timezone.utc).isoformat()
 
         # Backoff exponencial: 1s, 2s, 4s, 8s, 16s, 30s
         self.backoff_seconds = min(
@@ -512,6 +512,7 @@ class CameraState:
         self._switch_version = 0
         self._load_persisted_camera()
         self._active_ffmpeg_proc: Optional[subprocess.Popen] = None
+        self._active_http_resp: Optional[Any] = None
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
 
@@ -727,6 +728,8 @@ class CameraState:
             self.last_frame_ts = 0.0
             proc = self._active_ffmpeg_proc
             self._active_ffmpeg_proc = None
+            http_resp = self._active_http_resp
+            self._active_http_resp = None
 
         # Persiste no PostgreSQL FORA do self.lock para não bloquear o streaming MJPEG
         self._persist_camera(
@@ -739,6 +742,11 @@ class CameraState:
         )
 
         _terminate_ffmpeg_process(proc)
+        if http_resp is not None:
+            try:
+                http_resp.close()
+            except Exception:
+                pass
 
         if self._on_switch_callback is not None:
             try:
@@ -835,6 +843,8 @@ class CameraState:
                 headers={"User-Agent": "Mozilla/5.0 (FabricAnalyzer Backend)"},
             )
             with urllib.request.urlopen(req, timeout=5.0) as resp:
+                with self.lock:
+                    self._active_http_resp = resp
                 content_type = (resp.headers.get("Content-Type") or "").lower()
                 if "text/html" in content_type:
                     html_preview = resp.read(512).decode("utf-8", errors="ignore")
@@ -871,6 +881,9 @@ class CameraState:
             _log.warning("Direct HTTP MJPEG read failed for %s: %s", self.active_camera_name, err)
             self._set_connected(False)
             return False
+        finally:
+            with self.lock:
+                self._active_http_resp = None
 
     def _capture_loop(self) -> None:
         backoff = 1.0
@@ -990,7 +1003,14 @@ class CameraState:
             self.running = False
             proc = self._active_ffmpeg_proc
             self._active_ffmpeg_proc = None
+            http_resp = self._active_http_resp
+            self._active_http_resp = None
         _terminate_ffmpeg_process(proc)
+        if http_resp is not None:
+            try:
+                http_resp.close()
+            except Exception:
+                pass
         if self.thread.is_alive():
             self.thread.join(timeout=1.5)
 
@@ -1097,6 +1117,7 @@ class ChannelStreamWorker:
         self.connected: bool = False
         self.running: bool = True
         self._proc: Optional[subprocess.Popen] = None
+        self._http_resp: Optional[Any] = None
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
         self.thread.start()
 
@@ -1167,7 +1188,14 @@ class ChannelStreamWorker:
             self.latest_frame = None
             proc = self._proc
             self._proc = None
+            http_resp = self._http_resp
+            self._http_resp = None
         _terminate_ffmpeg_process(proc)
+        if http_resp is not None:
+            try:
+                http_resp.close()
+            except Exception:
+                pass
 
     def _read_http_mjpeg_once(self) -> bool:
         try:
@@ -1176,6 +1204,8 @@ class ChannelStreamWorker:
                 headers={"User-Agent": "Mozilla/5.0 (FabricAnalyzer Mosaic)"},
             )
             with urllib.request.urlopen(req, timeout=4.5) as resp:
+                with self.lock:
+                    self._http_resp = resp
                 ctype = (resp.headers.get("Content-Type") or "").lower()
                 if "text/html" in ctype:
                     with self.lock:
@@ -1209,6 +1239,9 @@ class ChannelStreamWorker:
             with self.lock:
                 self.connected = False
             return False
+        finally:
+            with self.lock:
+                self._http_resp = None
 
     def _run_loop(self) -> None:
         from dvr_adapters.utils import load_or_generate_mock_frame
