@@ -1,12 +1,20 @@
 import base64
+import json
 import logging
+import os
+import subprocess
 import threading
 import time
+import urllib.request
 import uuid
 from collections import deque
 from datetime import datetime
 from enum import Enum
-from typing import Any, Deque, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Callable, Deque, Dict, List, Optional
+
+import cv2
+import numpy as np
 
 from dvr_adapters import DvrAdapterFactory, mask_rtsp_url
 from dvr_types import (
@@ -17,11 +25,23 @@ from dvr_types import (
 )
 
 try:
-    from db import update_dvr_device_status
+    from db import (
+        get_runtime_setting,
+        set_operator_active_camera,
+        update_dvr_device_status,
+    )
 except ImportError:
-    from backend.db import update_dvr_device_status
+    from backend.db import (
+        get_runtime_setting,
+        set_operator_active_camera,
+        update_dvr_device_status,
+    )
 
 _log = logging.getLogger("stream-manager")
+
+# Limite máximo de buffer MJPEG em RAM (5 MB) para evitar vazamento de memória
+# caso um stream HTTP/FFmpeg malformado nunca envie o marcador EOI (0xFFD9).
+MAX_MJPEG_BUFFER_BYTES = 5 * 1024 * 1024
 
 
 class CircuitState(str, Enum):
@@ -379,3 +399,866 @@ class StreamSessionManager:
         self._running = False
         if self._monitor_thread.is_alive():
             self._monitor_thread.join(timeout=1.5)
+
+
+class CameraState:
+    """
+    Gerenciador principal da câmera ativa do Operário.
+    Suporta RTSP (OpenCV / FFmpeg fallback), HTTP MJPEG (DroidCam / IP Webcam) e Simulador Mock,
+    mantendo cache em memória de frame BGR decodificado e grayscale para evitar re-decodificações redundantes.
+    """
+
+    def __init__(
+        self,
+        default_rtsp_url: str = "mock://127.0.0.1/channel/1",
+        camera_ip: str = "",
+        camera_channel: str = "101",
+        output_fps: float = 12.0,
+        jpeg_quality: int = 80,
+        connect_timeout_seconds: float = 5.0,
+        use_ffmpeg_fallback: bool = True,
+        legacy_state_path: Optional[Path] = None,
+        on_switch_callback: Optional[Callable[[str], None]] = None,
+    ) -> None:
+        self.lock = threading.Lock()
+        self._persist_lock = threading.Lock()
+        self.output_fps = max(1.0, float(output_fps))
+        self.jpeg_quality = int(jpeg_quality)
+        self.connect_timeout_seconds = float(connect_timeout_seconds)
+        self.use_ffmpeg_fallback = bool(use_ffmpeg_fallback)
+        self.legacy_state_path = legacy_state_path or Path(__file__).with_name("active-operator-camera.json")
+        self._on_switch_callback = on_switch_callback
+
+        self.latest_frame: Optional[bytes] = None
+        self.latest_bgr_frame: Optional[np.ndarray] = None
+        self.latest_gray_frame: Optional[bytes] = None
+        self._gray_source_ts: float = 0.0
+        self.last_frame_ts: float = 0.0
+        self.connected: bool = False
+        self.running: bool = True
+        self.active_clients: int = 0
+
+        self.active_stream_url = default_rtsp_url
+        self.active_camera_id = "cam-mock-1" if default_rtsp_url.startswith("mock://") else "cam-default-101"
+        self.active_camera_name = (
+            "Câmera Simulada 01 (Aguardando seleção no Gestor CFTV)"
+            if default_rtsp_url.startswith("mock://")
+            else f"Câmera Principal ({camera_ip or 'RTSP'} - Canal {camera_channel})"
+        )
+        self.active_brand = "mock" if default_rtsp_url.startswith("mock://") else "hikvision"
+        self.active_channel = "1" if default_rtsp_url.startswith("mock://") else str(camera_channel)
+        self._switch_version = 0
+        self._load_persisted_camera()
+        self._active_ffmpeg_proc: Optional[subprocess.Popen] = None
+        self.thread = threading.Thread(target=self._capture_loop, daemon=True)
+        self.thread.start()
+
+    def register_client(self) -> None:
+        with self.lock:
+            self.active_clients += 1
+
+    def unregister_client(self) -> None:
+        with self.lock:
+            self.active_clients = max(0, self.active_clients - 1)
+
+    def _update_frame(self, jpg_bytes: bytes, bgr_frame: Optional[np.ndarray] = None) -> None:
+        now = time.time()
+        with self.lock:
+            self.latest_frame = jpg_bytes
+            self.latest_bgr_frame = bgr_frame
+            self.last_frame_ts = now
+            self.connected = True
+
+    def get_bgr_frame(self) -> Optional[np.ndarray]:
+        """
+        Retorna uma cópia segura do último frame BGR (decodificando sob demanda apenas se
+        tiver vindo de um stream HTTP/FFmpeg bruto sem matriz BGR prévia).
+        """
+        with self.lock:
+            bgr = self.latest_bgr_frame
+            jpg_bytes = self.latest_frame
+
+        if bgr is not None:
+            return bgr.copy()
+
+        if jpg_bytes is None:
+            return None
+
+        arr = np.frombuffer(jpg_bytes, dtype=np.uint8)
+        decoded = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if decoded is not None:
+            with self.lock:
+                if self.latest_frame is jpg_bytes and self.latest_bgr_frame is None:
+                    self.latest_bgr_frame = decoded
+            return decoded.copy()
+        return None
+
+    def get_grayscale_jpeg(self, grayscale_fn: Callable[[np.ndarray], np.ndarray]) -> Optional[bytes]:
+        """
+        Retorna o frame em tons de cinza codificado em JPEG, reaproveitando o cache
+        quando múltiplos clientes assistem ao mesmo timestamp de frame.
+        """
+        with self.lock:
+            if self.latest_gray_frame is not None and self._gray_source_ts == self.last_frame_ts:
+                return self.latest_gray_frame
+            frame_ts = self.last_frame_ts
+
+        bgr = self.get_bgr_frame()
+        if bgr is None:
+            return None
+
+        gray = grayscale_fn(bgr)
+        encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_quality]
+        ok, jpg = cv2.imencode(".jpg", gray, encode_params)
+        if not ok:
+            return None
+
+        gray_bytes = jpg.tobytes()
+        with self.lock:
+            if self.last_frame_ts == frame_ts:
+                self.latest_gray_frame = gray_bytes
+                self._gray_source_ts = frame_ts
+        return gray_bytes
+
+    def _load_persisted_camera(self) -> None:
+        try:
+            saved = get_runtime_setting("active_operator_camera")
+            if isinstance(saved, dict):
+                stream_url = str(saved.get("stream_url") or "").strip()
+                if stream_url and "****" not in stream_url:
+                    self.active_stream_url = stream_url
+                    self.active_camera_id = str(saved.get("camera_id") or self.active_camera_id)
+                    self.active_camera_name = str(saved.get("camera_name") or self.active_camera_name)
+                    self.active_brand = str(saved.get("brand") or self.active_brand)
+                    self.active_channel = str(saved.get("channel") or self.active_channel)
+                    _log.info(
+                        "Câmera ativa do operador restaurada do PostgreSQL: %s (%s)",
+                        self.active_camera_name,
+                        self.active_brand,
+                    )
+                    return
+        except Exception as err:
+            _log.warning("Falha ao recuperar câmera ativa do PostgreSQL: %s", err)
+
+        try:
+            if self.legacy_state_path and self.legacy_state_path.exists():
+                saved = json.loads(self.legacy_state_path.read_text(encoding="utf-8"))
+                stream_url = str(saved.get("stream_url") or "").strip()
+                if stream_url and "****" not in stream_url:
+                    self.active_stream_url = stream_url
+                    self.active_camera_id = str(saved.get("camera_id") or self.active_camera_id)
+                    self.active_camera_name = str(saved.get("camera_name") or self.active_camera_name)
+                    self.active_brand = str(saved.get("brand") or self.active_brand)
+                    self.active_channel = str(saved.get("channel") or self.active_channel)
+                    if set_operator_active_camera(
+                        self.active_camera_id,
+                        self.active_camera_name,
+                        self.active_brand,
+                        self.active_stream_url,
+                        self.active_channel,
+                    ):
+                        self.legacy_state_path.unlink(missing_ok=True)
+                        _log.info(
+                            "Câmera ativa migrada para o PostgreSQL e JSON legado removido: %s (%s)",
+                            self.active_camera_name,
+                            self.active_brand,
+                        )
+        except Exception as err:
+            _log.warning("Could not load persisted operator camera: %s", err)
+
+    def _persist_camera(
+        self,
+        version: int,
+        camera_id: str,
+        camera_name: str,
+        brand: str,
+        stream_url: str,
+        channel: str,
+    ) -> None:
+        with self._persist_lock:
+            if version != self._switch_version:
+                return
+            try:
+                set_operator_active_camera(
+                    camera_id=camera_id,
+                    camera_name=camera_name,
+                    brand=brand,
+                    stream_url=stream_url,
+                    channel=channel,
+                )
+            except Exception as err:
+                _log.warning("Could not persist active operator camera: %s", err)
+
+    def switch_camera(
+        self,
+        stream_url: str,
+        camera_id: str = "",
+        camera_name: str = "",
+        brand: str = "generic_rtsp",
+        channel: str = "1",
+    ) -> dict:
+        with self.lock:
+            self.active_stream_url = stream_url
+            self.active_camera_id = camera_id or self.active_camera_id
+            self.active_camera_name = camera_name or f"Câmera {brand.upper()} (Canal {channel})"
+            self.active_brand = brand
+            self.active_channel = str(channel)
+            self._switch_version += 1
+            version_snapshot = self._switch_version
+            cam_id_snapshot = self.active_camera_id
+            cam_name_snapshot = self.active_camera_name
+            brand_snapshot = self.active_brand
+            url_snapshot = self.active_stream_url
+            ch_snapshot = self.active_channel
+            self.connected = False
+            self.latest_frame = None
+            self.latest_bgr_frame = None
+            self.latest_gray_frame = None
+            self._gray_source_ts = 0.0
+            self.last_frame_ts = 0.0
+            proc = self._active_ffmpeg_proc
+
+        # Persiste no PostgreSQL FORA do self.lock para não bloquear o streaming MJPEG
+        self._persist_camera(
+            version=version_snapshot,
+            camera_id=cam_id_snapshot,
+            camera_name=cam_name_snapshot,
+            brand=brand_snapshot,
+            stream_url=url_snapshot,
+            channel=ch_snapshot,
+        )
+
+        if proc is not None:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+
+        if self._on_switch_callback is not None:
+            try:
+                self._on_switch_callback(stream_url)
+            except Exception:
+                pass
+
+        _log.info(
+            "Switched active operator camera to id=%s name=%s brand=%s",
+            cam_id_snapshot,
+            cam_name_snapshot,
+            brand_snapshot,
+        )
+        return self.get_active_info()
+
+    def build_status_frame(self, status_text: str) -> bytes:
+        with self.lock:
+            cam_name = self.active_camera_name
+            brand = self.active_brand
+            channel = self.active_channel
+
+        canvas = np.full((360, 640, 3), (15, 23, 42), dtype=np.uint8)
+        for y in range(0, 360, 24):
+            cv2.line(canvas, (0, y), (640, y), (25, 35, 58), 1)
+        for x in range(0, 640, 24):
+            cv2.line(canvas, (x, 0), (x, 360), (25, 35, 58), 1)
+
+        cv2.rectangle(canvas, (20, 20), (620, 340), (56, 189, 248), 1)
+        cv2.putText(
+            canvas,
+            f"CAMERA DO OPERARIO ({brand.upper()} - CH {channel})",
+            (40, 70),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.65,
+            (56, 189, 248),
+            2,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            canvas,
+            cam_name[:48],
+            (40, 115),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.58,
+            (226, 232, 240),
+            1,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            canvas,
+            status_text[:55],
+            (40, 185),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.58,
+            (251, 191, 36),
+            1,
+            cv2.LINE_AA,
+        )
+        ts_str = time.strftime("%H:%M:%S")
+        cv2.putText(
+            canvas,
+            f"Sincronizado em tempo real | {ts_str}",
+            (40, 310),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.48,
+            (148, 163, 184),
+            1,
+            cv2.LINE_AA,
+        )
+        _, jpg = cv2.imencode(".jpg", canvas, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+        return jpg.tobytes()
+
+    def get_active_info(self) -> dict:
+        with self.lock:
+            return {
+                "cameraId": self.active_camera_id,
+                "cameraName": self.active_camera_name,
+                "brand": self.active_brand,
+                "channel": self.active_channel,
+                "streamUrlMasked": mask_rtsp_url(self.active_stream_url),
+                "connected": self.connected,
+                "lastFrameTs": self.last_frame_ts,
+                "switchVersion": self._switch_version,
+                "activeClients": self.active_clients,
+            }
+
+    def _read_http_mjpeg_stream(self, url: str, version: int) -> bool:
+        """
+        Leitor nativo de streams HTTP MJPEG (DroidCam / IP Webcam) com limite de buffer.
+        """
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (FabricAnalyzer Backend)"},
+            )
+            with urllib.request.urlopen(req, timeout=5.0) as resp:
+                content_type = (resp.headers.get("Content-Type") or "").lower()
+                if "text/html" in content_type:
+                    html_preview = resp.read(512).decode("utf-8", errors="ignore")
+                    _log.warning(
+                        "HTTP camera stream (%s) returned HTML instead of MJPEG: %s",
+                        self.active_camera_name,
+                        "DroidCam is Busy" if "droidcam_busy" in html_preview else content_type,
+                    )
+                    self.connected = False
+                    return False
+
+                buffer = b""
+                while self.running and self._switch_version == version:
+                    chunk = resp.read(4096)
+                    if not chunk:
+                        break
+                    buffer += chunk
+                    if len(buffer) > MAX_MJPEG_BUFFER_BYTES:
+                        last_soi = buffer.rfind(b"\xff\xd8")
+                        buffer = buffer[last_soi:] if last_soi != -1 else b""
+
+                    while True:
+                        start = buffer.find(b"\xff\xd8")
+                        end = buffer.find(b"\xff\xd9", start + 2) if start != -1 else -1
+                        if start != -1 and end != -1:
+                            jpg = buffer[start : end + 2]
+                            buffer = buffer[end + 2 :]
+                            self._update_frame(jpg, bgr_frame=None)
+                        else:
+                            break
+                self.connected = False
+                return True
+        except Exception as err:
+            _log.warning("Direct HTTP MJPEG read failed for %s: %s", self.active_camera_name, err)
+            self.connected = False
+            return False
+
+    def _capture_loop(self) -> None:
+        backoff = 1.0
+        while self.running:
+            try:
+                with self.lock:
+                    url = self.active_stream_url
+                    version = self._switch_version
+                    brand = self.active_brand
+                    channel = self.active_channel
+
+                frame_interval = 1.0 / self.output_fps if self.output_fps > 0 else 0.08
+
+                # 1. Simulador Mock
+                if url.startswith("mock://") or brand == "mock":
+                    from dvr_adapters.utils import load_or_generate_mock_frame
+
+                    try:
+                        ch_num = int(channel) if str(channel).isdigit() else 1
+                    except ValueError:
+                        ch_num = 1
+                    while self.running and self._switch_version == version:
+                        jpg_bytes, _, _ = load_or_generate_mock_frame(channel=ch_num)
+                        self._update_frame(jpg_bytes, bgr_frame=None)
+                        time.sleep(frame_interval)
+                    continue
+
+                # 2. HTTP / HTTPS MJPEG (DroidCam / IP Webcam)
+                if url.lower().startswith(("http://", "https://")):
+                    _log.info("Opening direct HTTP MJPEG stream for active camera (%s)...", self.active_camera_name)
+                    ok_http = self._read_http_mjpeg_stream(url, version)
+                    if not ok_http and self._switch_version == version:
+                        time.sleep(1.5)
+                    continue
+
+                # 3. RTSP via OpenCV
+                _log.info("Attempting OpenCV capture for active camera (%s)...", self.active_camera_name)
+                capture = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
+                try:
+                    capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                except Exception:
+                    pass
+                try:
+                    capture.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)
+                    capture.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)
+                except Exception:
+                    pass
+
+                started_at = time.time()
+                self.connected = capture.isOpened()
+
+                if not self.connected:
+                    _log.warning("OpenCV failed to open stream (%s), will retry or fallback", self.active_camera_name)
+                    capture.release()
+                    if self.use_ffmpeg_fallback:
+                        self._run_ffmpeg_for_version(url, version)
+                        continue
+                    time.sleep(min(backoff, 10.0))
+                    backoff = min(backoff * 2, 10.0)
+                    continue
+
+                backoff = 1.0
+                last_encode_ts = 0.0
+
+                while self.running and self._switch_version == version:
+                    ok, frame = capture.read()
+                    if not ok or frame is None:
+                        self.connected = False
+                        _log.warning("OpenCV read returned not ok, breaking to reconnect")
+                        break
+
+                    now = time.time()
+                    # Controle de taxa (throttling) para não codificar JPEGs acima do OUTPUT_FPS
+                    if (now - last_encode_ts) < (frame_interval * 0.85):
+                        continue
+
+                    encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_quality]
+                    encoded_ok, jpg = cv2.imencode(".jpg", frame, encode_params)
+                    if not encoded_ok:
+                        continue
+
+                    last_encode_ts = now
+                    self._update_frame(jpg.tobytes(), bgr_frame=frame)
+
+                    if now - started_at > self.connect_timeout_seconds and self.last_frame_ts == 0:
+                        self.connected = False
+                        _log.warning("Connect timeout exceeded without frames")
+                        break
+
+                capture.release()
+                self.connected = False
+                time.sleep(0.3)
+            except Exception as e:
+                self.connected = False
+                _log.exception("Unexpected error in capture loop: %s", e)
+                time.sleep(1.0)
+
+    def stop(self) -> None:
+        self.running = False
+        if self._active_ffmpeg_proc is not None:
+            try:
+                self._active_ffmpeg_proc.kill()
+            except Exception:
+                pass
+        if self.thread.is_alive():
+            self.thread.join(timeout=1.0)
+
+    def _run_ffmpeg_for_version(self, url: str, version: int) -> None:
+        """
+        Subprocesso FFmpeg para RTSP/HTTP com stderr=DEVNULL (evita deadlock de pipe OS)
+        e limite de buffer MJPEG em memória.
+        """
+        _log.info("Starting ffmpeg fallback for %s", self.active_camera_name)
+        cmd = ["ffmpeg"]
+        if url.lower().startswith("rtsp://"):
+            cmd.extend(["-rtsp_transport", "tcp"])
+        cmd.extend([
+            "-i",
+            url,
+            "-f",
+            "mjpeg",
+            "-q:v",
+            "5",
+            "-r",
+            str(int(self.output_fps)),
+            "pipe:1",
+        ])
+
+        try:
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            with self.lock:
+                self._active_ffmpeg_proc = proc
+
+            stdout = proc.stdout
+            buffer = b""
+
+            while self.running and self._switch_version == version:
+                if stdout is None:
+                    break
+                chunk = stdout.read(4096)
+                if not chunk:
+                    _log.warning("ffmpeg stdout closed or no data")
+                    break
+                buffer += chunk
+                if len(buffer) > MAX_MJPEG_BUFFER_BYTES:
+                    last_soi = buffer.rfind(b"\xff\xd8")
+                    buffer = buffer[last_soi:] if last_soi != -1 else b""
+
+                while True:
+                    start = buffer.find(b"\xff\xd8")
+                    end = buffer.find(b"\xff\xd9", start + 2) if start != -1 else -1
+                    if start != -1 and end != -1:
+                        jpg = buffer[start : end + 2]
+                        buffer = buffer[end + 2 :]
+                        self._update_frame(jpg, bgr_frame=None)
+                    else:
+                        break
+
+            self.connected = False
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        except FileNotFoundError:
+            self.connected = False
+            _log.error("ffmpeg not found in PATH. Install ffmpeg to use fallback.")
+            time.sleep(2.0)
+        except Exception as e:
+            self.connected = False
+            _log.exception("ffmpeg loop error: %s", e)
+            time.sleep(2.0)
+
+
+class ChannelStreamWorker:
+    """
+    Worker independente de captura por canal para o Mosaico Multi-Câmera.
+    Encerra automaticamente por inatividade (lazy-loading) quando o mosaico é fechado.
+    """
+
+    def __init__(
+        self,
+        worker_key: str,
+        stream_url: str,
+        camera_name: str,
+        brand: str,
+        host: str,
+        port: int,
+        channel: str,
+        output_fps: float = 12.0,
+        jpeg_quality: int = 80,
+        use_ffmpeg_fallback: bool = True,
+    ) -> None:
+        self.worker_key = worker_key
+        self.stream_url = stream_url
+        self.camera_name = camera_name
+        self.brand = brand
+        self.host = host
+        self.port = port
+        self.channel = channel
+        self.output_fps = max(1.0, float(output_fps))
+        self.jpeg_quality = int(jpeg_quality)
+        self.use_ffmpeg_fallback = bool(use_ffmpeg_fallback)
+
+        self.lock = threading.Lock()
+        self.latest_frame: Optional[bytes] = None
+        self.last_frame_ts: float = 0.0
+        self.last_client_ts: float = time.time()
+        self.connected: bool = False
+        self.running: bool = True
+        self._proc: Optional[subprocess.Popen] = None
+        self.thread = threading.Thread(target=self._run_loop, daemon=True)
+        self.thread.start()
+
+    def touch(self) -> None:
+        self.last_client_ts = time.time()
+
+    def build_status_frame(self, status_text: str) -> bytes:
+        canvas = np.full((360, 640, 3), (15, 23, 42), dtype=np.uint8)
+        for y in range(0, 360, 24):
+            cv2.line(canvas, (0, y), (640, y), (25, 35, 58), 1)
+        for x in range(0, 640, 24):
+            cv2.line(canvas, (x, 0), (x, 360), (25, 35, 58), 1)
+
+        cv2.rectangle(canvas, (20, 20), (620, 340), (56, 189, 248), 1)
+        cv2.putText(
+            canvas,
+            f"{self.brand.upper()} - CANAL {self.channel}",
+            (40, 70),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (56, 189, 248),
+            2,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            canvas,
+            f"Host: {self.host}:{self.port}",
+            (40, 115),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (203, 213, 225),
+            1,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            canvas,
+            status_text[:55],
+            (40, 185),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.58,
+            (251, 191, 36),
+            1,
+            cv2.LINE_AA,
+        )
+        ts_str = time.strftime("%H:%M:%S")
+        cv2.putText(
+            canvas,
+            f"Stream Independente Mosaico | {ts_str}",
+            (40, 310),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.48,
+            (148, 163, 184),
+            1,
+            cv2.LINE_AA,
+        )
+        _, jpg = cv2.imencode(".jpg", canvas, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+        return jpg.tobytes()
+
+    def stop(self) -> None:
+        self.running = False
+        if self._proc is not None:
+            try:
+                self._proc.kill()
+            except Exception:
+                pass
+
+    def _read_http_mjpeg_once(self) -> bool:
+        try:
+            req = urllib.request.Request(
+                self.stream_url,
+                headers={"User-Agent": "Mozilla/5.0 (FabricAnalyzer Mosaic)"},
+            )
+            with urllib.request.urlopen(req, timeout=4.5) as resp:
+                ctype = (resp.headers.get("Content-Type") or "").lower()
+                if "text/html" in ctype:
+                    self.connected = False
+                    return False
+                buf = b""
+                while self.running and (time.time() - self.last_client_ts <= 25.0):
+                    chunk = resp.read(4096)
+                    if not chunk:
+                        break
+                    buf += chunk
+                    if len(buf) > MAX_MJPEG_BUFFER_BYTES:
+                        last_soi = buf.rfind(b"\xff\xd8")
+                        buf = buf[last_soi:] if last_soi != -1 else b""
+                    while True:
+                        s = buf.find(b"\xff\xd8")
+                        e = buf.find(b"\xff\xd9", s + 2) if s != -1 else -1
+                        if s != -1 and e != -1:
+                            jpg = buf[s : e + 2]
+                            buf = buf[e + 2 :]
+                            with self.lock:
+                                self.latest_frame = jpg
+                                self.last_frame_ts = time.time()
+                                self.connected = True
+                        else:
+                            break
+                self.connected = False
+                return True
+        except Exception:
+            self.connected = False
+            return False
+
+    def _run_loop(self) -> None:
+        from dvr_adapters.utils import load_or_generate_mock_frame
+
+        frame_interval = 1.0 / max(1.0, self.output_fps)
+
+        while self.running:
+            if time.time() - self.last_client_ts > 25.0:
+                _log.info("Stopping idle mosaic worker for %s (%s:%s)", self.camera_name, self.host, self.port)
+                self.running = False
+                break
+
+            if self.stream_url.startswith("mock://") or self.brand == "mock":
+                ch_num = int(self.channel) if str(self.channel).isdigit() else 1
+                jpg_bytes, _, _ = load_or_generate_mock_frame(channel=ch_num)
+                with self.lock:
+                    self.latest_frame = jpg_bytes
+                    self.last_frame_ts = time.time()
+                    self.connected = True
+                time.sleep(frame_interval)
+                continue
+
+            if self.stream_url.lower().startswith(("http://", "https://")):
+                ok_http = self._read_http_mjpeg_once()
+                if not ok_http and self.running:
+                    time.sleep(1.5)
+                continue
+
+            try:
+                cap = cv2.VideoCapture(self.stream_url, cv2.CAP_FFMPEG)
+                try:
+                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 4000)
+                    cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 4000)
+                except Exception:
+                    pass
+
+                if not cap.isOpened():
+                    cap.release()
+                    self.connected = False
+                    if self.use_ffmpeg_fallback:
+                        self._run_ffmpeg_once()
+                    else:
+                        time.sleep(2.0)
+                    continue
+
+                last_encode_ts = 0.0
+                while self.running and (time.time() - self.last_client_ts <= 25.0):
+                    ok, frame = cap.read()
+                    if not ok or frame is None:
+                        self.connected = False
+                        break
+                    now = time.time()
+                    if (now - last_encode_ts) < (frame_interval * 0.85):
+                        continue
+                    ok_enc, jpg = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_quality])
+                    if ok_enc:
+                        last_encode_ts = now
+                        with self.lock:
+                            self.latest_frame = jpg.tobytes()
+                            self.last_frame_ts = now
+                            self.connected = True
+                cap.release()
+            except Exception as err:
+                _log.debug("Mosaic worker error (%s): %s", self.camera_name, err)
+                time.sleep(1.5)
+
+    def _run_ffmpeg_once(self) -> None:
+        cmd = ["ffmpeg"]
+        if self.stream_url.lower().startswith("rtsp://"):
+            cmd.extend(["-rtsp_transport", "tcp"])
+        cmd.extend([
+            "-i",
+            self.stream_url,
+            "-f",
+            "mjpeg",
+            "-q:v",
+            "6",
+            "-r",
+            str(int(max(6, min(self.output_fps, 12)))),
+            "pipe:1",
+        ])
+        try:
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            self._proc = proc
+            stdout = proc.stdout
+            buf = b""
+            while self.running and (time.time() - self.last_client_ts <= 25.0):
+                if stdout is None:
+                    break
+                chunk = stdout.read(4096)
+                if not chunk:
+                    break
+                buf += chunk
+                if len(buf) > MAX_MJPEG_BUFFER_BYTES:
+                    last_soi = buf.rfind(b"\xff\xd8")
+                    buf = buf[last_soi:] if last_soi != -1 else b""
+                while True:
+                    s = buf.find(b"\xff\xd8")
+                    e = buf.find(b"\xff\xd9", s + 2) if s != -1 else -1
+                    if s != -1 and e != -1:
+                        jpg = buf[s : e + 2]
+                        buf = buf[e + 2 :]
+                        with self.lock:
+                            self.latest_frame = jpg
+                            self.last_frame_ts = time.time()
+                            self.connected = True
+                    else:
+                        break
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        except Exception:
+            time.sleep(2.0)
+
+
+class ChannelStreamPool:
+    def __init__(
+        self,
+        output_fps: float = 12.0,
+        jpeg_quality: int = 80,
+        use_ffmpeg_fallback: bool = True,
+    ) -> None:
+        self._lock = threading.Lock()
+        self._workers: dict[str, ChannelStreamWorker] = {}
+        self.output_fps = output_fps
+        self.jpeg_quality = jpeg_quality
+        self.use_ffmpeg_fallback = use_ffmpeg_fallback
+
+    def stop_worker(self, worker_key: str) -> None:
+        with self._lock:
+            existing = self._workers.pop(worker_key, None)
+            if existing:
+                existing.stop()
+
+    def stop_matching(self, stream_url: str) -> None:
+        with self._lock:
+            keys_to_stop = [
+                k for k, w in self._workers.items() if w.stream_url == stream_url or (w.host and w.host in stream_url)
+            ]
+            for k in keys_to_stop:
+                w = self._workers.pop(k, None)
+                if w:
+                    w.stop()
+
+    def stop_all(self) -> None:
+        with self._lock:
+            workers = list(self._workers.values())
+            self._workers.clear()
+        for w in workers:
+            w.stop()
+
+    def get_or_create(
+        self,
+        worker_key: str,
+        stream_url: str,
+        camera_name: str,
+        brand: str,
+        host: str,
+        port: int,
+        channel: str,
+    ) -> ChannelStreamWorker:
+        with self._lock:
+            existing = self._workers.get(worker_key)
+            if existing and existing.running and existing.stream_url == stream_url:
+                existing.touch()
+                return existing
+            if existing:
+                existing.stop()
+            worker = ChannelStreamWorker(
+                worker_key=worker_key,
+                stream_url=stream_url,
+                camera_name=camera_name,
+                brand=brand,
+                host=host,
+                port=port,
+                channel=channel,
+                output_fps=self.output_fps,
+                jpeg_quality=self.jpeg_quality,
+                use_ffmpeg_fallback=self.use_ffmpeg_fallback,
+            )
+            self._workers[worker_key] = worker
+            return worker
