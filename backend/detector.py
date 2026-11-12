@@ -1,5 +1,7 @@
 import cv2
 import numpy as np
+import threading
+import time
 from dataclasses import dataclass
 from typing import Optional, List, Tuple, Dict, Any
 
@@ -14,8 +16,9 @@ class Detection:
     confidence: Optional[float] = None
 
 class DefectTracker:
-    """Rastreia falhas entre frames e conta quantas cruzaram a linha de referência."""
+    """Rastreia falhas entre frames e conta quantas cruzaram a linha de referência (Thread-Safe)."""
     def __init__(self, linha_orientacao: str = "vertical", frames_max_sumico: int = 15, frames_min_confirmacao: int = 4, distancia_max_rastreio: int = 90):
+        self._lock = threading.Lock()
         self.next_id = 0
         self.objetos: Dict[int, Dict[str, Any]] = {}
         self.total_count = 0
@@ -31,70 +34,74 @@ class DefectTracker:
             return "esquerda" if cx < linha_pos else "direita"
 
     def update(self, deteccoes: List[Detection], linha_pos: int) -> List[Tuple[int, int, int]]:
-        ids_usados = set()
-        ativos = []
+        with self._lock:
+            ids_usados = set()
+            ativos = []
 
-        for det in deteccoes:
-            cx, cy = det.centroid
-            melhor_id = None
-            melhor_dist = self.distancia_max_rastreio
+            for det in deteccoes:
+                cx, cy = det.centroid
+                melhor_id = None
+                melhor_dist = self.distancia_max_rastreio
 
-            for obj_id, dados in self.objetos.items():
-                if obj_id in ids_usados:
-                    continue
-                ox, oy = dados["centroide"]
-                dist = np.hypot(cx - ox, cy - oy)
-                if dist < melhor_dist:
-                    melhor_dist = dist
-                    melhor_id = obj_id
+                for obj_id, dados in self.objetos.items():
+                    if obj_id in ids_usados:
+                        continue
+                    ox, oy = dados["centroide"]
+                    dist = np.hypot(cx - ox, cy - oy)
+                    if dist < melhor_dist:
+                        melhor_dist = dist
+                        melhor_id = obj_id
 
-            if melhor_id is not None:
-                obj_id = melhor_id
-            else:
-                obj_id = self.next_id
-                self.next_id += 1
-                self.objetos[obj_id] = {
-                    "centroide": (cx, cy),
-                    "sumico": 0,
-                    "lado": None,
-                    "contado": False,
-                    "frames_vivo": 0,
-                }
+                if melhor_id is not None:
+                    obj_id = melhor_id
+                else:
+                    obj_id = self.next_id
+                    self.next_id += 1
+                    self.objetos[obj_id] = {
+                        "centroide": (cx, cy),
+                        "sumico": 0,
+                        "lado": None,
+                        "contado": False,
+                        "frames_vivo": 0,
+                    }
 
-            ids_usados.add(obj_id)
-            dados = self.objetos[obj_id]
-            dados["centroide"] = (cx, cy)
-            dados["sumico"] = 0
-            dados["frames_vivo"] += 1
+                ids_usados.add(obj_id)
+                dados = self.objetos[obj_id]
+                dados["centroide"] = (cx, cy)
+                dados["sumico"] = 0
+                dados["frames_vivo"] += 1
 
-            lado_atual = self._lado_da_linha(cx, cy, linha_pos)
-            if dados["lado"] is None:
-                dados["lado"] = lado_atual
-            elif lado_atual != dados["lado"] and not dados["contado"]:
-                if dados["frames_vivo"] >= self.frames_min_confirmacao:
-                    self.total_count += 1
-                    dados["contado"] = True
-                dados["lado"] = lado_atual
-            else:
-                dados["lado"] = lado_atual
+                lado_atual = self._lado_da_linha(cx, cy, linha_pos)
+                if dados["lado"] is None:
+                    dados["lado"] = lado_atual
+                elif lado_atual != dados["lado"] and not dados["contado"]:
+                    if dados["frames_vivo"] >= self.frames_min_confirmacao:
+                        self.total_count += 1
+                        dados["contado"] = True
+                    dados["lado"] = lado_atual
+                else:
+                    dados["lado"] = lado_atual
 
-            ativos.append((obj_id, cx, cy))
+                ativos.append((obj_id, cx, cy))
 
-        for obj_id in list(self.objetos.keys()):
-            if obj_id not in ids_usados:
-                self.objetos[obj_id]["sumico"] += 1
-                if self.objetos[obj_id]["sumico"] > self.frames_max_sumico:
-                    del self.objetos[obj_id]
+            for obj_id in list(self.objetos.keys()):
+                if obj_id not in ids_usados:
+                    self.objetos[obj_id]["sumico"] += 1
+                    if self.objetos[obj_id]["sumico"] > self.frames_max_sumico:
+                        del self.objetos[obj_id]
 
-        return ativos
+            return ativos
 
     def reset(self):
-        self.next_id = 0
-        self.objetos = {}
-        self.total_count = 0
+        with self._lock:
+            self.next_id = 0
+            self.objetos = {}
+            self.total_count = 0
 
 
 class BaseDetector:
+    last_inference_ms: float = 0.0
+
     def detect(self, roi: np.ndarray, config: dict) -> List[Detection]:
         raise NotImplementedError()
 
@@ -296,6 +303,11 @@ class ColorDetector(BaseDetector):
         return solidez >= solidez_minima and proporcao <= proporcao_maxima
 
     def detect(self, roi: np.ndarray, config: dict) -> List[Detection]:
+        t0 = time.perf_counter()
+        if roi is None or roi.size == 0 or roi.ndim < 2 or roi.shape[0] < 4 or roi.shape[1] < 4:
+            self.last_inference_ms = 0.0
+            return []
+
         distancia_max_fusao = config.get("distancia_max_fusao", self.distancia_max_fusao)
         area_min_pequena = config.get("area_min_pequena", self.area_min_pequena)
         area_max_pequena = config.get("area_max_pequena", self.area_max_pequena)
@@ -308,7 +320,7 @@ class ColorDetector(BaseDetector):
         limiar_cor_local_estampado = config.get("limiar_cor_local_estampado", self.limiar_cor_local_estampado)
         area_maxima_relativa_roi = config.get("area_maxima_relativa_roi", self.area_maxima_relativa_roi)
 
-        gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if roi.ndim == 3 else roi
         mask_intensidade = self._mask_intensidade(gray_roi)
 
         estampado = config.get("estampado", False)
@@ -374,6 +386,7 @@ class ColorDetector(BaseDetector):
             h = by1 - by0
             detections.append(Detection(box=(bx0, by0, bx1, by1), centroid=(cx, cy), area=float(w * h)))
 
+        self.last_inference_ms = round((time.perf_counter() - t0) * 1000.0, 2)
         return detections
 
 
