@@ -1,8 +1,9 @@
+import asyncio
 import time
 
 import cv2
 import numpy as np
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from detector import Visualizer
@@ -87,11 +88,12 @@ def dvr_mock_snapshot(channel: int = 1) -> Response:
     summary="Resumo de saúde e circuit-breaker dos dispositivos monitorados",
 )
 def dvr_monitor_status() -> JSONResponse:
+    active_info = rt.camera_state.get_active_info()
     summary = rt.stream_session_manager.get_status_summary(
-        active_camera_connected=rt.camera_state.connected,
-        last_frame_ts=rt.camera_state.last_frame_ts,
+        active_camera_connected=active_info["connected"],
+        last_frame_ts=active_info["lastFrameTs"],
     )
-    summary["activeOperatorCamera"] = rt.camera_state.get_active_info()
+    summary["activeOperatorCamera"] = active_info
     return JSONResponse(summary)
 
 
@@ -217,7 +219,8 @@ def dvr_set_active_camera(payload: DvrSetActiveCameraPayload) -> JSONResponse:
     tags=["CFTV"],
     summary="Stream MJPEG individual por canal para o Mosaico Multi-Câmera",
 )
-def dvr_channel_stream_mjpeg(
+async def dvr_channel_stream_mjpeg(
+    request: Request,
     camId: str = "",
     dvrId: str = "",
     name: str = "Câmera",
@@ -260,90 +263,90 @@ def dvr_channel_stream_mjpeg(
     worker_key = f"{brand_clean}:{host}:{port}:{channel}"
     boundary = "frame"
 
-    def channel_generator():
+    async def channel_generator():
         frame_interval = 1.0 / rt.OUTPUT_FPS if rt.OUTPUT_FPS > 0 else 0.08
-        while True:
-            is_same_as_operator = (
-                (camId and camId == rt.camera_state.active_camera_id)
-                or (rt.camera_state.active_stream_url == stream_url)
-                or (
-                    host
-                    and host != "127.0.0.1"
-                    and host in rt.camera_state.active_stream_url
-                    and str(channel) == str(rt.camera_state.active_channel)
-                )
-            )
-            if is_same_as_operator:
-                rt.channel_stream_pool.stop_worker(worker_key)
-                with rt.camera_state.lock:
-                    op_frame = rt.camera_state.latest_frame
-                    op_age = time.time() - rt.camera_state.last_frame_ts if rt.camera_state.last_frame_ts else 999.0
+        try:
+            while rt.camera_state.running:
+                if await request.is_disconnected():
+                    break
 
-                if op_frame is not None and op_age <= 6.0:
-                    if mode == "analyzed" and rt.pipeline_state.latest_analyzed_frame is not None:
-                        frame_bytes = rt.pipeline_state.latest_analyzed_frame
-                    else:
-                        frame_bytes = op_frame
-                else:
-                    frame_bytes = rt.camera_state.build_status_frame(
-                        "Conectando ao stream da camera..."
-                        if op_frame is None
-                        else "Sinal interrompido - reconectando..."
-                    )
-            else:
-                worker = rt.channel_stream_pool.get_or_create(
-                    worker_key=worker_key,
+                is_same_as_operator = rt.camera_state.matches_channel(
+                    cam_id=camId,
                     stream_url=stream_url,
-                    camera_name=name,
-                    brand=brand_clean,
                     host=host,
-                    port=port,
                     channel=str(channel),
                 )
-                worker.touch()
-                with worker.lock:
-                    frame_bytes = worker.latest_frame
-                    age = time.time() - worker.last_frame_ts if worker.last_frame_ts else 999.0
+                if is_same_as_operator:
+                    rt.channel_stream_pool.stop_worker(worker_key)
+                    with rt.camera_state.lock:
+                        op_frame = rt.camera_state.latest_frame
+                        op_age = time.time() - rt.camera_state.last_frame_ts if rt.camera_state.last_frame_ts else 999.0
 
-                if frame_bytes is None or age > 8.0:
-                    frame_bytes = worker.build_status_frame(
-                        "Conectando ao stream da camera..." if age > 8.0 else "Aguardando video..."
+                    analyzed_frame = rt.pipeline_state.get_frame() if mode == "analyzed" else None
+                    if op_frame is not None and op_age <= 6.0:
+                        frame_bytes = analyzed_frame if analyzed_frame is not None else op_frame
+                    else:
+                        frame_bytes = rt.camera_state.build_status_frame(
+                            "Conectando ao stream da camera..."
+                            if op_frame is None
+                            else "Sinal interrompido - reconectando..."
+                        )
+                else:
+                    worker = rt.channel_stream_pool.get_or_create(
+                        worker_key=worker_key,
+                        stream_url=stream_url,
+                        camera_name=name,
+                        brand=brand_clean,
+                        host=host,
+                        port=port,
+                        channel=str(channel),
                     )
-                elif mode == "analyzed":
-                    try:
-                        arr = np.frombuffer(frame_bytes, dtype=np.uint8)
-                        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-                        if img is not None:
-                            with rt.detector_lock:
-                                cfg_dict = (
-                                    rt.current_detector_config.model_dump()
-                                    if hasattr(rt.current_detector_config, "model_dump")
-                                    else rt.current_detector_config.dict()
-                                )
-                            h_f, w_f = img.shape[:2]
-                            larg = max(2, int(w_f * (cfg_dict.get("w", 60) / 100.0)))
-                            alt = max(2, int(h_f * (cfg_dict.get("h", 50) / 100.0)))
-                            x0 = max(0, int(w_f / 2 - larg / 2))
-                            y0 = max(0, int(h_f / 2 - alt / 2))
-                            x1 = min(w_f, x0 + larg)
-                            y1 = min(h_f, y0 + alt)
-                            drawn = Visualizer.draw_results(img, cfg_dict, [], [], x0, y0, x1, y1)
-                            ok_enc, enc_jpg = cv2.imencode(
-                                ".jpg", drawn, [int(cv2.IMWRITE_JPEG_QUALITY), rt.JPEG_QUALITY]
-                            )
-                            if ok_enc:
-                                frame_bytes = enc_jpg.tobytes()
-                    except Exception:
-                        pass
+                    worker.touch()
+                    with worker.lock:
+                        frame_bytes = worker.latest_frame
+                        age = time.time() - worker.last_frame_ts if worker.last_frame_ts else 999.0
 
-            yield (
-                b"--" + boundary.encode() + b"\r\n"
-                b"Content-Type: image/jpeg\r\n"
-                b"Content-Length: " + str(len(frame_bytes)).encode() + b"\r\n\r\n"
-                + frame_bytes
-                + b"\r\n"
-            )
-            time.sleep(frame_interval)
+                    if frame_bytes is None or age > 8.0:
+                        frame_bytes = worker.build_status_frame(
+                            "Conectando ao stream da camera..." if age > 8.0 else "Aguardando video..."
+                        )
+                    elif mode == "analyzed":
+                        try:
+                            arr = np.frombuffer(frame_bytes, dtype=np.uint8)
+                            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                            if img is not None:
+                                with rt.detector_lock:
+                                    cfg_dict = (
+                                        rt.current_detector_config.model_dump()
+                                        if hasattr(rt.current_detector_config, "model_dump")
+                                        else rt.current_detector_config.dict()
+                                    )
+                                h_f, w_f = img.shape[:2]
+                                larg = max(2, int(w_f * (cfg_dict.get("w", 60) / 100.0)))
+                                alt = max(2, int(h_f * (cfg_dict.get("h", 50) / 100.0)))
+                                x0 = max(0, int(w_f / 2 - larg / 2))
+                                y0 = max(0, int(h_f / 2 - alt / 2))
+                                x1 = min(w_f, x0 + larg)
+                                y1 = min(h_f, y0 + alt)
+                                drawn = Visualizer.draw_results(img, cfg_dict, [], [], x0, y0, x1, y1)
+                                ok_enc, enc_jpg = cv2.imencode(
+                                    ".jpg", drawn, [int(cv2.IMWRITE_JPEG_QUALITY), rt.JPEG_QUALITY]
+                                )
+                                if ok_enc:
+                                    frame_bytes = enc_jpg.tobytes()
+                        except Exception:
+                            pass
+
+                yield (
+                    b"--" + boundary.encode() + b"\r\n"
+                    b"Content-Type: image/jpeg\r\n"
+                    b"Content-Length: " + str(len(frame_bytes)).encode() + b"\r\n\r\n"
+                    + frame_bytes
+                    + b"\r\n"
+                )
+                await asyncio.sleep(frame_interval)
+        except asyncio.CancelledError:
+            pass
 
     return StreamingResponse(
         channel_generator(),

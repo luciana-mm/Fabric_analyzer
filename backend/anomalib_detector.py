@@ -103,6 +103,7 @@ class AnomalibDetector(BaseDetector):
     Detector de anomalias baseado em PatchCore (Anomalib architecture) para tecidos estampados.
     """
 
+    mode_name = "anomalib"
     INPUT_SIZE = (256, 256)        # Resolução padronizada para extração rápida (~32x32 = 1024 patches)
     MAX_CORESET_PATCHES = 2048     # Tamanho máximo do banco de memória para manter >12 FPS em CPU
     EMBEDDING_DIM = 201            # 192 canais CNN (ResNet18) + 9 canais CIE L*a*b* (mean, max, min)
@@ -124,6 +125,7 @@ class AnomalibDetector(BaseDetector):
 
         self._lock = threading.Lock()
         self.extractor = _ResNetFeatureExtractor(self.backbone_path).to(self.device)
+        self._kernel_ellipse_5x5 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
 
         # Normalização padrão ImageNet
         self.mean = torch.tensor([0.485, 0.456, 0.406], device=self.device).view(1, 3, 1, 1)
@@ -429,11 +431,9 @@ class AnomalibDetector(BaseDetector):
         # 5. Gera máscara binária onde o score de anomalia supera o limiar da estampa
         binary_mask = np.where(anomaly_map >= effective_threshold, 255, 0).astype(np.uint8)
 
-        # Limpeza morfológica (5x5) para eliminar tirinhas finas e pontinhos isolados de ruído
-        kernel_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        binary_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel_open, iterations=1)
-        kernel_dilate = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        binary_mask = cv2.dilate(binary_mask, kernel_dilate, iterations=1)
+        # Limpeza morfológica (5x5) com kernel pré-alocado para eliminar ruídos isolados
+        binary_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, self._kernel_ellipse_5x5, iterations=1)
+        binary_mask = cv2.dilate(binary_mask, self._kernel_ellipse_5x5, iterations=1)
 
         # 6. Extrai contornos e converte em objetos Detection
         contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)

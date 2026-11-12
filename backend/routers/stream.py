@@ -1,8 +1,9 @@
+import asyncio
 import logging
 import time
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from detector import to_grayscale
@@ -26,11 +27,12 @@ router = APIRouter()
     summary="Verifica a integridade do serviço e da câmera",
 )
 def health() -> JSONResponse:
-    age_seconds = max(0.0, time.time() - rt.camera_state.last_frame_ts) if rt.camera_state.last_frame_ts else None
     active_info = rt.camera_state.get_active_info()
+    last_ts = active_info.get("lastFrameTs") or 0.0
+    age_seconds = max(0.0, time.time() - last_ts) if last_ts else None
     return JSONResponse(
         {
-            "connected": rt.camera_state.connected,
+            "connected": active_info["connected"],
             "last_frame_age_seconds": age_seconds,
             "camera_ip": rt.CAMERA_IP,
             "camera_channel": active_info["channel"],
@@ -40,14 +42,17 @@ def health() -> JSONResponse:
 
 
 @router.get("/stream.mjpg", tags=["Streaming"], summary="Stream MJPEG bruto da câmera ativa do operário")
-def stream_mjpeg() -> StreamingResponse:
+async def stream_mjpeg(request: Request) -> StreamingResponse:
     boundary = "frame"
 
-    def frame_generator():
+    async def frame_generator():
         frame_interval = 1.0 / rt.OUTPUT_FPS if rt.OUTPUT_FPS > 0 else 0.08
         rt.camera_state.register_client()
         try:
-            while True:
+            while rt.camera_state.running:
+                if await request.is_disconnected():
+                    break
+
                 with rt.camera_state.lock:
                     frame = rt.camera_state.latest_frame
                     age = time.time() - rt.camera_state.last_frame_ts if rt.camera_state.last_frame_ts else 999.0
@@ -66,7 +71,9 @@ def stream_mjpeg() -> StreamingResponse:
                     + frame
                     + b"\r\n"
                 )
-                time.sleep(frame_interval)
+                await asyncio.sleep(frame_interval)
+        except asyncio.CancelledError:
+            pass
         finally:
             rt.camera_state.unregister_client()
 
@@ -82,7 +89,8 @@ def stream_mjpeg() -> StreamingResponse:
     tags=["Streaming"],
     summary="Stream MJPEG analisado em tempo real pelo motor de Visão Computacional",
 )
-def stream_analyzed_mjpeg(
+async def stream_analyzed_mjpeg(
+    request: Request,
     w: Optional[int] = None,
     h: Optional[int] = None,
     apenas_area: Optional[bool] = None,
@@ -101,6 +109,7 @@ def stream_analyzed_mjpeg(
             rt.current_detector_config.apenas_area = False
         if estampado is not None:
             rt.current_detector_config.estampado = bool(estampado)
+            rt.resolve_detector_for_config(rt.current_detector_config.estampado)
         if linha_orientacao in ("vertical", "horizontal"):
             rt.current_detector_config.linha_orientacao = linha_orientacao
         if linha_posicao_percent is not None:
@@ -108,15 +117,17 @@ def stream_analyzed_mjpeg(
 
     boundary = "frame"
 
-    def analyzed_frame_generator():
+    async def analyzed_frame_generator():
         frame_interval = 1.0 / rt.OUTPUT_FPS if rt.OUTPUT_FPS > 0 else 0.08
         rt.camera_state.register_client()
         try:
-            while True:
+            while rt.camera_state.running:
+                if await request.is_disconnected():
+                    break
+
                 with rt.camera_state.lock:
                     age = time.time() - rt.camera_state.last_frame_ts if rt.camera_state.last_frame_ts else 999.0
-                with rt.pipeline_state.lock:
-                    jpg_bytes = rt.pipeline_state.latest_analyzed_frame
+                jpg_bytes = rt.pipeline_state.get_frame()
 
                 if jpg_bytes is None or age > 6.0:
                     jpg_bytes = rt.camera_state.build_status_frame(
@@ -125,19 +136,16 @@ def stream_analyzed_mjpeg(
                         else "Sinal interrompido - reconectando..."
                     )
 
-                try:
-                    yield (
-                        b"--" + boundary.encode() + b"\r\n"
-                        b"Content-Type: image/jpeg\r\n"
-                        b"Content-Length: " + str(len(jpg_bytes)).encode() + b"\r\n\r\n"
-                        + jpg_bytes
-                        + b"\r\n"
-                    )
-                except Exception as e:
-                    _log.debug("Cliente desconectado do stream analisado: %s", e)
-                    break
-
-                time.sleep(frame_interval)
+                yield (
+                    b"--" + boundary.encode() + b"\r\n"
+                    b"Content-Type: image/jpeg\r\n"
+                    b"Content-Length: " + str(len(jpg_bytes)).encode() + b"\r\n\r\n"
+                    + jpg_bytes
+                    + b"\r\n"
+                )
+                await asyncio.sleep(frame_interval)
+        except asyncio.CancelledError:
+            pass
         finally:
             rt.camera_state.unregister_client()
 
@@ -149,17 +157,20 @@ def stream_analyzed_mjpeg(
 
 
 @router.get("/stream-grayscale.mjpg", tags=["Streaming"], summary="Stream MJPEG em tons de cinza")
-def stream_grayscale_mjpeg() -> StreamingResponse:
+async def stream_grayscale_mjpeg(request: Request) -> StreamingResponse:
     boundary = "frame"
 
-    def grayscale_frame_generator():
+    async def grayscale_frame_generator():
         frame_interval = 1.0 / rt.OUTPUT_FPS if rt.OUTPUT_FPS > 0 else 0.08
         rt.camera_state.register_client()
         try:
-            while True:
+            while rt.camera_state.running:
+                if await request.is_disconnected():
+                    break
+
                 gray_bytes = rt.camera_state.get_grayscale_jpeg(to_grayscale)
                 if gray_bytes is None:
-                    time.sleep(0.1)
+                    await asyncio.sleep(0.1)
                     continue
 
                 yield (
@@ -169,7 +180,9 @@ def stream_grayscale_mjpeg() -> StreamingResponse:
                     + gray_bytes
                     + b"\r\n"
                 )
-                time.sleep(frame_interval)
+                await asyncio.sleep(frame_interval)
+        except asyncio.CancelledError:
+            pass
         finally:
             rt.camera_state.unregister_client()
 

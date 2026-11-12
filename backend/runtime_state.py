@@ -1,4 +1,3 @@
-import importlib
 import json
 import logging
 import os
@@ -12,7 +11,7 @@ import numpy as np
 from dotenv import load_dotenv
 from fastapi import HTTPException
 
-from detector import ColorDetector, DefectTracker, Detection, Visualizer
+from detector import BaseDetector, ColorDetector, DefectTracker, Detection, Visualizer
 from dvr_types import DvrBrand, DvrDeviceConfig
 
 try:
@@ -131,6 +130,18 @@ class PipelineState:
         self.lock = threading.Lock()
         self.latest_analyzed_frame: Optional[bytes] = None
 
+    def get_frame(self) -> Optional[bytes]:
+        with self.lock:
+            return self.latest_analyzed_frame
+
+    def set_frame(self, jpg_bytes: Optional[bytes]) -> None:
+        with self.lock:
+            self.latest_analyzed_frame = jpg_bytes
+
+    def clear(self) -> None:
+        with self.lock:
+            self.latest_analyzed_frame = None
+
 
 pipeline_state = PipelineState()
 channel_stream_pool = ChannelStreamPool(
@@ -139,11 +150,20 @@ channel_stream_pool = ChannelStreamPool(
     use_ffmpeg_fallback=USE_FFMPEG_FALLBACK,
 )
 
+current_detector_config = DetectorConfig()
+detector_lock = threading.Lock()
+_anomalib_load_lock = threading.Lock()
+global_tracker = DefectTracker()
+classic_detector = ColorDetector()
+anomalib_detector_instance = None
+global_detector: BaseDetector = classic_detector
+current_detector_mode = os.getenv("DETECTOR_MODE", "classic").lower()
+
 
 def _on_operator_camera_switch(stream_url: str) -> None:
     try:
-        with pipeline_state.lock:
-            pipeline_state.latest_analyzed_frame = None
+        pipeline_state.clear()
+        global_tracker.reset()
         channel_stream_pool.stop_matching(stream_url)
     except Exception:
         pass
@@ -161,56 +181,46 @@ camera_state = CameraState(
     on_switch_callback=_on_operator_camera_switch,
 )
 
-current_detector_config = DetectorConfig()
-detector_lock = threading.Lock()
-global_tracker = DefectTracker()
-classic_detector = ColorDetector()
-anomalib_detector_instance = None
-global_detector = classic_detector
-current_detector_mode = os.getenv("DETECTOR_MODE", "classic").lower()
-_anomalib_mtime: float = 0.0
-
 
 def get_or_load_anomalib_detector():
-    global anomalib_detector_instance, _anomalib_mtime
-    anomalib_file = Path(__file__).with_name("anomalib_detector.py")
-    current_mtime = anomalib_file.stat().st_mtime if anomalib_file.exists() else 0.0
-
-    if anomalib_detector_instance is not None and current_mtime == _anomalib_mtime:
+    """
+    Carrega de forma thread-safe (Singleton) a instância do AnomalibDetector.
+    """
+    global anomalib_detector_instance
+    if anomalib_detector_instance is not None:
         return anomalib_detector_instance
 
-    import anomalib_detector
+    with _anomalib_load_lock:
+        if anomalib_detector_instance is not None:
+            return anomalib_detector_instance
 
-    if anomalib_detector_instance is not None and current_mtime != _anomalib_mtime:
-        _log.info("Detectada alteração em anomalib_detector.py — recarregando detector automaticamente...")
-        importlib.reload(anomalib_detector)
+        import anomalib_detector
 
-    models_dir = Path(__file__).with_name("models")
-    backbone_path = models_dir / "resnet18_backbone.pth"
-    anomalib_detector_instance = anomalib_detector.AnomalibDetector(backbone_path=str(backbone_path))
-    _anomalib_mtime = current_mtime
-    _log.info("AnomalibDetector carregado com backbone: %s", backbone_path)
-    return anomalib_detector_instance
+        models_dir = Path(__file__).with_name("models")
+        backbone_path = models_dir / "resnet18_backbone.pth"
+        anomalib_detector_instance = anomalib_detector.AnomalibDetector(backbone_path=str(backbone_path))
+        _log.info("AnomalibDetector carregado com backbone: %s", backbone_path)
+        return anomalib_detector_instance
 
 
-def resolve_detector_for_config(estampado: bool):
+def resolve_detector_for_config(estampado: bool) -> BaseDetector:
     """
-    Regra de negócio:
-    - Tecido liso (estampado=False) -> OpenCV clássico (ColorDetector)
-    - Tecido detalhado/estampado (estampado=True) -> Anomalib (AnomalibDetector), com fallback seguro
+    Padrão Strategy (ADR Seção 5):
+    - Tecido liso (estampado=False) -> OpenCV clássico (`ColorDetector`)
+    - Tecido detalhado/estampado (estampado=True) -> Anomalib (`AnomalibDetector`), com fallback seguro
       para OpenCV caso o modelo falhe ao carregar.
     """
     global current_detector_mode, global_detector
     if estampado:
         try:
             det = get_or_load_anomalib_detector()
-            current_detector_mode = "anomalib"
+            current_detector_mode = det.mode_name
             global_detector = det
             return det
         except Exception as err:
             _log.warning("Falha ao ativar Anomalib para tecido estampado, usando OpenCV como fallback: %s", err)
 
-    current_detector_mode = "classic"
+    current_detector_mode = classic_detector.mode_name
     global_detector = classic_detector
     return classic_detector
 
@@ -242,6 +252,7 @@ def pipeline_worker() -> None:
                     if hasattr(current_detector_config, "model_dump")
                     else current_detector_config.dict()
                 )
+                active_detector = resolve_detector_for_config(bool(config_dict.get("estampado", False)))
 
             w_pct = config_dict.get("w", 60)
             h_pct = config_dict.get("h", 50)
@@ -262,7 +273,6 @@ def pipeline_worker() -> None:
                         config_dict["ref_a"] = saved_ref_a
                         config_dict["ref_b"] = saved_ref_b
 
-                active_detector = resolve_detector_for_config(bool(config_dict.get("estampado", False)))
                 detections = active_detector.detect(roi, config_dict)
 
                 fixed_abs_detections = []
@@ -302,8 +312,7 @@ def pipeline_worker() -> None:
             encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY]
             encoded_ok, jpg = cv2.imencode(".jpg", processed_frame, encode_params)
             if encoded_ok:
-                with pipeline_state.lock:
-                    pipeline_state.latest_analyzed_frame = jpg.tobytes()
+                pipeline_state.set_frame(jpg.tobytes())
         except Exception as e:
             _log.error("Erro no pipeline worker: %s", e)
 
@@ -349,14 +358,9 @@ stream_session_manager.register_device(
 
 
 def resolve_dvr_password(dvr_id: str, host: str, port: int, brand: str = "") -> str:
-    cfg = stream_session_manager.get_device_config(dvr_id)
-    if cfg and cfg.password and str(cfg.password).lower() not in ("configured", "none", "null"):
-        return cfg.password
-    with stream_session_manager._lock:
-        for entry in stream_session_manager._devices.values():
-            if entry.config.host == host and int(entry.config.rtsp_port) == int(port):
-                if entry.config.password and str(entry.config.password).lower() not in ("configured", "none", "null"):
-                    return entry.config.password
+    pwd = stream_session_manager.resolve_device_password(dvr_id, host, port)
+    if pwd:
+        return pwd
     if brand.lower() == "droidcam":
         return ""
     if CAMERA_PASSWORD and str(CAMERA_PASSWORD).lower() not in ("configured", "none", "null"):
