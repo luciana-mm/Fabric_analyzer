@@ -8,7 +8,7 @@ Como funciona:
 1. Calibração (Apenas Tecido Bom):
    - Antes de iniciar a análise, o sistema captura N fotos (ex: 20 frames) da Área de
      Análise (ROI) contendo apenas o tecido BOM (sem defeitos).
-   - As fotos reais são salvas em `camera-proxy/reference_patterns/active_pattern/frames/`.
+   - As fotos reais são salvas em `backend/reference_patterns/active_pattern/frames/`.
    - Os frames passam pelas camadas intermediárias (layer1 + layer2) de uma ResNet18
      pré-treinada combinadas com descritores cromáticos CIE L*a*b*, gerando um
      Banco de Memória Coreset (Memory Bank) dos retalhos (patches) normais da estampa.
@@ -26,6 +26,7 @@ import json
 import logging
 import shutil
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
@@ -39,7 +40,7 @@ from torchvision import models
 
 from detector import BaseDetector, Detection
 
-_log = logging.getLogger("camera-proxy.anomalib")
+_log = logging.getLogger("backend.anomalib")
 
 BASE_DIR = Path(__file__).resolve().parent
 MODELS_DIR = BASE_DIR / "models"
@@ -275,15 +276,20 @@ class AnomalibDetector(BaseDetector):
             "saved_files": saved_files,
         }
 
-        # 5. Salva o banco de memória e os metadados em disco
+        # 5. Salva o banco de memória e os metadados em disco de forma atômica
+        tmp_bank_path = target_dir / "memory_bank.tmp.npz"
+        tmp_meta_path = target_dir / "metadata.tmp.json"
         np.savez_compressed(
-            str(memory_bank_path),
+            str(tmp_bank_path),
             memory_bank=coreset.cpu().numpy().astype(np.float32),
             mean_dist=np.float32(mean_dist),
             std_dist=np.float32(std_dist),
             threshold=np.float32(adaptive_threshold),
         )
-        metadata_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp_bank_path.replace(memory_bank_path)
+
+        tmp_meta_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp_meta_path.replace(metadata_path)
 
         with self._lock:
             self.memory_bank = coreset
@@ -373,6 +379,7 @@ class AnomalibDetector(BaseDetector):
                 "calibrated": self.is_calibrated,
                 "frames_dir": str(self.frames_dir),
                 "metadata": self.metadata,
+                "last_inference_ms": self.last_inference_ms,
             }
 
     def detect(self, roi: np.ndarray, config: dict) -> List[Detection]:
@@ -380,11 +387,14 @@ class AnomalibDetector(BaseDetector):
         Executa a detecção de anomalias no recorte (ROI) atual da câmera.
         Retorna List[Detection] compatível com DefectTracker e Visualizer.
         """
-        if roi is None or roi.size == 0:
+        t0 = time.perf_counter()
+        if roi is None or roi.size == 0 or roi.ndim != 3 or roi.shape[0] < 16 or roi.shape[1] < 16:
+            self.last_inference_ms = 0.0
             return []
 
         with self._lock:
             if not self.is_calibrated or self.memory_bank is None:
+                self.last_inference_ms = 0.0
                 return []
             bank = self.memory_bank
             base_threshold = self.threshold
@@ -467,5 +477,6 @@ class AnomalibDetector(BaseDetector):
                 )
             )
 
+        self.last_inference_ms = round((time.perf_counter() - t0) * 1000.0, 2)
         return detections
 
