@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DvrBrand(str, Enum):
@@ -28,53 +28,52 @@ class CameraResolution(BaseModel):
 
 
 class CameraDescriptor(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str
-    channel_number: int = Field(default=1, alias="channelNumber")
+    channel_number: int = Field(default=1, validation_alias="channelNumber", serialization_alias="channelNumber")
     name: str
-    stream_url: Optional[str] = Field(default=None, alias="streamUrl")
-    snapshot_url: Optional[str] = Field(default=None, alias="snapshotUrl")
+    stream_url: Optional[str] = Field(default=None, validation_alias="streamUrl", serialization_alias="streamUrl")
+    snapshot_url: Optional[str] = Field(default=None, validation_alias="snapshotUrl", serialization_alias="snapshotUrl")
     resolution: Optional[CameraResolution] = None
     fps: Optional[int] = 12
     online: bool = True
 
-    class Config:
-        populate_by_name = True
-
 
 class ConnectionResult(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     success: bool
     message: str
-    latency_ms: float = Field(default=0.0, alias="latencyMs")
-    status_code: Optional[int] = Field(default=None, alias="statusCode")
+    latency_ms: float = Field(default=0.0, validation_alias="latencyMs", serialization_alias="latencyMs")
+    status_code: Optional[int] = Field(default=None, validation_alias="statusCode", serialization_alias="statusCode")
     details: Optional[Dict[str, Any]] = None
-
-    class Config:
-        populate_by_name = True
 
 
 class ImageCaptureResult(BaseModel):
-    camera_id: str = Field(alias="cameraId")
-    mime_type: str = Field(default="image/jpeg", alias="mimeType")
+    model_config = ConfigDict(populate_by_name=True)
+
+    camera_id: str = Field(validation_alias="cameraId", serialization_alias="cameraId")
+    mime_type: str = Field(default="image/jpeg", validation_alias="mimeType", serialization_alias="mimeType")
     buffer: bytes
     width: int
     height: int
-    captured_at: datetime = Field(default_factory=datetime.utcnow, alias="capturedAt")
-
-    class Config:
-        populate_by_name = True
+    captured_at: datetime = Field(default_factory=datetime.utcnow, validation_alias="capturedAt", serialization_alias="capturedAt")
 
 
 class DvrDeviceConfig(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     id: Optional[str] = None
     name: str
     brand: DvrBrand
     host: str
-    rtsp_port: int = 554
-    http_port: int = 80
-    sdk_port: Optional[int] = None
+    rtsp_port: int = Field(default=554, validation_alias="rtspPort", serialization_alias="rtspPort")
+    http_port: int = Field(default=80, validation_alias="httpPort", serialization_alias="httpPort")
+    sdk_port: Optional[int] = Field(default=None, validation_alias="sdkPort", serialization_alias="sdkPort")
     username: str = "admin"
     password: str = ""
-    total_channels: int = 1
+    total_channels: int = Field(default=1, validation_alias="totalChannels", serialization_alias="totalChannels")
     metadata: Optional[Dict[str, Any]] = None
 
 

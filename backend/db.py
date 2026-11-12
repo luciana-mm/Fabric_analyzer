@@ -61,11 +61,12 @@ def get_db_connection(timeout: float = 3.0, autocommit: bool = True) -> Optional
     """
     url = get_database_url()
     try:
-        conn = psycopg.connect(
+        row_fact: Any = dict_row
+        conn: Any = psycopg.connect(
             url,
             connect_timeout=int(timeout),
             autocommit=autocommit,
-            row_factory=dict_row,
+            row_factory=row_fact,
         )
         return conn
     except Exception as exc:
@@ -129,7 +130,7 @@ def get_runtime_setting(key: str, default: Any = None) -> Any:
                     "SELECT value FROM public.system_runtime_settings WHERE key = %s LIMIT 1;",
                     (key,),
                 )
-                row = cur.fetchone()
+                row: Any = cur.fetchone()
                 if row and "value" in row:
                     val = row["value"]
                     with _cache_lock:
@@ -192,7 +193,7 @@ def set_runtime_setting(key: str, value: Any, merge: bool = False) -> bool:
                         """,
                         (key, json_str),
                     )
-                row = cur.fetchone()
+                row: Any = cur.fetchone()
                 if row and "value" in row:
                     with _cache_lock:
                         _memory_cache[key] = row["value"]

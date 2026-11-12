@@ -195,12 +195,14 @@ def dvr_set_active_camera(payload: DvrSetActiveCameraPayload) -> JSONResponse:
                 total_channels=max(1, int(channel) if channel.isdigit() else 1),
             )
             adapter = DvrAdapterFactory.create(dvr_cfg)
-            if hasattr(adapter, "_build_raw_stream_url"):
-                stream_url = adapter._build_raw_stream_url("main")
-            elif hasattr(adapter, "_build_raw_rtsp_url"):
-                stream_url = adapter._build_raw_rtsp_url(channel, "main")
+            build_stream_fn = getattr(adapter, "_build_raw_stream_url", None)
+            build_rtsp_fn = getattr(adapter, "_build_raw_rtsp_url", None)
+            if callable(build_stream_fn):
+                stream_url = str(build_stream_fn("main"))
+            elif callable(build_rtsp_fn):
+                stream_url = str(build_rtsp_fn(channel, "main"))
             else:
-                stream_url = adapter.get_camera_stream_url(channel, "main")
+                stream_url = str(adapter.get_camera_stream_url(channel, "main"))
         except Exception as err:
             raise HTTPException(status_code=400, detail=f"Configuração de câmera inválida: {err}")
 
@@ -251,12 +253,14 @@ async def dvr_channel_stream_mjpeg(
                 total_channels=max(1, int(channel) if str(channel).isdigit() else 1),
             )
             adapter = DvrAdapterFactory.create(dvr_cfg)
-            if hasattr(adapter, "_build_raw_stream_url"):
-                stream_url = adapter._build_raw_stream_url("main")
-            elif hasattr(adapter, "_build_raw_rtsp_url"):
-                stream_url = adapter._build_raw_rtsp_url(str(channel), "main")
+            build_stream_fn = getattr(adapter, "_build_raw_stream_url", None)
+            build_rtsp_fn = getattr(adapter, "_build_raw_rtsp_url", None)
+            if callable(build_stream_fn):
+                stream_url = str(build_stream_fn("main"))
+            elif callable(build_rtsp_fn):
+                stream_url = str(build_rtsp_fn(str(channel), "main"))
             else:
-                stream_url = adapter.get_camera_stream_url(str(channel), "main")
+                stream_url = str(adapter.get_camera_stream_url(str(channel), "main"))
         except Exception:
             stream_url = f"rtsp://{user}:{password}@{host}:{port}/Streaming/Channels/{channel}"
 

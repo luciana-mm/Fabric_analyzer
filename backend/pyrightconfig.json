@@ -1,10 +1,23 @@
 {
+  "include": [
+    "."
+  ],
+  "exclude": [
+    "**/venv",
+    "**/__pycache__",
+    "dataset"
+  ],
   "venvPath": ".",
   "venv": "venv",
   "extraPaths": [
     ".",
-    "./venv/lib/python3.12/site-packages"
+    "..",
+    "./venv/Lib/site-packages",
+    "./venv/lib/python3.11/site-packages",
+    "./venv/lib/python3.12/site-packages",
+    "./venv/lib/python3.13/site-packages"
   ],
-  "pythonVersion": "3.12",
-  "pythonPath": "./venv/bin/python"
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "none"
 }
