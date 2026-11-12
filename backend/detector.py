@@ -1,11 +1,14 @@
-import cv2
-import numpy as np
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 import threading
 import time
-from dataclasses import dataclass
-from typing import Optional, List, Tuple, Dict, Any
+from typing import Any, Dict, List, Optional, Tuple
+
+import cv2
+import numpy as np
 
 DEFECT_CLASSES = ["furo", "mancha", "fio_puxado", "tonalidade"]
+
 
 @dataclass
 class Detection:
@@ -15,9 +18,17 @@ class Detection:
     label: Optional[str] = None
     confidence: Optional[float] = None
 
+
 class DefectTracker:
     """Rastreia falhas entre frames e conta quantas cruzaram a linha de referência (Thread-Safe)."""
-    def __init__(self, linha_orientacao: str = "vertical", frames_max_sumico: int = 15, frames_min_confirmacao: int = 4, distancia_max_rastreio: int = 90):
+
+    def __init__(
+        self,
+        linha_orientacao: str = "vertical",
+        frames_max_sumico: int = 15,
+        frames_min_confirmacao: int = 4,
+        distancia_max_rastreio: int = 90,
+    ):
         self._lock = threading.Lock()
         self.next_id = 0
         self.objetos: Dict[int, Dict[str, Any]] = {}
@@ -56,7 +67,7 @@ class DefectTracker:
                     obj_id = melhor_id
                 else:
                     obj_id = self.next_id
-                    self.next_id += 1
+                    self.next_id = (self.next_id + 1) % 1_000_000
                     self.objetos[obj_id] = {
                         "centroide": (cx, cy),
                         "sumico": 0,
@@ -90,23 +101,52 @@ class DefectTracker:
                     if self.objetos[obj_id]["sumico"] > self.frames_max_sumico:
                         del self.objetos[obj_id]
 
+            if not self.objetos:
+                self.next_id = 0
+
             return ativos
 
-    def reset(self):
+    def get_count(self) -> int:
+        with self._lock:
+            return self.total_count
+
+    def reset(self) -> None:
         with self._lock:
             self.next_id = 0
-            self.objetos = {}
+            self.objetos.clear()
             self.total_count = 0
 
 
-class BaseDetector:
+class BaseDetector(ABC):
+    """
+    Interface Strategy para motores de detecção de defeitos têxteis (ADR Seção 5):
+    - `ColorDetector` (mode_name='classic'): Tecidos lisos em CIE L*a*b* + Morfologia.
+    - `AnomalibDetector` (mode_name='anomalib'): Tecidos estampados/detalhados via PatchCore.
+    """
+
+    mode_name: str = "base"
     last_inference_ms: float = 0.0
 
+    @abstractmethod
     def detect(self, roi: np.ndarray, config: dict) -> List[Detection]:
         raise NotImplementedError()
 
+    def get_status(self) -> Dict[str, Any]:
+        return {
+            "mode": self.mode_name,
+            "calibrated": True,
+            "last_inference_ms": self.last_inference_ms,
+        }
+
 
 class ColorDetector(BaseDetector):
+    """
+    Estratégia determinística de Visão Computacional Clássica (OpenCV) para tecidos lisos.
+    Opera com normalização de iluminação local e distância perceptual euclidiana CIE L*a*b*.
+    """
+
+    mode_name = "classic"
+
     def __init__(
         self,
         distancia_max_fusao: int = 40,
@@ -132,24 +172,27 @@ class ColorDetector(BaseDetector):
         self.kernel_local_estampado = kernel_local_estampado
         self.limiar_cor_local_estampado = limiar_cor_local_estampado
         self.area_maxima_relativa_roi = area_maxima_relativa_roi
+        # Kernel morfológico pré-alocado para evitar recriação a cada frame
+        self._kernel_ellipse_3x3 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
-    def _fundir_centroides_proximos(
+    def _fundir_deteccoes_proximas(
         self,
-        centroides: List[Tuple[int, int]],
-        boxes: List[Tuple[int, int, int, int]],
+        items: List[Tuple[Tuple[int, int], Tuple[int, int, int, int], float, str, float]],
         distancia_max_fusao: Optional[int] = None,
-    ) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int, int, int]]]:
+    ) -> List[Detection]:
         if distancia_max_fusao is None:
             distancia_max_fusao = self.distancia_max_fusao
 
-        if len(centroides) <= 1:
-            return centroides, boxes
+        if not items:
+            return []
+        if len(items) == 1:
+            (cx, cy), box, area, label, conf = items[0]
+            return [Detection(box=box, centroid=(cx, cy), area=area, label=label, confidence=round(conf, 3))]
 
-        usados = [False] * len(centroides)
-        novos_centroides = []
-        novos_boxes = []
+        usados = [False] * len(items)
+        fused: List[Detection] = []
 
-        for i in range(len(centroides)):
+        for i in range(len(items)):
             if usados[i]:
                 continue
             grupo_idx = [i]
@@ -158,35 +201,59 @@ class ColorDetector(BaseDetector):
             mudou = True
             while mudou:
                 mudou = False
-                for j in range(len(centroides)):
+                for j in range(len(items)):
                     if usados[j]:
                         continue
                     for k in grupo_idx:
-                        dist = np.hypot(centroides[j][0] - centroides[k][0], centroides[j][1] - centroides[k][1])
+                        dist = np.hypot(items[j][0][0] - items[k][0][0], items[j][0][1] - items[k][0][1])
                         if dist < distancia_max_fusao:
                             grupo_idx.append(j)
                             usados[j] = True
                             mudou = True
                             break
 
-            gx = int(np.mean([centroides[g][0] for g in grupo_idx]))
-            gy = int(np.mean([centroides[g][1] for g in grupo_idx]))
-            novos_centroides.append((gx, gy))
+            gx = int(np.mean([items[g][0][0] for g in grupo_idx]))
+            gy = int(np.mean([items[g][0][1] for g in grupo_idx]))
 
-            x0 = min(boxes[g][0] for g in grupo_idx)
-            y0 = min(boxes[g][1] for g in grupo_idx)
-            x1 = max(boxes[g][2] for g in grupo_idx)
-            y1 = max(boxes[g][3] for g in grupo_idx)
-            novos_boxes.append((x0, y0, x1, y1))
+            x0 = min(items[g][1][0] for g in grupo_idx)
+            y0 = min(items[g][1][1] for g in grupo_idx)
+            x1 = max(items[g][1][2] for g in grupo_idx)
+            y1 = max(items[g][1][3] for g in grupo_idx)
 
-        return novos_centroides, novos_boxes
+            total_area = float(sum(items[g][2] for g in grupo_idx))
+            # Escolhe o rótulo do componente de maior área no grupo fundido
+            dominant_idx = max(grupo_idx, key=lambda idx: items[idx][2])
+            label = items[dominant_idx][3]
+            max_conf = float(max(items[g][4] for g in grupo_idx))
 
-    def _mask_intensidade(self, gray_roi: np.ndarray) -> np.ndarray:
+            fused.append(
+                Detection(
+                    box=(x0, y0, x1, y1),
+                    centroid=(gx, gy),
+                    area=total_area,
+                    label=label,
+                    confidence=round(max_conf, 3),
+                )
+            )
+
+        return fused
+
+    def _mask_intensidade(self, gray_roi: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         fundo = cv2.medianBlur(gray_roi, 41)
         diff = cv2.absdiff(gray_roi, fundo)
         diff = cv2.GaussianBlur(diff, (3, 3), 0)
         _, mask = cv2.threshold(diff, 16, 255, cv2.THRESH_BINARY)
-        return mask
+        return mask, diff
+
+    @staticmethod
+    def _delta_e_ab_norm(diff_a: np.ndarray, diff_b: np.ndarray) -> np.ndarray:
+        """
+        Calcula a distância euclidiana cromática no plano CIE a*b* (ADR Seção 1.1):
+        DeltaE_ab = sqrt((a - a_ref)^2 + (b - b_ref)^2) normalizada por 1/sqrt(2)
+        para preservar a escala do limiar_cor_ab calibrado.
+        """
+        mag = cv2.magnitude(diff_a.astype(np.float32), diff_b.astype(np.float32)) * 0.70710678
+        return np.clip(mag, 0, 255).astype(np.uint8)
 
     def _mask_cor(
         self,
@@ -195,7 +262,7 @@ class ColorDetector(BaseDetector):
         ref_a: Optional[int] = None,
         ref_b: Optional[int] = None,
         limiar_cor_ab: Optional[float] = None,
-    ) -> np.ndarray:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         if limiar_cor_ab is None:
             limiar_cor_ab = self.limiar_cor_ab
 
@@ -203,18 +270,16 @@ class ColorDetector(BaseDetector):
         _, a_ch, b_ch = cv2.split(lab)
 
         if paleta:
-            a_i = a_ch.astype(np.int16)
-            b_i = b_ch.astype(np.int16)
-            dist_min = None
+            dist_min: Optional[np.ndarray] = None
             for pa, pb in paleta:
-                diff_a = np.abs(a_i - int(pa)).astype(np.float32)
-                diff_b = np.abs(b_i - int(pb)).astype(np.float32)
-                dist = diff_a * 0.5 + diff_b * 0.5
-                dist_min = dist if dist_min is None else np.minimum(dist_min, dist)
-            diff_cor = np.clip(dist_min, 0, 255).astype(np.uint8)
+                diff_a = cv2.absdiff(a_ch, int(np.clip(pa, 0, 255)))
+                diff_b = cv2.absdiff(b_ch, int(np.clip(pb, 0, 255)))
+                dist = self._delta_e_ab_norm(diff_a, diff_b)
+                dist_min = dist if dist_min is None else cv2.min(dist_min, dist)
+            diff_cor = dist_min if dist_min is not None else np.zeros_like(a_ch)
             diff_cor = cv2.GaussianBlur(diff_cor, (5, 5), 0)
             _, mask = cv2.threshold(diff_cor, limiar_cor_ab, 255, cv2.THRESH_BINARY)
-            return mask
+            return mask, diff_cor
 
         if ref_a is None or ref_b is None:
             ref_a = int(round(float(np.median(a_ch))))
@@ -223,19 +288,20 @@ class ColorDetector(BaseDetector):
             ref_a = int(np.clip(ref_a, 0, 255))
             ref_b = int(np.clip(ref_b, 0, 255))
 
-        diff_a = cv2.absdiff(a_ch, np.full_like(a_ch, ref_a))
-        diff_b = cv2.absdiff(b_ch, np.full_like(b_ch, ref_b))
-        diff_cor = cv2.addWeighted(diff_a, 0.5, diff_b, 0.5, 0)
+        # Usa escalar direto no cv2.absdiff em C++ sem alocar matrizes np.full_like intermediárias
+        diff_a = cv2.absdiff(a_ch, ref_a)
+        diff_b = cv2.absdiff(b_ch, ref_b)
+        diff_cor = self._delta_e_ab_norm(diff_a, diff_b)
         diff_cor = cv2.GaussianBlur(diff_cor, (5, 5), 0)
         _, mask = cv2.threshold(diff_cor, limiar_cor_ab, 255, cv2.THRESH_BINARY)
-        return mask
+        return mask, diff_cor
 
     def _mask_cor_local(
         self,
         roi_bgr: np.ndarray,
         kernel_local_estampado: Optional[int] = None,
         limiar_cor_local_estampado: Optional[float] = None,
-    ) -> np.ndarray:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         if kernel_local_estampado is None:
             kernel_local_estampado = self.kernel_local_estampado
         if limiar_cor_local_estampado is None:
@@ -250,18 +316,18 @@ class ColorDetector(BaseDetector):
         fundo_b = cv2.medianBlur(b_ch, tamanho_kernel)
         diff_a = cv2.absdiff(a_ch, fundo_a)
         diff_b = cv2.absdiff(b_ch, fundo_b)
-        diff_cor = cv2.addWeighted(diff_a, 0.5, diff_b, 0.5, 0)
+        diff_cor = self._delta_e_ab_norm(diff_a, diff_b)
         diff_cor = cv2.GaussianBlur(diff_cor, (5, 5), 0)
         _, mask = cv2.threshold(diff_cor, limiar_cor_local_estampado, 255, cv2.THRESH_BINARY)
-        return mask
+        return mask, diff_cor
 
     def _preencher_buracos(self, mask: np.ndarray) -> np.ndarray:
         h, w = mask.shape[:2]
         mask_ff = mask.copy()
         flood_mask = np.zeros((h + 2, w + 2), np.uint8)
         cv2.floodFill(mask_ff, flood_mask, (0, 0), 255)
-        mask_ff_inv = cv2.bitwise_not(mask_ff)
-        return cv2.bitwise_or(mask, mask_ff_inv)
+        cv2.bitwise_not(mask_ff, mask_ff)
+        return cv2.bitwise_or(mask, mask_ff)
 
     def _contorno_parece_defeito(
         self,
@@ -302,6 +368,30 @@ class ColorDetector(BaseDetector):
             return solidez >= (solidez_minima - 0.15) and proporcao <= (proporcao_maxima + 1.0)
         return solidez >= solidez_minima and proporcao <= proporcao_maxima
 
+    @staticmethod
+    def _classificar_defeito(
+        area: float,
+        w: int,
+        h: int,
+        area_min_mancha: float,
+        int_peak: float,
+        cor_peak: float,
+        limiar_cor: float,
+    ) -> Tuple[str, float]:
+        proporcao = max(w, h) / max(1, min(w, h))
+        if area >= area_min_mancha:
+            label = "tonalidade" if cor_peak > int_peak * 1.15 else "mancha"
+        elif proporcao >= 2.2:
+            label = "fio_puxado"
+        elif cor_peak >= limiar_cor * 1.35 and cor_peak > int_peak:
+            label = "mancha"
+        else:
+            label = "furo"
+
+        ratio = max(int_peak / 16.0, cor_peak / max(limiar_cor, 1.0))
+        confidence = min(0.99, max(0.65, 0.55 + (ratio - 1.0) * 0.25))
+        return label, confidence
+
     def detect(self, roi: np.ndarray, config: dict) -> List[Detection]:
         t0 = time.perf_counter()
         if roi is None or roi.size == 0 or roi.ndim < 2 or roi.shape[0] < 4 or roi.shape[1] < 4:
@@ -321,44 +411,46 @@ class ColorDetector(BaseDetector):
         area_maxima_relativa_roi = config.get("area_maxima_relativa_roi", self.area_maxima_relativa_roi)
 
         gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) if roi.ndim == 3 else roi
-        mask_intensidade = self._mask_intensidade(gray_roi)
+        mask_intensidade, diff_int = self._mask_intensidade(gray_roi)
 
         estampado = config.get("estampado", False)
         paleta = config.get("paleta")
         ref_a = config.get("ref_a")
         ref_b = config.get("ref_b")
 
-        mask_cor = (
-            self._mask_cor_local(
-                roi,
-                kernel_local_estampado=kernel_local_estampado,
-                limiar_cor_local_estampado=limiar_cor_local_estampado,
+        if roi.ndim == 3:
+            mask_cor, diff_cor = (
+                self._mask_cor_local(
+                    roi,
+                    kernel_local_estampado=kernel_local_estampado,
+                    limiar_cor_local_estampado=limiar_cor_local_estampado,
+                )
+                if estampado
+                else self._mask_cor(
+                    roi,
+                    paleta=paleta,
+                    ref_a=ref_a,
+                    ref_b=ref_b,
+                    limiar_cor_ab=limiar_cor_ab,
+                )
             )
-            if estampado
-            else self._mask_cor(
-                roi,
-                paleta=paleta,
-                ref_a=ref_a,
-                ref_b=ref_b,
-                limiar_cor_ab=limiar_cor_ab,
-            )
-        )
-        mask = cv2.bitwise_or(mask_intensidade, mask_cor)
+            mask = cv2.bitwise_or(mask_intensidade, mask_cor)
+        else:
+            diff_cor = np.zeros_like(gray_roi)
+            mask = mask_intensidade
 
-        kernel_morf = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_morf, iterations=1)
-        kernel_fusao = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        mask = cv2.dilate(mask, kernel_fusao, iterations=1)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, self._kernel_ellipse_3x3, iterations=1)
+        mask = cv2.dilate(mask, self._kernel_ellipse_3x3, iterations=1)
         mask = self._preencher_buracos(mask)
 
         contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         roi_h, roi_w = roi.shape[:2]
-        centroides = []
-        boxes = []
+        raw_items: List[Tuple[Tuple[int, int], Tuple[int, int, int, int], float, str, float]] = []
+        limiar_cor_efetivo = float(limiar_cor_local_estampado if estampado else limiar_cor_ab)
 
         for cont in contornos:
-            area = cv2.contourArea(cont)
+            area = float(cv2.contourArea(cont))
             if not ((area_min_pequena < area < area_max_pequena) or (area_min_mancha <= area < area_max_mancha)):
                 continue
 
@@ -375,17 +467,24 @@ class ColorDetector(BaseDetector):
             x, y, w, h = cv2.boundingRect(cont)
             cx = x + w // 2
             cy = y + h // 2
-            centroides.append((cx, cy))
-            boxes.append((x, y, x + w, y + h))
 
-        centroides, boxes = self._fundir_centroides_proximos(centroides, boxes, distancia_max_fusao=distancia_max_fusao)
+            int_patch = diff_int[y : y + h, x : x + w]
+            cor_patch = diff_cor[y : y + h, x : x + w]
+            int_peak = float(np.max(int_patch)) if int_patch.size > 0 else 16.0
+            cor_peak = float(np.max(cor_patch)) if cor_patch.size > 0 else 0.0
 
-        detections = []
-        for (cx, cy), (bx0, by0, bx1, by1) in zip(centroides, boxes):
-            w = bx1 - bx0
-            h = by1 - by0
-            detections.append(Detection(box=(bx0, by0, bx1, by1), centroid=(cx, cy), area=float(w * h)))
+            label, conf = self._classificar_defeito(
+                area=area,
+                w=w,
+                h=h,
+                area_min_mancha=area_min_mancha,
+                int_peak=int_peak,
+                cor_peak=cor_peak,
+                limiar_cor=limiar_cor_efetivo,
+            )
+            raw_items.append(((cx, cy), (x, y, x + w, y + h), area, label, conf))
 
+        detections = self._fundir_deteccoes_proximas(raw_items, distancia_max_fusao=distancia_max_fusao)
         self.last_inference_ms = round((time.perf_counter() - t0) * 1000.0, 2)
         return detections
 
@@ -423,7 +522,16 @@ class Visualizer:
         draw_dashed_line((x1, y2), (x1, y1))
 
     @staticmethod
-    def draw_results(frame: np.ndarray, config: dict, ativos: List[Tuple[int, int, int]], abs_detections: List[Detection], x_inicio: int, y_inicio: int, x_fim: int, y_fim: int) -> np.ndarray:
+    def draw_results(
+        frame: np.ndarray,
+        config: dict,
+        ativos: List[Tuple[int, int, int]],
+        abs_detections: List[Detection],
+        x_inicio: int,
+        y_inicio: int,
+        x_fim: int,
+        y_fim: int,
+    ) -> np.ndarray:
         result = frame.copy()
 
         Visualizer.draw_dashed_rectangle(
@@ -438,7 +546,7 @@ class Visualizer:
 
         linha_orientacao = config.get("linha_orientacao", "vertical")
         linha_posicao_percent = config.get("linha_posicao_percent", 50)
-        
+
         largura = x_fim - x_inicio
         altura = y_fim - y_inicio
 
@@ -455,20 +563,28 @@ class Visualizer:
         for det in abs_detections:
             abs_bx0, abs_by0, abs_bx1, abs_by1 = det.box
             abs_cx, abs_cy = det.centroid
-            
+
             obj_id = "?"
-            for (aid, ax, ay) in ativos:
+            for aid, ax, ay in ativos:
                 if ax == abs_cx and ay == abs_cy:
                     obj_id = str(aid)
                     break
-                    
+
             cv2.rectangle(result, (abs_bx0, abs_by0), (abs_bx1, abs_by1), (0, 255, 0), 3)
             label_text = f"#{obj_id}"
             if det.label:
                 label_text += f" {det.label}"
             if det.confidence is not None:
                 label_text += f" ({det.confidence:.2f})"
-            cv2.putText(result, label_text, (abs_bx0, max(0, abs_by0 - 6)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+            cv2.putText(
+                result,
+                label_text,
+                (abs_bx0, max(0, abs_by0 - 6)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 255, 0),
+                1,
+            )
 
         return result
 

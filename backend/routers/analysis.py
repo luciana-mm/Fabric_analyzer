@@ -67,13 +67,17 @@ def get_detector_config() -> JSONResponse:
 )
 def get_detector_mode() -> JSONResponse:
     models_dir = Path(rt.__file__).with_name("models")
+    with rt.detector_lock:
+        mode = rt.current_detector_mode
+        estampado = rt.current_detector_config.estampado
+
     det_status = {}
     if rt.anomalib_detector_instance is not None:
         det_status = rt.anomalib_detector_instance.get_status()
     return JSONResponse(
         {
-            "mode": rt.current_detector_mode,
-            "estampado": rt.current_detector_config.estampado,
+            "mode": mode,
+            "estampado": estampado,
             "backbone_available": (models_dir / "resnet18_backbone.pth").exists(),
             "pattern_status": det_status,
         }
@@ -88,14 +92,16 @@ def get_detector_mode() -> JSONResponse:
 )
 def set_detector_mode(payload: DetectorModePayload) -> JSONResponse:
     mode = payload.mode.strip().lower()
-    if mode not in ("classic", "anomalib", "yolo"):
+    if mode not in ("classic", "anomalib"):
         raise HTTPException(status_code=400, detail="mode deve ser 'classic' ou 'anomalib'")
 
     with rt.detector_lock:
-        rt.current_detector_config.estampado = mode in ("anomalib", "yolo")
+        rt.current_detector_config.estampado = mode == "anomalib"
         rt.resolve_detector_for_config(rt.current_detector_config.estampado)
+        active_mode = rt.current_detector_mode
+        estampado = rt.current_detector_config.estampado
 
-    return JSONResponse({"mode": rt.current_detector_mode, "estampado": rt.current_detector_config.estampado})
+    return JSONResponse({"mode": active_mode, "estampado": estampado})
 
 
 @router.get(
@@ -105,12 +111,16 @@ def set_detector_mode(payload: DetectorModePayload) -> JSONResponse:
     summary="Retorna a contagem atual de falhas detectadas",
 )
 def defect_count() -> JSONResponse:
+    count = rt.global_tracker.get_count()
+    with rt.detector_lock:
+        mode = rt.current_detector_mode
+        estampado = rt.current_detector_config.estampado
     return JSONResponse(
         {
-            "count": rt.global_tracker.total_count,
-            "defect_count": rt.global_tracker.total_count,
-            "mode": rt.current_detector_mode,
-            "estampado": rt.current_detector_config.estampado,
+            "count": count,
+            "defect_count": count,
+            "mode": mode,
+            "estampado": estampado,
         }
     )
 
@@ -123,4 +133,4 @@ def defect_count() -> JSONResponse:
 )
 def reset_count() -> JSONResponse:
     rt.global_tracker.reset()
-    return JSONResponse({"success": True, "count": rt.global_tracker.total_count})
+    return JSONResponse({"success": True, "count": rt.global_tracker.get_count()})
