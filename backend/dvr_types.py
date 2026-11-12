@@ -68,12 +68,12 @@ class DvrDeviceConfig(BaseModel):
     name: str
     brand: DvrBrand
     host: str
-    rtsp_port: int = Field(default=554, validation_alias="rtspPort", serialization_alias="rtspPort")
-    http_port: int = Field(default=80, validation_alias="httpPort", serialization_alias="httpPort")
-    sdk_port: Optional[int] = Field(default=None, validation_alias="sdkPort", serialization_alias="sdkPort")
+    rtsp_port: int = 554
+    http_port: int = 80
+    sdk_port: Optional[int] = None
     username: str = "admin"
     password: str = ""
-    total_channels: int = Field(default=1, validation_alias="totalChannels", serialization_alias="totalChannels")
+    total_channels: int = 1
     metadata: Optional[Dict[str, Any]] = None
 
 
