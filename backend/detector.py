@@ -483,6 +483,12 @@ class ColorDetector(BaseDetector):
             )
             raw_items.append(((cx, cy), (x, y, x + w, y + h), area, label, conf))
 
+        if len(raw_items) > 60:
+            # Ordena por área decrescente e preserva os 60 maiores defeitos
+            # para garantir latência previsível (<5ms) mesmo em cenários de ruído óptico extremo
+            raw_items.sort(key=lambda item: item[2], reverse=True)
+            raw_items = raw_items[:60]
+
         detections = self._fundir_deteccoes_proximas(raw_items, distancia_max_fusao=distancia_max_fusao)
         self.last_inference_ms = round((time.perf_counter() - t0) * 1000.0, 2)
         return detections
