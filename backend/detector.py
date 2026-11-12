@@ -272,8 +272,8 @@ class ColorDetector(BaseDetector):
         if paleta:
             dist_min: Optional[np.ndarray] = None
             for pa, pb in paleta:
-                diff_a = cv2.absdiff(a_ch, int(np.clip(pa, 0, 255)))
-                diff_b = cv2.absdiff(b_ch, int(np.clip(pb, 0, 255)))
+                diff_a = cv2.absdiff(a_ch, np.full_like(a_ch, int(np.clip(pa, 0, 255))))
+                diff_b = cv2.absdiff(b_ch, np.full_like(b_ch, int(np.clip(pb, 0, 255))))
                 dist = self._delta_e_ab_norm(diff_a, diff_b)
                 dist_min = dist if dist_min is None else cv2.min(dist_min, dist)
             diff_cor = dist_min if dist_min is not None else np.zeros_like(a_ch)
@@ -288,9 +288,8 @@ class ColorDetector(BaseDetector):
             ref_a = int(np.clip(ref_a, 0, 255))
             ref_b = int(np.clip(ref_b, 0, 255))
 
-        # Usa escalar direto no cv2.absdiff em C++ sem alocar matrizes np.full_like intermediárias
-        diff_a = cv2.absdiff(a_ch, ref_a)
-        diff_b = cv2.absdiff(b_ch, ref_b)
+        diff_a = cv2.absdiff(a_ch, np.full_like(a_ch, ref_a))
+        diff_b = cv2.absdiff(b_ch, np.full_like(b_ch, ref_b))
         diff_cor = self._delta_e_ab_norm(diff_a, diff_b)
         diff_cor = cv2.GaussianBlur(diff_cor, (5, 5), 0)
         _, mask = cv2.threshold(diff_cor, limiar_cor_ab, 255, cv2.THRESH_BINARY)

@@ -55,7 +55,7 @@ def save_reference_palette(payload: ReferencePalettePayload) -> JSONResponse:
     lab_points = []
     for s in samples:
         r, g, b = s.r, s.g, s.b
-        rgb_arr = np.uint8([[[r, g, b]]])
+        rgb_arr = np.array([[[r, g, b]]], dtype=np.uint8)
         lab_arr = cv2.cvtColor(rgb_arr, cv2.COLOR_RGB2LAB)
         lab_points.append([float(lab_arr[0, 0, 1]), float(lab_arr[0, 0, 2])])
 
@@ -69,7 +69,7 @@ def save_reference_palette(payload: ReferencePalettePayload) -> JSONResponse:
         centers = np.array([[float(np.mean(data[:, 0])), float(np.mean(data[:, 1]))]])
     else:
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.5)
-        _, _, centers = cv2.kmeans(data, k, None, criteria, 5, cv2.KMEANS_PP_CENTERS)
+        _, _, centers = cv2.kmeans(data, k, np.empty((0, 1), dtype=np.int32), criteria, 5, cv2.KMEANS_PP_CENTERS)
 
     paleta = [(int(round(c[0])), int(round(c[1]))) for c in centers]
     ref_a = paleta[0][0]
@@ -120,7 +120,7 @@ def save_reference_color(payload: ReferenceColorPayload) -> JSONResponse:
     ref_g = payload.g
     ref_b = payload.b
 
-    reference_rgb = np.uint8([[[ref_r, ref_g, ref_b]]])
+    reference_rgb = np.array([[[ref_r, ref_g, ref_b]]], dtype=np.uint8)
     reference_lab = cv2.cvtColor(reference_rgb, cv2.COLOR_RGB2LAB)
     ref_a = int(reference_lab[0, 0, 1])
     ref_b = int(reference_lab[0, 0, 2])
