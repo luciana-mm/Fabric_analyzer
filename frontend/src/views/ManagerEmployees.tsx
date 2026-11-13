@@ -13,6 +13,7 @@ import {
   User,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { ManagerShell } from "@/components/ManagerShell";
 import { useManagerDashboardData } from "@/hooks/useDashboardData";
 import { fetchJson } from "@/lib/api-client";
 import { Switch } from "@/components/ui/switch";
@@ -74,11 +75,6 @@ const emptyNewEmployeeForm: NewEmployeeForm = {
 
 const mapDashboardRole = (role: string) =>
   role.toLowerCase().includes("gestor") ? "GESTOR" : "FUNCIONARIO (OPERADOR)";
-
-const getSuccessRate = (employee: Employee) => {
-  if (employee.verified === 0) return "0.0";
-  return ((employee.success / employee.verified) * 100).toFixed(1);
-};
 
 const getSuccessRateValue = (employee: Employee) => {
   if (employee.verified === 0) return 0;
@@ -239,7 +235,7 @@ const ManagerEmployees = () => {
     }
   };
 
-  const handleAddEmployee = () => {
+  const handleAddEmployee = async () => {
     const name = newEmployee.name.trim();
     const email = newEmployee.email.trim().toLowerCase();
     const accessId = newEmployee.accessId.trim();
@@ -248,124 +244,166 @@ const ManagerEmployees = () => {
 
     if (!name || !email || !accessId || !password) return;
 
-    setEmployees((prev) => [
-      ...prev,
-      {
-        id: accessId,
-        userId: accessId,
-        name,
-        email,
-        accessId,
-        password,
-        role: newEmployee.role,
-        shift,
-        verified: 0,
-        success: 0,
-        fails: 0,
-        active: true,
-      },
-    ]);
+    // Converte a string do formulário para o formato aceito pelo banco ("operador" ou "gestor")
+    const apiRole =
+      newEmployee.role === "GESTOR" ? "gestor" : "operador";
 
-    setIsAddOpen(false);
-    resetAddForm();
+    try {
+      await fetchJson("/api/users", {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          email,
+          code: accessId,
+          password,
+          role: apiRole,
+          shift,
+        }),
+      });
+
+      setIsAddOpen(false);
+      resetAddForm();
+      await refresh();
+    } catch (err) {
+      console.error("Erro ao cadastrar funcionário:", err);
+      alert("Não foi possível cadastrar o funcionário. Verifique se o e-mail já existe.");
+    }
   };
-
   return (
-    <div className="min-h-screen bg-[#0a0a0f] p-6 text-white">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="inline-flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 text-xs font-semibold text-slate-300 transition-colors hover:bg-white/[0.07] hover:text-white"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Voltar
-          </button>
-        </div>
-
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap gap-3">
-            <FilterChip
-              active={filter === "all"}
-              onClick={() => setFilter("all")}
+    <ManagerShell>
+      <div className="mx-auto max-w-6xl space-y-6">
+        {/* Cabeçalho da Página */}
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={() => router.push("/gestor")}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-500 hover:text-stone-900 transition-colors"
             >
-              Todos - {counts.all}
-            </FilterChip>
-            <FilterChip
-              active={filter === "active"}
-              onClick={() => setFilter("active")}
-              tone="emerald"
-            >
-              Ativos - {counts.active}
-            </FilterChip>
-            <FilterChip
-              active={filter === "inactive"}
-              onClick={() => setFilter("inactive")}
-              tone="rose"
-            >
-              Inativos - {counts.inactive}
-            </FilterChip>
-          </div>
-        </div>
-
-        {(isError || toggleError) && (
-          <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
-            {toggleError ??
-              "Erro ao carregar funcionarios do banco. Verifique a conexao e as configuracoes."}
-          </p>
-        )}
-
-        {loading && employees.length === 0 && (
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-xs text-slate-400">
-            Carregando funcionarios do banco...
-          </div>
-        )}
-
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex h-11 w-full min-w-0 items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] px-4 md:w-80">
-            <Search className="h-4 w-4 text-slate-500" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar funcionario..."
-              className="w-full bg-transparent text-sm text-slate-200 outline-none placeholder:text-slate-500"
-            />
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Voltar
+            </button>
+            <h2 className="text-xl font-bold text-stone-900 tracking-tight">
+              Gestão de funcionários
+            </h2>
+            <p className="text-xs text-stone-500">
+              Cadastre colaboradores e controle o acesso às estações.
+            </p>
           </div>
 
           <button
             type="button"
             onClick={() => setIsAddOpen(true)}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 text-sm font-semibold text-white transition-colors hover:bg-white/[0.07]"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-stone-900 px-4 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-stone-800"
           >
             <Plus className="h-4 w-4" />
-            Adicionar Funcionario
+            Novo Funcionário
           </button>
         </div>
 
-        <div className="w-full max-w-full overflow-hidden rounded-2xl border border-white/10 bg-[#101016]">
-          <div className="w-full max-w-full overflow-x-auto">
-            <table className="w-full min-w-[1000px] table-fixed">
-              <colgroup>
-                <col className="w-[28%]" />
-                <col className="w-[16%]" />
-                <col className="w-[14%]" />
-                <col className="w-[10%]" />
-                <col className="w-[9%]" />
-                <col className="w-[9%]" />
-                <col className="w-[8%]" />
-                <col className="w-[190px]" />
-              </colgroup>
+        {/* 3 Cards de Resumo (Total, Ativos, Inativos) */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <button
+            type="button"
+            onClick={() => setFilter("all")}
+            className={`rounded-xl border bg-white p-5 text-left shadow-sm transition-all ${
+              filter === "all"
+                ? "border-stone-900 ring-1 ring-stone-900/10"
+                : "border-stone-200 hover:border-stone-300"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-stone-500">Total</span>
+              <span className="w-7 h-7 rounded-lg bg-stone-100 text-stone-600 flex items-center justify-center">
+                <User className="w-3.5 h-3.5" />
+              </span>
+            </div>
+            <p className="mt-2.5 font-mono-tech text-2xl font-bold text-stone-900">
+              {counts.all}
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilter("active")}
+            className={`rounded-xl border bg-white p-5 text-left shadow-sm transition-all ${
+              filter === "active"
+                ? "border-emerald-600 ring-1 ring-emerald-600/20"
+                : "border-stone-200 hover:border-stone-300"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-stone-500">Ativos</span>
+              <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <ShieldCheck className="w-3.5 h-3.5" />
+              </span>
+            </div>
+            <p className="mt-2.5 font-mono-tech text-2xl font-bold text-stone-900">
+              {counts.active}
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilter("inactive")}
+            className={`rounded-xl border bg-white p-5 text-left shadow-sm transition-all ${
+              filter === "inactive"
+                ? "border-rose-600 ring-1 ring-rose-600/20"
+                : "border-stone-200 hover:border-stone-300"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-stone-500">Inativos</span>
+              <span className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+                <Power className="w-3.5 h-3.5" />
+              </span>
+            </div>
+            <p className="mt-2.5 font-mono-tech text-2xl font-bold text-stone-900">
+              {counts.inactive}
+            </p>
+          </button>
+        </div>
+
+        {(isError || toggleError) && (
+          <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">
+            {toggleError ??
+              "Erro ao carregar funcionários do banco. Verifique a conexão e as configurações."}
+          </p>
+        )}
+
+        {loading && employees.length === 0 && (
+          <div className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-xs text-stone-500">
+            Carregando funcionários do banco...
+          </div>
+        )}
+
+        {/* Busca */}
+        <div className="flex h-10 w-full max-w-md items-center gap-2.5 rounded-lg border border-stone-200 bg-white px-3.5 shadow-sm focus-within:border-stone-900">
+          <Search className="h-4 w-4 text-stone-400" />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Buscar por nome, código ou e-mail..."
+            className="w-full bg-transparent text-xs text-stone-900 outline-none placeholder:text-stone-400"
+          />
+        </div>
+
+        {/* Tabela de Funcionários */}
+        <div className="w-full overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+          <div className="w-full overflow-x-auto">
+            <table className="w-full min-w-[780px]">
               <thead>
-                <tr className="border-b border-white/10 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">
+                <tr className="border-b border-stone-200 bg-stone-50/70 text-xs font-medium text-stone-500">
                   <SortableHeader
-                    label="Funcionario"
+                    label="Funcionário"
                     sortKey="name"
                     activeKey={sortKey}
                     direction={sortDirection}
                     onSort={handleSort}
-                    className="px-6 text-left"
+                    className="px-5 text-left"
                   />
+                  <th className="px-4 py-3 text-left">Código</th>
+                  <th className="px-4 py-3 text-left">Cargo</th>
                   <SortableHeader
                     label="Turno"
                     sortKey="shift"
@@ -382,137 +420,84 @@ const ManagerEmployees = () => {
                     onSort={handleSort}
                     className="px-4 text-left"
                   />
-                  <SortableHeader
-                    label="Verificados"
-                    sortKey="verified"
-                    activeKey={sortKey}
-                    direction={sortDirection}
-                    onSort={handleSort}
-                    align="right"
-                    className="px-4"
-                  />
-                  <SortableHeader
-                    label="Sucesso"
-                    sortKey="success"
-                    activeKey={sortKey}
-                    direction={sortDirection}
-                    onSort={handleSort}
-                    align="right"
-                    className="px-4"
-                  />
-                  <SortableHeader
-                    label="Falhas"
-                    sortKey="fails"
-                    activeKey={sortKey}
-                    direction={sortDirection}
-                    onSort={handleSort}
-                    align="right"
-                    className="px-4"
-                  />
-                  <SortableHeader
-                    label="Taxa"
-                    sortKey="rate"
-                    activeKey={sortKey}
-                    direction={sortDirection}
-                    onSort={handleSort}
-                    align="right"
-                    className="px-4"
-                  />
-                  <th className="whitespace-nowrap px-6 py-4 text-right">
-                    Acao
-                  </th>
+                  <th className="px-5 py-3 text-right">Acesso</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-stone-100">
                 {filteredEmployees.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
-                      className="px-6 py-12 text-center text-sm text-slate-500"
+                      colSpan={6}
+                      className="px-6 py-12 text-center text-xs text-stone-500"
                     >
-                      Nenhum funcionario encontrado.
+                      Nenhum funcionário encontrado.
                     </td>
                   </tr>
                 ) : (
                   filteredEmployees.map((employee) => {
                     const active = employee.active;
-                    const rate = getSuccessRate(employee);
+                    const initials = employee.name
+                      .split(" ")
+                      .map((part) => part[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase();
 
                     return (
                       <tr
                         key={employee.id}
-                        className={`h-[94px] border-b border-white/[0.06] transition-colors last:border-b-0 hover:bg-white/[0.02] ${
-                          !active ? "opacity-50" : ""
+                        className={`transition-colors hover:bg-stone-50 ${
+                          !active ? "opacity-65" : ""
                         }`}
                       >
-                        <td className="px-6 py-5 align-middle">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-white">
-                              {employee.name}
-                            </p>
-                            <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                              {employee.role}
-                            </p>
+                        <td className="px-5 py-3.5 align-middle">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-full bg-orange-50 border border-orange-200 flex items-center justify-center text-xs font-semibold text-[#B85D3B] shrink-0">
+                              {initials}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-stone-900">
+                                {employee.name}
+                              </p>
+                              <p className="truncate text-xs text-stone-400">
+                                {employee.email || "Sem e-mail"}
+                              </p>
+                            </div>
                           </div>
                         </td>
-                        <td className="whitespace-nowrap px-4 py-5 align-middle text-sm text-slate-300">
+                        <td className="whitespace-nowrap px-4 py-3.5 align-middle font-mono-tech text-xs text-stone-700">
+                          {employee.accessId || "—"}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3.5 align-middle text-xs text-stone-600">
+                          {employee.role}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3.5 align-middle text-xs text-stone-600">
                           {employee.shift}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-5 align-middle">
+                        <td className="whitespace-nowrap px-4 py-3.5 align-middle">
                           <span
-                            className={`inline-flex items-center gap-2 text-sm ${
-                              active ? "text-emerald-400" : "text-rose-400"
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                              active
+                                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                : "bg-stone-100 border-stone-200 text-stone-500"
                             }`}
                           >
-                            <span
-                              className={`h-1.5 w-1.5 rounded-full ${
-                                active ? "bg-emerald-500" : "bg-rose-500"
-                              }`}
-                            />
                             {active ? "Ativo" : "Inativo"}
                           </span>
                         </td>
-                        <td className="whitespace-nowrap px-4 py-5 text-right align-middle text-sm text-slate-200">
-                          {employee.verified}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-5 text-right align-middle text-sm text-slate-200">
-                          {employee.success}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-5 text-right align-middle text-sm text-rose-400">
-                          {employee.fails}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-5 text-right align-middle text-sm text-slate-200">
-                          {rate}%
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-5 align-middle">
-                          <div className="flex min-w-[150px] items-center justify-end gap-3">
+                        <td className="whitespace-nowrap px-5 py-3.5 align-middle text-right">
+                          <div className="inline-flex items-center justify-end gap-2">
+                            {isSavingToggle && pending?.id === employee.id && (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-stone-400" />
+                            )}
                             <Switch
                               checked={active}
                               onCheckedChange={() =>
                                 !isSavingToggle && setPending(employee)
                               }
                               disabled={isSavingToggle}
-                              className="data-[state=checked]:bg-indigo-600 data-[state=unchecked]:bg-slate-700"
+                              className="data-[state=checked]:bg-stone-900 data-[state=unchecked]:bg-stone-300"
                             />
-                            <button
-                              type="button"
-                              onClick={() =>
-                                !isSavingToggle && setPending(employee)
-                              }
-                              disabled={isSavingToggle}
-                              className={`inline-flex h-8 min-w-[86px] items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors ${
-                                active
-                                  ? "border-rose-500/50 bg-rose-500/10 text-rose-300 hover:bg-rose-500/15"
-                                  : "border-emerald-500/50 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15"
-                              } disabled:cursor-not-allowed disabled:opacity-60`}
-                            >
-                              {isSavingToggle ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Power className="h-3.5 w-3.5" />
-                              )}
-                              {active ? "Inativar" : "Ativar"}
-                            </button>
                           </div>
                         </td>
                       </tr>
@@ -525,25 +510,26 @@ const ManagerEmployees = () => {
         </div>
       </div>
 
+      {/* Modal Confirmar Ativação / Inativação */}
       <AlertDialog
         open={!!pending}
         onOpenChange={(open) => !open && setPending(null)}
       >
-        <AlertDialogContent className="border-white/10 bg-[#101016] text-white">
+        <AlertDialogContent className="border-stone-200 bg-white text-stone-900">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {pending?.active
-                ? "Inativar funcionario?"
-                : "Ativar funcionario?"}
+                ? "Inativar funcionário?"
+                : "Ativar funcionário?"}
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400">
+            <AlertDialogDescription className="text-stone-500">
               {pending?.active
-                ? `Tem certeza que deseja inativar "${pending.name}"? Ele perdera acesso ate ser reativado.`
-                : `Deseja ativar "${pending?.name}"? Ele podera acessar o sistema novamente.`}
+                ? `Tem certeza que deseja inativar "${pending.name}"? Ele perderá acesso até ser reativado.`
+                : `Deseja ativar "${pending?.name}"? Ele poderá acessar o sistema novamente.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-white/10 bg-transparent text-slate-200 hover:bg-white/10 hover:text-white">
+            <AlertDialogCancel className="border-stone-200 bg-white text-stone-700 hover:bg-stone-50">
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction
@@ -570,50 +556,20 @@ const ManagerEmployees = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Modal Novo Funcionário */}
       <AlertDialog open={isAddOpen} onOpenChange={handleAddOpenChange}>
-        <AlertDialogContent className="border-white/10 bg-[#101016] text-white">
+        <AlertDialogContent className="border-stone-200 bg-white text-stone-900 max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>Adicionar funcionario</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400">
-              Cadastre o funcionario na lista e selecione se ele sera operador
-              ou gestor.
+            <AlertDialogTitle className="text-base font-bold text-stone-900">
+              Novo funcionário
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-stone-500">
+              Cadastre o colaborador e defina seu perfil de acesso.
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          <div className="space-y-4">
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Tipo de acesso
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                {(
-                  ["FUNCIONARIO (OPERADOR)", "GESTOR"] as NewEmployeeRole[]
-                ).map((role) => {
-                  const active = newEmployee.role === role;
-                  const Icon = role === "GESTOR" ? ShieldCheck : User;
-
-                  return (
-                    <button
-                      key={role}
-                      type="button"
-                      onClick={() =>
-                        setNewEmployee((current) => ({ ...current, role }))
-                      }
-                      className={`flex min-h-[74px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-xs font-semibold transition-colors ${
-                        active
-                          ? "border-indigo-400/50 bg-indigo-500/15 text-white"
-                          : "border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.06] hover:text-white"
-                      }`}
-                    >
-                      <Icon className="h-5 w-5" />
-                      {role === "GESTOR" ? "Gestor" : "Operador"}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <label className="block space-y-2 text-sm font-medium text-slate-300">
+          <div className="space-y-4 py-1">
+            <label className="block space-y-1.5 text-xs font-medium text-stone-700">
               <span>Nome</span>
               <input
                 value={newEmployee.name}
@@ -623,13 +579,66 @@ const ManagerEmployees = () => {
                     name: event.target.value,
                   }))
                 }
-                placeholder="Nome do funcionario"
-                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none transition focus:border-indigo-400/50"
+                placeholder="Nome completo"
+                className="h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-900 outline-none transition focus:border-stone-900 focus:ring-2 focus:ring-stone-900/10"
               />
             </label>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block space-y-2 text-sm font-medium text-slate-300">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block space-y-1.5 text-xs font-medium text-stone-700">
+                <span>Código / ID</span>
+                <input
+                  value={newEmployee.accessId}
+                  onChange={(event) =>
+                    setNewEmployee((current) => ({
+                      ...current,
+                      accessId: event.target.value,
+                    }))
+                  }
+                  placeholder="Ex: OP-0142"
+                  className="h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-900 outline-none transition focus:border-stone-900"
+                />
+              </label>
+
+              <label className="block space-y-1.5 text-xs font-medium text-stone-700">
+                <span>Cargo</span>
+                <select
+                  value={newEmployee.role}
+                  onChange={(event) =>
+                    setNewEmployee((current) => ({
+                      ...current,
+                      role: event.target.value as NewEmployeeRole,
+                    }))
+                  }
+                  className="h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-900 outline-none transition focus:border-stone-900"
+                >
+                  <option value="FUNCIONARIO (OPERADOR)">Operador</option>
+                  <option value="GESTOR">Gestor</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block space-y-1.5 text-xs font-medium text-stone-700">
+                <span>Turno</span>
+                <select
+                  value={newEmployee.shift}
+                  onChange={(event) =>
+                    setNewEmployee((current) => ({
+                      ...current,
+                      shift: event.target.value,
+                    }))
+                  }
+                  className="h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-900 outline-none transition focus:border-stone-900"
+                >
+                  <option value="Manhã">Manhã</option>
+                  <option value="Tarde">Tarde</option>
+                  <option value="Noite">Noite</option>
+                  <option value="Integral">Integral</option>
+                </select>
+              </label>
+
+              <label className="block space-y-1.5 text-xs font-medium text-stone-700">
                 <span>E-mail</span>
                 <input
                   value={newEmployee.email}
@@ -641,27 +650,12 @@ const ManagerEmployees = () => {
                   }
                   placeholder="usuario@empresa.com"
                   type="email"
-                  className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none transition focus:border-indigo-400/50"
-                />
-              </label>
-
-              <label className="block space-y-2 text-sm font-medium text-slate-300">
-                <span>ID</span>
-                <input
-                  value={newEmployee.accessId}
-                  onChange={(event) =>
-                    setNewEmployee((current) => ({
-                      ...current,
-                      accessId: event.target.value,
-                    }))
-                  }
-                  placeholder="Ex: 33333"
-                  className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none transition focus:border-indigo-400/50"
+                  className="h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-900 outline-none transition focus:border-stone-900"
                 />
               </label>
             </div>
 
-            <label className="block space-y-2 text-sm font-medium text-slate-300">
+            <label className="block space-y-1.5 text-xs font-medium text-stone-700">
               <span>Senha</span>
               <input
                 value={newEmployee.password}
@@ -671,30 +665,15 @@ const ManagerEmployees = () => {
                     password: event.target.value,
                   }))
                 }
-                placeholder="Senha de acesso"
+                placeholder="Mínimo 6 caracteres"
                 type="password"
-                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none transition focus:border-indigo-400/50"
-              />
-            </label>
-
-            <label className="block space-y-2 text-sm font-medium text-slate-300">
-              <span>Turno</span>
-              <input
-                value={newEmployee.shift}
-                onChange={(event) =>
-                  setNewEmployee((current) => ({
-                    ...current,
-                    shift: event.target.value,
-                  }))
-                }
-                placeholder="Nao informado"
-                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none transition focus:border-indigo-400/50"
+                className="h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-900 outline-none transition focus:border-stone-900"
               />
             </label>
           </div>
 
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-white/10 bg-transparent text-slate-200 hover:bg-white/10 hover:text-white">
+            <AlertDialogCancel className="border-stone-200 bg-white text-stone-700 hover:bg-stone-50">
               Cancelar
             </AlertDialogCancel>
             <button
@@ -706,23 +685,16 @@ const ManagerEmployees = () => {
                 !newEmployee.accessId.trim() ||
                 !newEmployee.password.trim()
               }
-              className="inline-flex h-10 items-center justify-center rounded-md bg-indigo-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-stone-900 px-4 text-xs font-semibold text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Salvar
+              Cadastrar
             </button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </ManagerShell>
   );
 };
-
-interface FilterChipProps {
-  active: boolean;
-  children: React.ReactNode;
-  onClick: () => void;
-  tone?: "neutral" | "emerald" | "rose";
-}
 
 interface SortableHeaderProps {
   label: string;
@@ -747,15 +719,15 @@ const SortableHeader = ({
   const Icon = direction === "asc" ? ChevronUp : ChevronDown;
 
   return (
-    <th className={`whitespace-nowrap py-4 ${className}`}>
+    <th className={`whitespace-nowrap py-3 ${className}`}>
       <button
         type="button"
         onClick={() => onSort(sortKey)}
-        className={`inline-flex w-full items-center gap-1.5 transition-colors hover:text-slate-200 ${
+        className={`inline-flex w-full items-center gap-1 transition-colors hover:text-stone-900 ${
           align === "right"
             ? "justify-end text-right"
             : "justify-start text-left"
-        } ${active ? "text-white" : "text-slate-500"}`}
+        } ${active ? "text-stone-900 font-semibold" : "text-stone-500"}`}
       >
         <span>{label}</span>
         <span className="inline-flex h-3.5 w-3.5 items-center justify-center">
@@ -763,37 +735,6 @@ const SortableHeader = ({
         </span>
       </button>
     </th>
-  );
-};
-
-const FilterChip = ({
-  active,
-  children,
-  onClick,
-  tone = "neutral",
-}: FilterChipProps) => {
-  const dotClass =
-    tone === "emerald"
-      ? "bg-emerald-500"
-      : tone === "rose"
-        ? "bg-rose-500"
-        : "bg-slate-400";
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex h-8 items-center gap-2 rounded-full border px-4 text-xs font-semibold transition-colors ${
-        active
-          ? "border-white/20 bg-white/10 text-white"
-          : "border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]"
-      }`}
-    >
-      {tone !== "neutral" && (
-        <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
-      )}
-      {children}
-    </button>
   );
 };
 

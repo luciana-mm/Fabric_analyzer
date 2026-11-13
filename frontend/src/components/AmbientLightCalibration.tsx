@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AlertCircle, ArrowLeft, CheckCircle, ChevronDown, ChevronUp, Loader, Sun } from "lucide-react";
+import { useState } from "react";
+import { AlertCircle, CheckCircle, Loader, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { CameraPreview } from "./CameraPreview";
 import { useCameraRobustCapture } from "@/hooks/useCameraRobustCapture";
@@ -62,7 +62,6 @@ export const AmbientLightCalibration = ({
   const [lastDeltaE, setLastDeltaE] = useState<number | null>(null);
   const [calibrated, setCalibrated] = useState(initialLightCalibrated);
   const [hasMeasurement, setHasMeasurement] = useState(initialLightCalibrated);
-  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
 
   const captureAreaWidth = clampCapturePercent(
     sampleAreaWidthPercent,
@@ -73,21 +72,6 @@ export const AmbientLightCalibration = ({
     defaultSystemConfig.sampleAreaHeightPercent,
   );
   const canFinish = calibrated || (mode === "setup" && hasMeasurement);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(min-width: 1024px)");
-
-    const syncPanelState = () => {
-      setIsPanelExpanded(mediaQuery.matches);
-    };
-
-    syncPanelState();
-    mediaQuery.addEventListener("change", syncPanelState);
-
-    return () => {
-      mediaQuery.removeEventListener("change", syncPanelState);
-    };
-  }, []);
 
   const handleCaptureAmbientLight = async () => {
     if (!hasReferenceConfigured) {
@@ -170,137 +154,146 @@ export const AmbientLightCalibration = ({
   };
 
   return (
-    <div className="fixed inset-0 z-20 overflow-hidden bg-[#0a0c14] text-white">
-      <CameraPreview
-        className="absolute inset-0 z-0 rounded-none border-0 bg-black"
-        imageClassName="h-full w-full bg-black object-contain"
-        offlineClassName="absolute inset-0 flex items-center justify-center bg-black p-6"
-        fallbackMessage="Preview indisponivel durante calibracao"
-        showRetryButton={false}
-        streamPath={`/stream-analyzed.mjpg?w=${captureAreaWidth}&h=${captureAreaHeight}&apenas_area=true`}
-      />
-
-      <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black/60 via-transparent to-black/45" />
-
-      <div className="absolute left-4 right-4 top-4 z-30 flex items-start justify-between gap-4 md:left-8 md:right-8 md:top-6">
-        <button
-          onClick={onBack}
-          className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/45 px-4 py-2 font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/85 backdrop-blur-md transition-all hover:bg-white/10 hover:text-white"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Voltar
-        </button>
-
-        <div className="hidden rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-right backdrop-blur-md md:block">
-          <h2 className="font-sansserief text-sm uppercase tracking-[0.25em] text-white">
-            Calibracao de Luz Ambiente
-          </h2>
-          <p className="mt-1 text-xs text-white/55">
-            {mode === "setup"
-              ? "Defina a luz base do ambiente."
-              : "Compare a iluminacao atual com a luz base salva."}
-          </p>
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+      {/* Left: Live Camera Preview (explicitly requested by user) */}
+      <div className="lg:col-span-7">
+        <div className="relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-stone-200 bg-stone-950 shadow-sm">
+          <CameraPreview
+            className="h-full w-full rounded-none border-0 bg-stone-950"
+            imageClassName="h-full w-full bg-stone-950 object-contain"
+            offlineClassName="flex h-full w-full items-center justify-center bg-stone-900 p-6"
+            fallbackMessage="Preview indisponível durante calibração"
+            showRetryButton={false}
+            streamPath={`/stream-analyzed.mjpg?w=${captureAreaWidth}&h=${captureAreaHeight}&apenas_area=true`}
+          />
+          <div className="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-black/65 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+            AO VIVO
+          </div>
         </div>
+        <p className="mt-2.5 text-xs text-stone-500">
+          {mode === "setup"
+            ? "Posicione a bancada sob a iluminação padrão para definir a luz base."
+            : "A medição compara a iluminação atual na região central com a luz base salva."}
+        </p>
       </div>
 
-      <div className="absolute bottom-4 left-1/2 z-30 w-[calc(100%-2rem)] max-w-6xl -translate-x-1/2 md:bottom-6">
-        <div className="relative rounded-2xl border border-white/10 bg-black/50 p-4 shadow-2xl backdrop-blur-md">
-          <button
-            type="button"
-            onClick={() => setIsPanelExpanded((current) => !current)}
-            aria-label={isPanelExpanded ? "Recolher painel" : "Expandir painel"}
-            className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black/45 text-white/75 transition hover:bg-white/10 hover:text-white"
-          >
-            {isPanelExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
-          </button>
+      {/* Right: Swatches comparison, Delta E / Similarity bar & actions */}
+      <div className="space-y-4 lg:col-span-5">
+        <div className="grid grid-cols-2 gap-3">
+          <LightInfo
+            label={mode === "setup" ? "Luz base atual" : "Luz base salva"}
+            hex={referenceHex}
+            rgb={referenceRgb}
+          />
+          <LightInfo
+            label="Luz atual da câmera"
+            hex={ambientHex}
+            rgb={ambientRgb}
+          />
+        </div>
 
-          {isPanelExpanded && (
-            <div className="mb-4 grid gap-3 pr-10 lg:grid-cols-[1fr_1fr_1.2fr]">
-              <LightInfo
-                label={mode === "setup" ? "Luz base atual" : "Luz base configurada"}
-                hex={referenceHex}
-                rgb={referenceRgb}
-              />
-              <LightInfo label="Luz ambiente capturada" hex={ambientHex} rgb={ambientRgb} />
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
-                  Status da calibracao
-                </p>
-                <p className="mt-2 text-sm text-white">
-                  {mode === "setup"
-                    ? matchLabel || "Nenhuma medicao realizada ainda."
-                    : similarity !== null
-                    ? `${similarity.toFixed(0)}% de similaridade com a luz base`
-                    : calibrated
-                    ? "Ultima medicao valida"
-                    : "Luz ambiente ainda nao validada"}
-                </p>
-                {mode === "compare" && lastDeltaE !== null && (
-                  <p className="mt-1 text-xs text-white/50">Delta E = {lastDeltaE.toFixed(2)}</p>
+        <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-stone-900">
+              Status da calibração
+            </h3>
+            {matchLabel && (
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  calibrated
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-amber-50 text-amber-700"
+                }`}
+              >
+                {calibrated ? (
+                  <CheckCircle className="h-3.5 w-3.5" />
+                ) : (
+                  <AlertCircle className="h-3.5 w-3.5" />
                 )}
-                {matchLabel && (
-                  <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/35 px-3 py-1 text-xs text-white/85">
-                    {calibrated ? (
-                      <CheckCircle className="h-4 w-4 text-emerald-400" />
-                    ) : (
-                      <AlertCircle className="h-4 w-4 text-amber-400" />
-                    )}
-                    {matchLabel}
-                  </div>
-                )}
-                <p className="mt-2 text-xs text-white/40">
-                  {initialLightCalibrated ? "Calibracao anterior disponivel" : "Nenhum resultado salvo"}
-                </p>
+                {calibrated ? "Dentro do limite" : "Divergente"}
+              </span>
+            )}
+          </div>
+
+          <p className="mt-2 text-sm text-stone-700">
+            {mode === "setup"
+              ? matchLabel || "Nenhuma medição realizada ainda."
+              : similarity !== null
+                ? `${similarity.toFixed(0)}% de similaridade com a luz base`
+                : calibrated
+                  ? "Última medição válida"
+                  : "Luz ambiente ainda não validada"}
+          </p>
+
+          {mode === "compare" && similarity !== null && (
+            <div className="mt-3 space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-stone-500">
+                <span>Similaridade</span>
+                <span className="font-mono font-medium text-stone-800">
+                  {similarity.toFixed(0)}%
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-stone-100">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    calibrated ? "bg-emerald-500" : "bg-amber-500"
+                  }`}
+                  style={{ width: `${Math.min(100, Math.max(0, similarity))}%` }}
+                />
               </div>
             </div>
           )}
 
-          {!isPanelExpanded && (
-            <div className="mb-3 pr-10">
-              <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
-                Calibracao de luz ambiente
-              </p>
-              {matchLabel && (
-                <p className="mt-1 text-xs text-white/70">
-                  {matchLabel}
-                  {similarity !== null ? ` - ${similarity.toFixed(0)}%` : ""}
-                </p>
-              )}
+          {mode === "compare" && lastDeltaE !== null && (
+            <div className="mt-3 flex items-center justify-between border-t border-stone-100 pt-3 text-xs text-stone-500">
+              <span>ΔE da luz</span>
+              <span className="font-mono font-semibold text-stone-900">
+                {lastDeltaE.toFixed(2)}
+              </span>
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <button
-              onClick={handleCaptureAmbientLight}
-              disabled={cameraCapture.isCapturing}
-              className="flex min-h-[64px] items-center justify-center gap-2 rounded-xl border border-blue-500/45 bg-blue-950/45 px-4 py-3 text-center text-sm font-medium text-blue-200 transition hover:bg-blue-900/55 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {cameraCapture.isCapturing ? (
-                <>
-                  <Loader className="h-5 w-5 animate-spin" />
-                  Medindo luz ambiente
-                </>
-              ) : (
-                <>
-                  <Sun className="h-5 w-5" />
-                  {mode === "setup" ? "Definir luz base" : "Capturar luz ambiente"}
-                </>
-              )}
-            </button>
+          <p className="mt-2 text-xs text-stone-400">
+            {initialLightCalibrated
+              ? "Calibração anterior disponível"
+              : "Nenhum resultado salvo"}
+          </p>
+        </div>
 
-            <button
-              onClick={handleFinish}
-              disabled={!canFinish || cameraCapture.isCapturing}
-              className={`flex min-h-[64px] items-center justify-center gap-2 rounded-xl border px-4 py-3 text-center text-sm font-medium transition ${
-                canFinish
-                  ? "border-emerald-500/45 bg-emerald-950/45 text-emerald-200 hover:bg-emerald-900/55"
-                  : "cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500"
-              }`}
-            >
-              <CheckCircle className="h-5 w-5" />
-              Concluir
-            </button>
-          </div>
+        <div className="space-y-2.5">
+          <button
+            onClick={handleCaptureAmbientLight}
+            disabled={cameraCapture.isCapturing}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium text-stone-800 shadow-sm transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {cameraCapture.isCapturing ? (
+              <>
+                <Loader className="h-4 w-4 animate-spin" />
+                <span>Medindo luz ambiente...</span>
+              </>
+            ) : (
+              <>
+                <Sun className="h-4 w-4" />
+                <span>
+                  {mode === "setup"
+                    ? "Definir luz base"
+                    : hasMeasurement
+                      ? "Medir novamente"
+                      : "Capturar luz ambiente"}
+                </span>
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={handleFinish}
+            disabled={!canFinish || cameraCapture.isCapturing}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-stone-900 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <CheckCircle className="h-4 w-4" />
+            <span>Confirmar Calibração</span>
+          </button>
         </div>
       </div>
     </div>
@@ -319,15 +312,20 @@ interface LightInfoProps {
 
 const LightInfo = ({ label, hex, rgb }: LightInfoProps) => {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-      <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
+    <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+      <p className="text-[11px] font-medium uppercase tracking-wider text-stone-400">
         {label}
       </p>
-      <div className="mt-2 flex items-center gap-3">
-        <div className="h-11 w-16 rounded-lg border-2 border-white/20 shadow-lg" style={{ backgroundColor: hex }} />
-        <div>
-          <p className="text-sm font-medium text-white">{hex.toUpperCase()}</p>
-          <p className="text-xs text-white/45">
+      <div className="mt-2.5 flex items-center gap-3">
+        <div
+          className="h-10 w-12 shrink-0 rounded-lg border border-stone-200 shadow-inner"
+          style={{ backgroundColor: hex }}
+        />
+        <div className="min-w-0">
+          <p className="truncate font-mono text-sm font-semibold text-stone-900">
+            {hex.toUpperCase()}
+          </p>
+          <p className="font-mono text-[11px] text-stone-500">
             {rgb.r}, {rgb.g}, {rgb.b}
           </p>
         </div>

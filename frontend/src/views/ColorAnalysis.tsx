@@ -3,14 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
-  ChevronDown,
-  ChevronUp,
   Loader2,
   ScanLine,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CameraPreview } from "@/components/CameraPreview";
+import { OperatorShell } from "@/components/OperatorShell";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useOperatorSystemConfig } from "@/hooks/useOperatorSystemConfig";
@@ -35,6 +34,16 @@ const clampCapturePercent = (value: number | undefined, fallback: number) => {
 
 const AUTO_ANALYSIS_INTERVAL_MS = 2500;
 
+interface SessionReading {
+  id: string;
+  time: string;
+  batchCode: string;
+  deltaE: number;
+  precision: number;
+  defects: number;
+  approved: boolean;
+}
+
 interface ColorAnalysisProps {
   analysisType?: "tecido" | "pecas";
 }
@@ -52,7 +61,7 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
     capturedHex: string;
   } | null>(null);
 
-  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
+  const [sessionReadings, setSessionReadings] = useState<SessionReading[]>([]);
   const [isAutoAnalysisEnabled, setIsAutoAnalysisEnabled] = useState(false);
   const [isInspectionActive, setIsInspectionActive] = useState(false);
   const [hasInspectedInSession, setHasInspectedInSession] = useState(false);
@@ -77,15 +86,6 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
     config.sampleAreaHeightPercent,
     defaultSystemConfig.sampleAreaHeightPercent,
   );
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(min-width: 1024px)");
-    const syncPanelState = () => setIsPanelExpanded(mediaQuery.matches);
-
-    syncPanelState();
-    mediaQuery.addEventListener("change", syncPanelState);
-    return () => mediaQuery.removeEventListener("change", syncPanelState);
-  }, []);
 
   // Zera automaticamente o contador de falhas na câmera ao entrar na tela de análise
   useEffect(() => {
@@ -211,6 +211,22 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
       const measuredHex = rgbToHex(measured);
 
       setResult({ precision, deltaE: evaluation.deltaE, success, capturedHex: measuredHex });
+      setSessionReadings((prev) => [
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          time: new Date().toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          }),
+          batchCode: activeTissueCode,
+          deltaE: evaluation.deltaE,
+          precision,
+          defects: defectCount,
+          approved: success,
+        },
+        ...prev.slice(0, 19),
+      ]);
 
       if (!user?.id) {
         if (trigger === "manual") {
@@ -378,7 +394,11 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
   };
 
   if (isLoading) {
-    return <div className="min-h-screen bg-[#050811]" />;
+    return (
+      <OperatorShell>
+        <div className="h-64 animate-pulse rounded-xl border border-stone-200 bg-white" />
+      </OperatorShell>
+    );
   }
 
   // Enquanto o operador não clicar em "Analisar Agora" (isInspectionActive = false),
@@ -388,345 +408,378 @@ const ColorAnalysis = ({ analysisType = "tecido" }: ColorAnalysisProps) => {
       ? `/stream-analyzed.mjpg?w=${captureAreaWidth}&h=${captureAreaHeight}&estampado=${config.estampado}&apenas_area=${!isInspectionActive}`
       : `/stream.mjpg`;
 
+  const totalReadings = sessionReadings.length;
+  const approvedReadings = sessionReadings.filter((r) => r.approved).length;
+  const failedReadings = totalReadings - approvedReadings;
+
   return (
-    <div className="fixed inset-0 z-20 overflow-hidden bg-[#050811] text-white">
-      <CameraPreview
-        className="absolute inset-0 z-0 rounded-none border-0 bg-black"
-        imageClassName="h-full w-full bg-black object-contain"
-        offlineClassName="absolute inset-0 flex items-center justify-center bg-black p-6"
-        fallbackMessage="Não foi possível acessar a câmera."
-        showRetryButton={false}
-        streamPath={cameraStreamPath}
-      />
-
-      <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black/75 via-transparent to-black/50" />
-
-      <div className="absolute left-4 right-4 top-4 z-30 flex items-start justify-between gap-4 md:left-8 md:right-8 md:top-6">
-        <button
-          onClick={() => router.push("/painel")}
-          className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-slate-950/75 px-4 py-2 text-xs font-medium text-slate-200 backdrop-blur-xl transition-all hover:border-cyan-400/50 hover:text-cyan-300"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Voltar ao Painel
-        </button>
-
-        {/* HUD SUPERIOR DIREITA */}
-        <div className="hidden rounded-2xl border border-white/15 bg-slate-950/80 px-5 py-3.5 text-right backdrop-blur-xl shadow-2xl md:block">
-          <div className="flex items-center justify-end gap-2">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                isInspectionActive ? "bg-emerald-400 animate-pulse" : "bg-amber-400"
-              }`}
-            />
-            <h2 className="font-sansserief text-xs font-bold uppercase tracking-[0.2em] text-white">
-              {isInspectionActive ? "Inspeção Ativa" : "Aguardando Início"}
-            </h2>
-          </div>
-
-          <div className="mt-2.5 flex items-center justify-end gap-2">
-            <span className="text-[11px] text-slate-400">Modo:</span>
-            <span
-              className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${
-                analysisType === "tecido"
-                  ? "bg-cyan-500/20 text-cyan-200 border-cyan-400/35"
-                  : "bg-blue-500/20 text-blue-200 border-blue-400/35"
-              }`}
+    <OperatorShell>
+      <div className="space-y-6">
+        {/* Top bar: Back + Title + Controls */}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3">
+            <button
+              onClick={() => router.push("/painel")}
+              className="mt-0.5 inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 transition-colors hover:bg-stone-50"
             >
-              {analysisType === "tecido" ? "Rolo / Tecido" : "Peças"}
-            </span>
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Voltar
+            </button>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl font-semibold tracking-tight text-stone-900">
+                  Bancada · {analysisType === "tecido" ? "Rolo / Tecido" : "Peças Confeccionadas"}
+                </h1>
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    isInspectionActive
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-stone-100 text-stone-600"
+                  }`}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      isInspectionActive ? "bg-emerald-500" : "bg-stone-400"
+                    }`}
+                  />
+                  {isInspectionActive ? "Inspeção ativa" : "Aguardando"}
+                </span>
+              </div>
+              <p className="mt-0.5 text-sm text-stone-500">
+                Lote <span className="font-mono font-medium text-stone-700">{config.activeTissueCode}</span>
+                {config.estampado
+                  ? " · Anomalib (PatchCore)"
+                  : ` · tolerância ΔE ≤ ${config.deltaE} · precisão mín. ${requiredPrecision.toFixed(0)}%`}
+              </p>
+            </div>
           </div>
 
-          {analysisType === "tecido" && (
-            <div className="mt-2 flex items-center justify-end gap-2">
-              <span className="text-[11px] text-slate-400">Detector:</span>
-              <span
-                className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${
-                  config.estampado
-                    ? "bg-amber-500/20 text-amber-200 border-amber-400/40"
-                    : "bg-emerald-500/20 text-emerald-200 border-emerald-400/40"
-                }`}
-              >
-                {config.estampado ? "Anomalib (Detalhado)" : "OpenCV (Liso)"}
-              </span>
-            </div>
-          )}
-
-          {analysisType === "tecido" && (
-            <div className="mt-3 border-t border-white/10 pt-2.5 flex items-center justify-end gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-slate-400 uppercase tracking-wider">Falhas:</span>
-                <span className="font-mono-tech text-lg font-bold text-amber-400">{defectCount}</span>
-              </div>
-              <button
-                onClick={handleResetDefects}
-                className="rounded-lg border border-amber-500/35 bg-amber-500/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-300 transition hover:bg-amber-500/25"
-              >
-                Zerar
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* PAINEL INFERIOR */}
-      <div className="absolute bottom-4 left-1/2 z-30 w-[calc(100%-2rem)] max-w-6xl -translate-x-1/2 md:bottom-6">
-        <div className="relative rounded-2xl border border-white/15 bg-slate-950/85 p-5 shadow-[0_24px_64px_-12px_rgba(0,0,0,0.85)] backdrop-blur-xl">
-          <button
-            type="button"
-            onClick={() => setIsPanelExpanded((current) => !current)}
-            aria-label={isPanelExpanded ? "Recolher painel" : "Expandir painel"}
-            className="absolute right-3.5 top-3.5 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-slate-900/80 text-slate-300 transition hover:border-cyan-400/50 hover:text-cyan-300"
-          >
-            {isPanelExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
-          </button>
-
-          {isPanelExpanded && (
-            <div className="mb-4 grid gap-3 pr-10 lg:grid-cols-[1fr_1fr_1.5fr]">
-              {config.estampado ? (
-                <>
-                  <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3.5">
-                    <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                      Padrão Aprendido
-                    </p>
-                    <p className="mt-1.5 font-sansserief text-base font-bold text-amber-300">
-                      Anomalib · PatchCore
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Referência de tecido bom ativa
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3.5">
-                    <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                      Área & Lote Atual
-                    </p>
-                    <p className="mt-1.5 font-sansserief text-base font-bold text-cyan-300">
-                      {captureAreaWidth}% × {captureAreaHeight}%
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Lote: <span className="font-mono-tech text-slate-200">{config.activeTissueCode}</span>
-                    </p>
-                  </div>
-
-                  <div
-                    className={`rounded-xl border p-3.5 ${
-                      !isInspectionActive
-                        ? "border-white/10 bg-slate-900/70 text-slate-300"
-                        : defectCount === 0
-                        ? "border-emerald-500/40 bg-emerald-950/45 text-emerald-100"
-                        : "border-amber-500/40 bg-amber-950/45 text-amber-100"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-medium uppercase tracking-wider opacity-75">
-                        Monitoramento de Anomalias
-                      </p>
-                      {isInspectionActive && (
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                            defectCount === 0
-                              ? "bg-emerald-500/25 text-emerald-200 border border-emerald-400/40"
-                              : "bg-amber-500/25 text-amber-200 border border-amber-400/40"
-                          }`}
-                        >
-                          {defectCount === 0 ? "Sem Falhas" : `${defectCount} Falha(s)`}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-2 text-xs">
-                      {!isInspectionActive
-                        ? 'Clique em "Iniciar Contagem de Falhas" abaixo para começar a detectar defeitos no tecido.'
-                        : defectCount === 0
-                        ? "Monitorando estampa em tempo real — nenhuma anomalia cruzou a linha até o momento."
-                        : `Foram contabilizadas ${defectCount} anomalia(s) cruzando a linha de inspeção neste lote.`}
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3.5 flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                        Cor Padrão & Tolerância
-                      </p>
-                      <p className="mt-1.5 font-sansserief text-base font-bold text-white">
-                        ΔE ≤ {config.deltaE}
-                      </p>
-                      <p className="text-[11px] font-mono-tech text-cyan-300 mt-0.5">
-                        Ref: {config.referenceColorHex}
-                      </p>
-                    </div>
-                    <div
-                      className="w-11 h-11 rounded-xl border border-white/20 shadow-inner shrink-0"
-                      style={{ backgroundColor: config.referenceColorHex }}
-                    />
-                  </div>
-
-                  <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3.5">
-                    <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                      Precisão Mínima Exigida
-                    </p>
-                    <p className="mt-1.5 font-sansserief text-xl font-bold text-cyan-300">
-                      {requiredPrecision.toFixed(1)}%
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Lote: <span className="font-mono-tech text-slate-200">{config.activeTissueCode}</span>
-                    </p>
-                  </div>
-
-                  <div
-                    className={`rounded-xl border p-3.5 ${
-                      !result
-                        ? "border-white/10 bg-slate-900/70 text-slate-300"
-                        : result.success
-                        ? "border-emerald-500/40 bg-emerald-950/45 text-emerald-100"
-                        : "border-rose-500/40 bg-rose-950/45 text-rose-100"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-medium uppercase tracking-wider opacity-75">
-                        Resultado da Inspeção
-                      </p>
-                      {result && (
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                            result.success
-                              ? "bg-emerald-500/25 text-emerald-200 border border-emerald-400/40"
-                              : "bg-rose-500/25 text-rose-200 border border-rose-400/40"
-                          }`}
-                        >
-                          {result.success ? "Aprovado" : "Reprovado"}
-                        </span>
-                      )}
-                    </div>
-                    {result ? (
-                      <div className="mt-1.5 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold">
-                            {result.success
-                              ? "Tecido dentro do padrão colorimétrico"
-                              : "Divergência acima da tolerância ΔE"}
-                          </p>
-                          <p className="mt-0.5 text-xs font-mono-tech opacity-90">
-                            Precisão: <strong>{result.precision.toFixed(1)}%</strong> · ΔE:{" "}
-                            <strong>{result.deltaE.toFixed(2)}</strong>
-                          </p>
-                        </div>
-                        <div
-                          className="w-9 h-9 rounded-lg border border-white/30 shrink-0"
-                          style={{ backgroundColor: result.capturedHex }}
-                          title={`Cor capturada: ${result.capturedHex}`}
-                        />
-                      </div>
-                    ) : (
-                      <p className="mt-2 text-xs text-slate-400">
-                        Aguardando leitura manual ou automática da câmera...
-                      </p>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {!isPanelExpanded && (
-            <div className="mb-3 pr-10">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-sansserief text-xs font-bold uppercase tracking-wider text-white">
-                    Inspeção de {analysisType === "tecido" ? "Tecidos" : "Peças"}
-                  </p>
-                  {config.estampado ? (
-                    <p className="mt-0.5 text-xs text-slate-300">
-                      {isInspectionActive
-                        ? `Monitorando anomalias ao vivo (${defectCount} falha(s))`
-                        : "Aguardando início da contagem de falhas"}
-                    </p>
-                  ) : (
-                    result && (
-                      <p className="mt-0.5 text-xs text-slate-300">
-                        {result.success ? "Aprovado" : "Fora do padrão"} · {result.precision.toFixed(1)}% (ΔE {result.deltaE.toFixed(2)})
-                      </p>
-                    )
-                  )}
-                </div>
-                {analysisType === "tecido" && (
-                  <div className="flex flex-col items-end mr-4 md:hidden">
-                    <span className="text-[10px] text-slate-400 uppercase tracking-wider">Falhas</span>
-                    <span className="font-mono-tech font-bold text-amber-400">{defectCount}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <div className="flex flex-wrap items-center gap-3">
             {analysisType === "tecido" && !config.estampado && (
-              <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-white">Inspeção Contínua Automática</p>
-                  <p className="text-xs text-slate-400">
-                    Coleta e registra uma nova leitura de tonalidade a cada 2,5 segundos automaticamente.
-                  </p>
-                </div>
+              <label className="inline-flex cursor-pointer items-center gap-2.5 rounded-lg border border-stone-200 bg-white px-3.5 py-2 text-xs font-medium text-stone-700 shadow-sm">
                 <Switch
                   checked={isAutoAnalysisEnabled}
                   onCheckedChange={(checked) => void handleAutoAnalysisToggle(checked)}
                   disabled={cameraCapture.isCapturing}
                   aria-label="Ativar análise automática"
                 />
-              </div>
+                <span>Análise automática contínua</span>
+              </label>
             )}
-
-            <button
-              onClick={handleFinishTissue}
-              className="flex min-h-[56px] items-center justify-center rounded-xl border border-rose-500/40 bg-rose-950/45 px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-rose-200 transition hover:bg-rose-900/60"
-            >
-              Finalizar Lote ({analysisType === "tecido" ? "Tecido" : "Peça"})
-            </button>
 
             {config.estampado && analysisType === "tecido" ? (
               <button
                 onClick={() => void handleTogglePatternInspection()}
-                className={`flex min-h-[56px] items-center justify-center rounded-xl px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider transition ${
+                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium shadow-sm transition-colors ${
                   isInspectionActive
-                    ? "border border-amber-400/50 bg-amber-500/20 text-amber-200 hover:bg-amber-500/30"
-                    : "bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-[0_0_24px_rgba(6,182,212,0.35)]"
+                    ? "border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                    : "bg-stone-900 text-white hover:bg-stone-800"
                 }`}
               >
-                <span className="inline-flex items-center gap-2">
-                  <ScanLine className="h-4 w-4" />
-                  {isInspectionActive ? "Pausar Contagem de Falhas" : "Iniciar Contagem de Falhas"}
-                </span>
+                <ScanLine className="h-4 w-4" />
+                {isInspectionActive ? "Pausar Contagem de Falhas" : "Iniciar Contagem de Falhas"}
               </button>
             ) : (
               <button
                 onClick={() => void handleAnalyze("manual")}
                 disabled={cameraCapture.isCapturing || isAutoAnalysisEnabled}
-                className="flex min-h-[56px] items-center justify-center rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-950 shadow-[0_0_24px_rgba(6,182,212,0.35)] transition disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg bg-stone-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {cameraCapture.isCapturing ? (
-                  <span className="inline-flex items-center gap-2">
+                  <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Capturando e Analisando...
-                  </span>
+                    <span>Analisando...</span>
+                  </>
                 ) : isAutoAnalysisEnabled ? (
-                  <span className="inline-flex items-center gap-2">
+                  <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Análise Automática Ativa
-                  </span>
+                    <span>Automática Ativa</span>
+                  </>
                 ) : (
-                  <span className="inline-flex items-center gap-2">
+                  <>
                     <ScanLine className="h-4 w-4" />
-                    Analisar Agora
-                  </span>
+                    <span>Analisar Agora</span>
+                  </>
                 )}
               </button>
             )}
+
+            <button
+              onClick={handleFinishTissue}
+              className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-100"
+            >
+              Finalizar Lote
+            </button>
           </div>
         </div>
+
+        {/* Main 2-column grid */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          {/* Left: Live Camera Preview */}
+          <div className="lg:col-span-7">
+            <div className="relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-stone-200 bg-stone-950 shadow-sm">
+              <CameraPreview
+                className="h-full w-full rounded-none border-0 bg-stone-950"
+                imageClassName="h-full w-full bg-stone-950 object-contain"
+                offlineClassName="flex h-full w-full items-center justify-center bg-stone-900 p-6"
+                fallbackMessage="Não foi possível acessar a câmera."
+                showRetryButton={false}
+                streamPath={cameraStreamPath}
+              />
+
+              <div className="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-black/65 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                AO VIVO
+              </div>
+
+              {analysisType === "tecido" && (
+                <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/65 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                  {config.estampado ? "Anomalib (Estampado)" : "OpenCV (Liso)"}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right: Última leitura + Counters */}
+          <div className="space-y-4 lg:col-span-5">
+            <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-semibold text-stone-900">
+                  Última leitura
+                </h2>
+                {config.estampado ? (
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      !isInspectionActive
+                        ? "bg-stone-100 text-stone-600"
+                        : defectCount === 0
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-amber-50 text-amber-700"
+                    }`}
+                  >
+                    {!isInspectionActive
+                      ? "AGUARDANDO"
+                      : defectCount === 0
+                        ? "SEM FALHAS"
+                        : `${defectCount} FALHA(S)`}
+                  </span>
+                ) : result ? (
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      result.success
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-rose-50 text-rose-700"
+                    }`}
+                  >
+                    {result.success ? "APROVADO" : "REPROVADO"}
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-500">
+                    Aguardando
+                  </span>
+                )}
+              </div>
+
+              {config.estampado ? (
+                <div className="mt-4 space-y-3">
+                  <div className="grid grid-cols-2 gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider text-stone-400">
+                        Área
+                      </p>
+                      <p className="mt-0.5 font-mono text-sm font-semibold text-stone-900">
+                        {captureAreaWidth}% × {captureAreaHeight}%
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider text-stone-400">
+                        Defeitos
+                      </p>
+                      <p className="mt-0.5 font-mono text-sm font-semibold text-stone-900">
+                        {defectCount}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-stone-500">
+                    {!isInspectionActive
+                      ? 'Clique em "Iniciar Contagem de Falhas" para detectar anomalias no tecido.'
+                      : defectCount === 0
+                        ? "Monitorando estampa em tempo real — nenhuma anomalia até o momento."
+                        : `${defectCount} anomalia(s) contabilizada(s) neste lote.`}
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
+                      <p className="text-[11px] font-medium uppercase tracking-wider text-stone-400">
+                        Cor padrão
+                      </p>
+                      <div className="mt-2 flex items-center gap-2.5">
+                        <div
+                          className="h-8 w-10 shrink-0 rounded border border-stone-300"
+                          style={{ backgroundColor: config.referenceColorHex }}
+                        />
+                        <span className="font-mono text-xs font-semibold text-stone-900">
+                          {config.referenceColorHex}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
+                      <p className="text-[11px] font-medium uppercase tracking-wider text-stone-400">
+                        Cor lida
+                      </p>
+                      <div className="mt-2 flex items-center gap-2.5">
+                        <div
+                          className="h-8 w-10 shrink-0 rounded border border-stone-300 bg-stone-200"
+                          style={
+                            result?.capturedHex
+                              ? { backgroundColor: result.capturedHex }
+                              : undefined
+                          }
+                        />
+                        <span className="font-mono text-xs font-semibold text-stone-900">
+                          {result?.capturedHex ?? "—"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 border-t border-stone-100 pt-3">
+                    <div>
+                      <p className="text-[11px] text-stone-400">ΔE medido</p>
+                      <p className="font-mono text-base font-semibold text-stone-900">
+                        {result ? result.deltaE.toFixed(2) : "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-stone-400">Precisão</p>
+                      <p className="font-mono text-base font-semibold text-stone-900">
+                        {result ? `${result.precision.toFixed(1)}%` : "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-stone-400">Defeitos</p>
+                      <p className="font-mono text-base font-semibold text-stone-900">
+                        {analysisType === "tecido" ? defectCount : 0}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {analysisType === "tecido" && (
+                <div className="mt-4 flex items-center justify-between border-t border-stone-100 pt-3">
+                  <span className="text-xs text-stone-500">
+                    Contador de falhas físicas na câmera
+                  </span>
+                  <button
+                    onClick={handleResetDefects}
+                    className="rounded-md border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs font-medium text-stone-700 transition-colors hover:bg-stone-100"
+                  >
+                    Zerar ({defectCount})
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Counters: Lidas / OK / Falhas */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-xl border border-stone-200 bg-white p-4 text-center shadow-sm">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-stone-400">
+                  Lidas
+                </p>
+                <p className="mt-1 font-mono text-2xl font-semibold text-stone-900">
+                  {totalReadings}
+                </p>
+              </div>
+              <div className="rounded-xl border border-stone-200 bg-white p-4 text-center shadow-sm">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-stone-400">
+                  OK
+                </p>
+                <p className="mt-1 font-mono text-2xl font-semibold text-emerald-700">
+                  {approvedReadings}
+                </p>
+              </div>
+              <div className="rounded-xl border border-stone-200 bg-white p-4 text-center shadow-sm">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-stone-400">
+                  Falhas
+                </p>
+                <p className="mt-1 font-mono text-2xl font-semibold text-rose-600">
+                  {failedReadings}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom: Leituras recentes do turno */}
+        <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-stone-200 px-5 py-3.5">
+            <h2 className="text-sm font-semibold text-stone-900">
+              Leituras recentes do turno
+            </h2>
+            <span className="text-xs text-stone-400">
+              {totalReadings} registro(s) nesta sessão
+            </span>
+          </div>
+
+          {sessionReadings.length === 0 ? (
+            <div className="px-5 py-8 text-center text-sm text-stone-400">
+              Nenhuma leitura registrada nesta sessão ainda. Clique em &quot;Analisar Agora&quot; para iniciar.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-stone-200 bg-stone-50 text-xs font-medium uppercase tracking-wider text-stone-500">
+                  <tr>
+                    <th className="px-5 py-2.5">Horário</th>
+                    <th className="px-5 py-2.5">Lote</th>
+                    <th className="px-5 py-2.5">ΔE</th>
+                    <th className="px-5 py-2.5">Precisão</th>
+                    <th className="px-5 py-2.5">Defeitos</th>
+                    <th className="px-5 py-2.5 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {sessionReadings.map((reading) => (
+                    <tr key={reading.id} className="hover:bg-stone-50/70">
+                      <td className="px-5 py-2.5 font-mono text-xs text-stone-600">
+                        {reading.time}
+                      </td>
+                      <td className="px-5 py-2.5 font-mono text-xs font-medium text-stone-800">
+                        {reading.batchCode}
+                      </td>
+                      <td className="px-5 py-2.5 font-mono text-xs text-stone-700">
+                        {reading.deltaE.toFixed(2)}
+                      </td>
+                      <td className="px-5 py-2.5 font-mono text-xs text-stone-700">
+                        {reading.precision.toFixed(1)}%
+                      </td>
+                      <td className="px-5 py-2.5 font-mono text-xs text-stone-700">
+                        {reading.defects}
+                      </td>
+                      <td className="px-5 py-2.5 text-right">
+                        <span
+                          className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                            reading.approved
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-rose-50 text-rose-700"
+                          }`}
+                        >
+                          {reading.approved ? "APROVADO" : "REPROVADO"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </OperatorShell>
   );
 };
 

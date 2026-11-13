@@ -78,19 +78,19 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         data-report-print
-        className="max-w-3xl max-h-[88vh] overflow-y-auto bg-[#0a0c14] text-white border-slate-800"
+        className="max-w-3xl max-h-[88vh] overflow-y-auto border-stone-200 bg-white text-stone-900"
       >
         <DialogHeader>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-cyan-500/15 border border-cyan-400/30 flex items-center justify-center">
-                <User className="w-6 h-6 text-cyan-400" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-orange-200 bg-orange-50">
+                <User className="h-6 w-6 text-[#B85D3B]" />
               </div>
               <div>
-                <DialogTitle className="font-sansserief tracking-[0.2em] uppercase text-lg text-white">
+                <DialogTitle className="text-lg font-semibold text-stone-900">
                   Relatório Individual · {employee.name}
                 </DialogTitle>
-                <DialogDescription className="text-[11px] tracking-[0.25em] uppercase text-slate-400">
+                <DialogDescription className="text-xs text-stone-500">
                   {employee.id} · {employee.role} · Turno {employee.shift}
                 </DialogDescription>
               </div>
@@ -99,7 +99,7 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
               data-no-print
               type="button"
               onClick={handlePrint}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs font-medium uppercase tracking-wider text-slate-200 transition-colors hover:border-cyan-400 hover:text-cyan-300"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-stone-700 transition-colors hover:bg-stone-50"
             >
               <Printer className="h-4 w-4" />
               Imprimir / PDF
@@ -107,57 +107,57 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
           </div>
         </DialogHeader>
 
-        <div className="space-y-6 mt-4">
+        <div className="mt-4 space-y-6">
           {/* Resumo */}
           <section>
-            <h3 className="font-sansserief text-[11px] tracking-[0.3em] uppercase text-slate-400 mb-3">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-stone-500">
               Indicadores do Operador
             </h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60">
-                <div className="flex items-center gap-2 text-slate-400 text-[10px] tracking-[0.2em] uppercase mb-1.5">
-                  <Layers className="w-3.5 h-3.5" /> Total Verificado
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+              <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+                <div className="mb-1.5 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-stone-500">
+                  <Layers className="h-3.5 w-3.5" /> Total Verificado
                 </div>
-                <p className="font-mono-tech text-2xl font-bold text-white">{employee.verified}</p>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="font-mono text-2xl font-bold text-stone-900">{employee.verified}</p>
+                <p className="mt-1 text-xs text-stone-500">
                   {patternedVerified} detalhado(s) · {Math.max(0, employee.verified - patternedVerified)} liso(s)
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl border border-amber-500/35 bg-amber-500/10">
-                <div className="flex items-center gap-2 text-amber-300 text-[10px] tracking-[0.2em] uppercase mb-1.5">
-                  <Sparkles className="w-3.5 h-3.5" /> Defeitos (Detalhado)
+              <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+                <div className="mb-1.5 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-amber-800">
+                  <Sparkles className="h-3.5 w-3.5" /> Defeitos (Detalhado)
                 </div>
-                <p className="font-mono-tech text-2xl font-bold text-amber-300">{patternedDefects}</p>
-                <p className="text-xs text-amber-200/75 mt-1">
+                <p className="font-mono text-2xl font-bold text-amber-700">{patternedDefects}</p>
+                <p className="mt-1 text-xs text-amber-700/80">
                   Total geral de falhas: {totalDefects}
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60">
-                <div className="flex items-center gap-2 text-slate-400 text-[10px] tracking-[0.2em] uppercase mb-1.5">
-                  <Clock className="w-3.5 h-3.5" /> Tempo Médio
+              <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+                <div className="mb-1.5 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-stone-500">
+                  <Clock className="h-3.5 w-3.5" /> Tempo Médio
                 </div>
-                <p className="font-mono-tech text-2xl font-bold text-white">{employee.avgTime}</p>
-                <p className="text-xs text-slate-400 mt-1">por tecido analisado</p>
+                <p className="font-mono text-2xl font-bold text-stone-900">{employee.avgTime}</p>
+                <p className="mt-1 text-xs text-stone-500">por tecido analisado</p>
               </div>
 
-              <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 md:col-span-1">
-                <div className="flex items-center gap-2 text-emerald-400 text-[10px] tracking-[0.2em] uppercase mb-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Aprovados
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 md:col-span-1">
+                <div className="mb-1.5 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-emerald-800">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Aprovados
                 </div>
-                <p className="font-mono-tech text-2xl font-bold text-emerald-400">{employee.success}</p>
-                <Progress value={parseFloat(successRate)} className="mt-2 h-1.5 bg-slate-800" />
-                <p className="text-xs text-emerald-200/80 mt-1">{successRate}% de aprovação</p>
+                <p className="font-mono text-2xl font-bold text-emerald-700">{employee.success}</p>
+                <Progress value={parseFloat(successRate)} className="mt-2 h-1.5 bg-emerald-100" />
+                <p className="mt-1 text-xs text-emerald-700/80">{successRate}% de aprovação</p>
               </div>
 
-              <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 md:col-span-2">
-                <div className="flex items-center gap-2 text-rose-400 text-[10px] tracking-[0.2em] uppercase mb-1.5">
-                  <XCircle className="w-3.5 h-3.5" /> Lotes Reprovados
+              <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-4 md:col-span-2">
+                <div className="mb-1.5 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-rose-800">
+                  <XCircle className="h-3.5 w-3.5" /> Lotes Reprovados
                 </div>
-                <p className="font-mono-tech text-2xl font-bold text-rose-400">{employee.failure}</p>
-                <Progress value={parseFloat(failureRate)} className="mt-2 h-1.5 bg-slate-800" />
-                <p className="text-xs text-rose-200/80 mt-1">
+                <p className="font-mono text-2xl font-bold text-rose-700">{employee.failure}</p>
+                <Progress value={parseFloat(failureRate)} className="mt-2 h-1.5 bg-rose-100" />
+                <p className="mt-1 text-xs text-rose-700/80">
                   {failureRate}% de rejeição ({totalDefects} defeito(s) físico(s) registrado(s))
                 </p>
               </div>
@@ -166,14 +166,14 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
 
           {employee.errorBreakdown.length > 0 && (
             <section>
-              <h3 className="font-sansserief text-[11px] tracking-[0.3em] uppercase text-slate-400 mb-3 flex items-center gap-2">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" /> Ocorrências Registradas
+              <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-stone-500">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-600" /> Ocorrências Registradas
               </h3>
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/50 space-y-2.5">
+              <div className="space-y-2.5 rounded-xl border border-stone-200 bg-stone-50 p-4">
                 {employee.errorBreakdown.map((err) => (
                   <div key={err.label} className="flex items-center justify-between text-xs">
-                    <span className="text-slate-200">{err.label}</span>
-                    <span className="font-mono-tech font-semibold text-amber-300">{err.percentage}%</span>
+                    <span className="text-stone-700">{err.label}</span>
+                    <span className="font-mono font-semibold text-amber-700">{err.percentage}%</span>
                   </div>
                 ))}
               </div>
@@ -182,54 +182,54 @@ export const EmployeeDetailsDialog = ({ employee, open, onOpenChange }: Employee
 
           {/* Análises Recentes */}
           <section>
-            <h3 className="font-sansserief text-[11px] tracking-[0.3em] uppercase text-slate-400 mb-3 flex items-center gap-2">
-              <TrendingUp className="w-3.5 h-3.5 text-cyan-400" /> Análises Recentes
+            <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-stone-500">
+              <TrendingUp className="h-3.5 w-3.5 text-[#B85D3B]" /> Análises Recentes
             </h3>
-            <div className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+            <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
               {employee.recentAnalyses.length === 0 && (
-                <div className="px-4 py-4 text-xs text-slate-500">Sem análises recentes.</div>
+                <div className="px-4 py-4 text-xs text-stone-500">Sem análises recentes.</div>
               )}
               {employee.recentAnalyses.map((a, i) => (
                 <div
                   key={a.id}
                   className={`flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs ${
-                    i !== employee.recentAnalyses.length - 1 ? "border-b border-slate-800/70" : ""
+                    i !== employee.recentAnalyses.length - 1 ? "border-b border-stone-100" : ""
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     {a.result === "ok" ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
                     ) : (
-                      <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                      <XCircle className="h-4 w-4 shrink-0 text-rose-600" />
                     )}
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono-tech font-semibold text-white">{a.type}</span>
+                        <span className="font-mono font-semibold text-stone-900">{a.type}</span>
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase ${
                             a.isPatterned
-                              ? "bg-amber-500/15 text-amber-300 border border-amber-400/30"
-                              : "bg-cyan-500/15 text-cyan-300 border border-cyan-400/30"
+                              ? "border-amber-200 bg-amber-50 text-amber-800"
+                              : "border-orange-200 bg-orange-50 text-[#B85D3B]"
                           }`}
                         >
                           {a.isPatterned ? "Detalhado · Anomalib" : "Liso · OpenCV"}
                         </span>
                         <span
-                          className={`px-2 py-0.5 rounded-md font-mono-tech text-[10px] font-semibold ${
+                          className={`rounded-md border px-2 py-0.5 font-mono text-[10px] font-semibold ${
                             (a.defectCount ?? 0) > 0
-                              ? "bg-rose-500/15 text-rose-300 border border-rose-500/30"
-                              : "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                              ? "border-rose-200 bg-rose-50 text-rose-700"
+                              : "border-emerald-200 bg-emerald-50 text-emerald-700"
                           }`}
                         >
                           {a.defectCount ?? 0} defeito(s)
                         </span>
                       </div>
                       {a.failureReason && (
-                        <p className="text-[11px] text-slate-400 mt-0.5">{a.failureReason}</p>
+                        <p className="mt-0.5 text-[11px] text-stone-500">{a.failureReason}</p>
                       )}
                     </div>
                   </div>
-                  <span className="text-slate-400 text-[11px] font-mono-tech">
+                  <span className="font-mono text-[11px] text-stone-400">
                     {formatRelativeTime(a.analyzedAt)}
                   </span>
                 </div>

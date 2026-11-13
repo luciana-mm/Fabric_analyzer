@@ -24,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: "Forbidden" });
   }
 
-  const { name, code, email, password, role } = req.body ?? {};
+  const { name, code, email, password, role , shift} = req.body ?? {};
   if (
     typeof name !== "string" ||
     typeof code !== "string" ||
@@ -51,12 +51,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     await query(
-      `INSERT INTO profiles (user_id, display_name, employee_code, job_title, active)
-       VALUES ($1, $2, $3, $4, true)
-       ON CONFLICT (user_id) DO UPDATE SET display_name = EXCLUDED.display_name, employee_code = EXCLUDED.employee_code, job_title = EXCLUDED.job_title, active = EXCLUDED.active`,
-      [userId, name.trim(), code.trim(), roleValue === "gestor" ? "Gestor" : "Operador"],
+      `INSERT INTO profiles (user_id, display_name, employee_code, job_title, shift, active)
+       VALUES ($1, $2, $3, $4, $5, true)
+       ON CONFLICT (user_id) DO UPDATE SET display_name = EXCLUDED.display_name, employee_code = EXCLUDED.employee_code, job_title = EXCLUDED.job_title, shift = EXCLUDED.shift, active = EXCLUDED.active`,
+      [userId, name.trim(), code.trim(), roleValue === "gestor" ? "Gestor" : "Operador", typeof shift === "string" ? shift.trim() : null],
     );
-
+    
     await query(
       `INSERT INTO user_roles (user_id, role)
        VALUES ($1, $2)

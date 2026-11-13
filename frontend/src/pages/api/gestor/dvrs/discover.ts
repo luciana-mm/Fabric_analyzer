@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { DvrAdapterFactory } from "@/lib/dvr-adapters";
 import type { DvrBrand } from "@/types/dvr";
+import { getCameraProxyUrl } from "@/lib/camera-proxy";
 
 export default async function handler(
   req: NextApiRequest,
@@ -48,12 +49,36 @@ export default async function handler(
       total_channels: Number(total_channels),
     });
 
-    const discovered = await adapter.discoverCameras();
+    let discovered;
+    const pyBrand = brand === "generic" ? "generic_rtsp" : brand;
+    const pyResp = await fetch(`${getCameraProxyUrl()}/dvr/discover`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: String(id || "dvr-discover"),
+        name,
+        brand: pyBrand,
+        host,
+        rtsp_port: Number(rtsp_port),
+        http_port: Number(http_port),
+        sdk_port: sdk_port ? Number(sdk_port) : undefined,
+        username,
+        password: "",
+        total_channels: Number(total_channels),
+      }),
+      signal: AbortSignal.timeout(6000),
+    }).catch(() => null);
 
-    // Se o DVR existe no banco, sincroniza os canais descobertos
+    if (pyResp && pyResp.ok) {
+      const pyData = await pyResp.json();
+      discovered = Array.isArray(pyData?.cameras)
+        ? pyData.cameras
+        : await adapter.discoverCameras();
+    } else {
+      discovered = await adapter.discoverCameras();
+}
     if (id && !String(id).startsWith("dvr-default") && !String(id).startsWith("dvr-mock-default")) {
       await query(`DELETE FROM public.camera_devices WHERE dvr_id = $1`, [id]).catch(() => null);
-
       for (const cam of discovered) {
         const subUrl = await adapter.getCameraStream(String(cam.channelNumber), "sub");
         await query(
@@ -76,7 +101,6 @@ export default async function handler(
         ).catch(() => null);
       }
     }
-
     return res.status(200).json({ data: discovered });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Erro ao descobrir canais";

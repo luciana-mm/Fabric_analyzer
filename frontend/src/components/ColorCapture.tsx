@@ -2,10 +2,8 @@
 
 import { useState } from "react";
 import {
-  ArrowLeft,
   Camera,
   CheckCircle,
-  Info,
   Lightbulb,
   Loader,
   Pipette,
@@ -340,55 +338,7 @@ export const ColorCapture = ({
     isCalibratingPattern;
 
   return (
-    <div className="fixed inset-0 z-20 overflow-hidden bg-[#0a0c14] text-white">
-      <CameraPreview
-        className="absolute inset-0 z-0 rounded-none border-0 bg-black"
-        imageClassName="h-full w-full bg-black object-contain"
-        offlineClassName="absolute inset-0 flex items-center justify-center bg-black p-6"
-        fallbackMessage="Preview indisponivel durante calibracao"
-        showRetryButton={false}
-        streamPath={`/stream-analyzed.mjpg?w=${captureAreaWidth}&h=${captureAreaHeight}&apenas_area=true`}
-      />
-
-      <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black/55 via-transparent to-black/45" />
-
-      <div className="absolute left-4 right-4 top-4 z-30 flex items-start justify-between gap-4 md:left-8 md:right-8 md:top-6">
-        <button
-          onClick={onBack}
-          className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/45 px-4 py-2 font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/85 backdrop-blur-md transition-all hover:bg-white/10 hover:text-white"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Voltar
-        </button>
-
-        <div className="flex items-start gap-3">
-          <div className="hidden rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-right backdrop-blur-md md:block">
-            <h2 className="font-sansserief text-sm uppercase tracking-[0.25em] text-white">
-              {estampado ? "Calibracao de Estampa (Anomalib)" : "Calibracao de Luz (D65)"}
-            </h2>
-            <p className="mt-1 text-xs text-white/55">
-              {colorCalibration.statusMessage}
-            </p>
-          </div>
-          <div className="group relative flex items-center justify-center rounded-full border border-white/10 bg-black/40 p-2.5 backdrop-blur-md">
-            <Info
-              size={18}
-              className="cursor-pointer text-white/65 transition-colors group-hover:text-white"
-            />
-            <div className="absolute right-0 top-full mt-3 hidden w-64 rounded-lg border border-white/10 bg-slate-950/95 p-3 text-xs text-white shadow-lg backdrop-blur-md group-hover:block">
-              <h3 className="mb-2 border-b border-white/10 pb-1 text-sm font-bold">
-                Procedimento de Medicao
-              </h3>
-              <p className="text-slate-300">
-                {estampado
-                  ? "Posicione um trecho do tecido BOM (sem defeito) na regiao pontilhada para o Anomalib aprender a estampa."
-                  : "A amostra usa somente a regiao pontilhada central definida na area de analise."}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <div className="space-y-6">
       {!estampado && (
         <RgbScreen
           open={isRgbPickerOpen}
@@ -404,155 +354,207 @@ export const ColorCapture = ({
         />
       )}
 
-      <div className="absolute bottom-4 left-1/2 z-30 w-[calc(100%-2rem)] max-w-6xl -translate-x-1/2 md:bottom-6">
-        <div className="rounded-2xl border border-white/10 bg-black/50 p-4 shadow-2xl backdrop-blur-md">
-          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            {estampado ? (
-              <div className="flex items-center gap-3">
-                <div
-                  className={`flex h-11 w-16 items-center justify-center rounded-lg border-2 shadow-lg ${
-                    patternCapturedCount > 0
-                      ? "border-emerald-400/40 bg-emerald-500/20 text-emerald-300"
-                      : "border-amber-400/35 bg-amber-500/15 text-amber-300"
-                  }`}
-                >
-                  {patternCapturedCount > 0 ? (
-                    <CheckCircle className="h-5 w-5" />
-                  ) : (
-                    <Camera className="h-5 w-5" />
-                  )}
-                </div>
-                <div>
-                  <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-amber-300/80">
-                    Padrão de Imagens Detalhadas (Anomalib)
-                  </p>
-                  <p className="text-sm font-medium text-white">
-                    {patternCapturedCount > 0
-                      ? `${patternCapturedCount} fotos do tecido bom aprendidas`
-                      : "Aguardando captura das imagens do tecido bom"}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <div
-                  className="h-11 w-16 rounded-lg border-2 border-white/20 shadow-lg"
-                  style={{ backgroundColor: displayColor.hex }}
-                />
-                <div>
-                  <p className="font-sansserief text-[10px] uppercase tracking-[0.25em] text-white/45">
-                    Cor selecionada
-                  </p>
-                  <p className="text-sm font-medium text-white">
-                    {displayColor.hex.toUpperCase()}
-                  </p>
-                </div>
-              </div>
-            )}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        {/* Left: Live Camera Preview */}
+        <div className="lg:col-span-7">
+          <div className="relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-stone-200 bg-stone-950 shadow-sm">
+            <CameraPreview
+              className="h-full w-full rounded-none border-0 bg-stone-950"
+              imageClassName="h-full w-full bg-stone-950 object-contain"
+              offlineClassName="flex h-full w-full items-center justify-center bg-stone-900 p-6"
+              fallbackMessage="Preview indisponível durante calibração"
+              showRetryButton={false}
+              streamPath={`/stream-analyzed.mjpg?w=${captureAreaWidth}&h=${captureAreaHeight}&apenas_area=true`}
+            />
 
-            {colorCalibration.error && (
-              <p className="max-w-md rounded-lg border border-red-500/30 bg-red-950/45 px-3 py-2 text-xs text-red-200">
-                {colorCalibration.error}
-              </p>
-            )}
+            <div className="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-black/65 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              AO VIVO
+            </div>
           </div>
+          <p className="mt-2.5 text-xs text-stone-500">
+            {estampado
+              ? "Posicione um trecho do tecido BOM (sem defeito) na região pontilhada para o Anomalib aprender a estampa."
+              : "A amostra usa somente a região pontilhada central definida na área de análise."}
+          </p>
+        </div>
 
-          <div
-            className={`grid grid-cols-1 gap-2 ${
-              estampado ? "sm:grid-cols-3" : "sm:grid-cols-4"
-            }`}
-          >
+        {/* Right: Calibration & Capture Controls */}
+        <div className="space-y-4 lg:col-span-5">
+          {/* Card 1: Luz ambiente base */}
+          <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-stone-900">
+                Luz ambiente base (D65)
+              </h3>
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  isLightCalibrated
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-amber-50 text-amber-700"
+                }`}
+              >
+                {isLightCalibrated ? "OK" : "Pendente"}
+              </span>
+            </div>
+            <p className="mt-1.5 text-xs text-stone-500">
+              Leia a área com o tecido iluminado pela luz padrão da bancada.
+            </p>
+            <p className="mt-1 font-mono text-[11px] text-stone-400">
+              {colorCalibration.statusMessage}
+            </p>
+
             <button
               onClick={handleCalibrateLight}
               disabled={colorCalibration.isCalibrating}
-              className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${isLightCalibrated
-                ? "border-emerald-500/45 bg-emerald-950/45 text-emerald-200"
-                : "border-blue-500/45 bg-blue-950/45 text-blue-200 hover:bg-blue-900/55"
-                } ${colorCalibration.isCalibrating ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+              className={`mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+                isLightCalibrated
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                  : "border-stone-300 bg-white text-stone-800 hover:bg-stone-50"
+              } ${colorCalibration.isCalibrating ? "cursor-not-allowed opacity-60" : ""}`}
             >
               {colorCalibration.isCalibrating ? (
                 <>
-                  <Loader className="h-5 w-5 animate-spin" />
+                  <Loader className="h-4 w-4 animate-spin" />
                   <span>
-                    {colorCalibration.calibrationProgress.toFixed(0)}%
+                    Calibrando {colorCalibration.calibrationProgress.toFixed(0)}%...
                   </span>
                 </>
               ) : isLightCalibrated ? (
                 <>
-                  <CheckCircle className="h-5 w-5" />
-                  <span>Calibrada</span>
+                  <CheckCircle className="h-4 w-4" />
+                  <span>Luz calibrada (recalibrar)</span>
                 </>
               ) : (
                 <>
-                  <Lightbulb className="h-5 w-5" />
-                  <span>Calibrar Luz Ambiente</span>
+                  <Lightbulb className="h-4 w-4" />
+                  <span>Capturar luz base</span>
                 </>
               )}
             </button>
+          </div>
 
-            <button
-              onClick={handleCaptureColor}
-              disabled={isBusy || !isLightCalibrated}
-              className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${!isLightCalibrated
-                ? "cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500"
-                : estampado && patternCapturedCount > 0
-                  ? "border-emerald-500/45 bg-emerald-950/45 text-emerald-200 hover:bg-emerald-900/55"
-                  : "border-violet-500/45 bg-violet-950/45 text-violet-200 hover:bg-violet-900/55"
-                } ${isBusy ? "opacity-60" : ""}`}
-            >
-              {isBusy ? (
-                <>
-                  <Loader className="h-5 w-5 animate-spin" />
-                  <span>
-                    {estampado ? "Capturando Imagens..." : "Capturando"}
+          {/* Card 2: Cor padrão / Estampa */}
+          <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+            {estampado ? (
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-stone-900">
+                    Padrão de estampa (Anomalib)
+                  </h3>
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      patternCapturedCount > 0
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-stone-100 text-stone-600"
+                    }`}
+                  >
+                    {patternCapturedCount > 0
+                      ? `${patternCapturedCount} fotos`
+                      : "Aguardando"}
                   </span>
-                </>
-              ) : estampado ? (
-                patternCapturedCount > 0 ? (
-                  <>
-                    <CheckCircle className="h-5 w-5" />
-                    <span>Imagens Capturadas ({patternCapturedCount})</span>
-                  </>
-                ) : (
-                  <>
-                    <Camera className="h-5 w-5" />
-                    <span>Capturar Imagens Detalhadas</span>
-                  </>
-                )
-              ) : (
-                <>
-                  <Camera className="h-5 w-5" />
-                  <span>Capturar Cor</span>
-                </>
-              )}
-            </button>
+                </div>
+                <p className="mt-1.5 text-xs text-stone-500">
+                  {patternCapturedCount > 0
+                    ? `${patternCapturedCount} fotos do tecido bom aprendidas.`
+                    : "Capture 15 imagens detalhadas do tecido sem defeito."}
+                </p>
+                <button
+                  onClick={handleCaptureColor}
+                  disabled={isBusy || !isLightCalibrated}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium text-stone-800 transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isBusy ? (
+                    <>
+                      <Loader className="h-4 w-4 animate-spin" />
+                      <span>Capturando imagens...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="h-4 w-4" />
+                      <span>
+                        {patternCapturedCount > 0
+                          ? `Recapturar imagens (${patternCapturedCount})`
+                          : "Capturar imagens detalhadas"}
+                      </span>
+                    </>
+                  )}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-stone-900">
+                    Cor padrão do tecido
+                  </h3>
+                  <span className="font-mono text-xs font-medium text-stone-600">
+                    {displayColor.hex.toUpperCase()}
+                  </span>
+                </div>
 
-            <button
-              onClick={handleSave}
-              disabled={!isLightCalibrated || isBusy}
-              className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${!isLightCalibrated || isBusy
-                ? "cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500"
-                : "border-emerald-500/45 bg-emerald-950/45 text-emerald-200 hover:bg-emerald-900/55"
-                }`}
-            >
-              <Save className="h-5 w-5" />
-              <span>Salvar</span>
-            </button>
+                <div className="mt-3 flex items-center gap-3.5 rounded-lg border border-stone-200 bg-stone-50 p-3">
+                  <div
+                    className="h-11 w-14 shrink-0 rounded-md border border-stone-300 shadow-sm"
+                    style={{ backgroundColor: displayColor.hex }}
+                  />
+                  <div className="min-w-0">
+                    <p className="font-mono text-sm font-semibold text-stone-900">
+                      {displayColor.hex.toUpperCase()}
+                    </p>
+                    <p className="font-mono text-xs text-stone-500">
+                      RGB({displayColor.rgb.r}, {displayColor.rgb.g},{" "}
+                      {displayColor.rgb.b})
+                    </p>
+                  </div>
+                </div>
 
-            {!estampado && (
-              <button
-                onClick={() => isLightCalibrated && setIsRgbPickerOpen(true)}
-                disabled={!isLightCalibrated}
-                className={`flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-medium transition-all ${isLightCalibrated
-                  ? "border-white/15 bg-white/10 text-slate-100 hover:bg-white/15"
-                  : "cursor-not-allowed border-slate-700/70 bg-slate-950/60 text-slate-500"
-                  }`}
-              >
-                <Pipette className="h-5 w-5" />
-                <span>Selecionar cor</span>
-              </button>
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <button
+                    onClick={handleCaptureColor}
+                    disabled={isBusy || !isLightCalibrated}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-sm font-medium text-stone-800 transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isBusy ? (
+                      <>
+                        <Loader className="h-4 w-4 animate-spin" />
+                        <span>Capturando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="h-4 w-4" />
+                        <span>Capturar cor padrão</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => isLightCalibrated && setIsRgbPickerOpen(true)}
+                    disabled={!isLightCalibrated}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Pipette className="h-4 w-4" />
+                    <span>Selecionar cor</span>
+                  </button>
+                </div>
+              </>
             )}
           </div>
+
+          {colorCalibration.error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-700">
+              {colorCalibration.error}
+            </div>
+          )}
+
+          {/* Confirmar captura */}
+          <button
+            onClick={handleSave}
+            disabled={!isLightCalibrated || isBusy}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-stone-900 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Save className="h-4 w-4" />
+            <span>Confirmar captura</span>
+          </button>
         </div>
       </div>
     </div>

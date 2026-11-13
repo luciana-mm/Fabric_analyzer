@@ -5,7 +5,8 @@ import {
   useContext,
   useEffect,
   useState,
-  ReactNode,
+  useCallback,
+  type ReactNode,
 } from "react";
 import { fetchJson } from "@/lib/api-client";
 import { clearSystemConfigCache } from "@/lib/systemConfig";
@@ -42,15 +43,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const applySession = (nextUser: AuthUser | null) => {
+  const applySession = useCallback((nextUser: AuthUser | null) => {
     setUser(nextUser);
     setRole(nextUser?.role ?? null);
     if (nextUser) {
       setError(null);
     }
-  };
+  }, []);
 
-  const refreshSession = async (): Promise<AuthUser | null> => {
+  const refreshSession = useCallback(async (): Promise<AuthUser | null> => {
     try {
       const response = await fetchJson<{ user: AuthUser | null }>("/api/auth/session");
       applySession(response.user);
@@ -61,7 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setError("Falha ao restaurar sessão");
       return null;
     }
-  };
+  }, [applySession]);
 
   useEffect(() => {
     let mounted = true;
@@ -78,7 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [refreshSession]);
 
   useEffect(() => {
     if (!user) {
@@ -131,7 +132,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     resetTimer();
 
-    return () => {
+       return () => {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }

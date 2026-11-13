@@ -23,6 +23,7 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": "off",
+      "@next/next/no-img-element": "off",
       "@typescript-eslint/no-unused-vars": [
         "warn"
       ],
