@@ -72,49 +72,43 @@ export const BatchHistoryTable = () => {
   };
 
   return (
-    <div className="w-full space-y-6">
-      {/* Header & Filtros */}
-      <div className="space-y-4">
+    <div className="w-full space-y-5">
+      {/* Filtros */}
+      <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="font-sansserief text-lg tracking-[0.15em] uppercase text-white">
-              Relatórios por Lote
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Histórico consolidado de inspeções em tecidos lisos (OpenCV) e detalhados (Anomalib)
-            </p>
-          </div>
-          <p className="text-xs font-mono-tech text-cyan-300 bg-cyan-500/10 border border-cyan-500/25 px-3 py-1.5 rounded-full">
+          <p className="text-xs font-medium text-stone-500">
+            Filtrar histórico de inspeções
+          </p>
+          <span className="text-xs font-mono-tech text-stone-700 bg-stone-100 border border-stone-200 px-2.5 py-1 rounded-full">
             {total > 0
               ? `${total} lote${total !== 1 ? "s" : ""} registrado${total !== 1 ? "s" : ""}`
               : "Nenhum lote encontrado"}
-          </p>
+          </span>
         </div>
 
-        {/* Filtros */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
             <Input
-              placeholder="Buscar código do lote..."
+              placeholder="Buscar lote ou operador..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
                 setPageIndex(0);
               }}
-              className="pl-10 h-9 text-sm bg-slate-900/80 border-white/10 text-white"
+              className="pl-9 h-9 text-xs bg-white border-stone-200 text-stone-900 placeholder:text-stone-400"
             />
           </div>
 
           <div className="relative">
-            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
             <select
               value={selectedUserId}
               onChange={(e) => {
                 setSelectedUserId(e.target.value);
                 setPageIndex(0);
               }}
-              className="w-full pl-10 pr-3 h-9 text-sm rounded-md border border-white/10 bg-slate-900/80 text-white hover:border-cyan-400/40"
+              className="w-full pl-9 pr-3 h-9 text-xs rounded-md border border-stone-200 bg-white text-stone-900 focus:outline-none focus:border-stone-900"
             >
               <option value="">Todos os operadores</option>
               {operators.map((op) => (
@@ -126,7 +120,7 @@ export const BatchHistoryTable = () => {
           </div>
 
           <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
             <input
               type="date"
               value={startDate}
@@ -134,12 +128,12 @@ export const BatchHistoryTable = () => {
                 setStartDate(e.target.value);
                 setPageIndex(0);
               }}
-              className="w-full pl-10 pr-3 h-9 text-sm rounded-md border border-white/10 bg-slate-900/80 text-white"
+              className="w-full pl-9 pr-3 h-9 text-xs rounded-md border border-stone-200 bg-white text-stone-900 focus:outline-none focus:border-stone-900"
             />
           </div>
 
           <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
             <input
               type="date"
               value={endDate}
@@ -147,7 +141,7 @@ export const BatchHistoryTable = () => {
                 setEndDate(e.target.value);
                 setPageIndex(0);
               }}
-              className="w-full pl-10 pr-3 h-9 text-sm rounded-md border border-white/10 bg-slate-900/80 text-white"
+              className="w-full pl-9 pr-3 h-9 text-xs rounded-md border border-stone-200 bg-white text-stone-900 focus:outline-none focus:border-stone-900"
             />
           </div>
 
@@ -161,7 +155,7 @@ export const BatchHistoryTable = () => {
               setEndDate("");
               setPageIndex(0);
             }}
-            className="h-9 text-xs border-white/15 bg-slate-900/70 text-slate-200 hover:bg-slate-800"
+            className="h-9 text-xs border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
           >
             Limpar Filtros
           </Button>
@@ -171,26 +165,26 @@ export const BatchHistoryTable = () => {
       {/* Tabela */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-6 h-6 animate-spin text-cyan-400" />
+          <Loader2 className="w-6 h-6 animate-spin text-stone-500" />
         </div>
       ) : isError ? (
-        <div className="p-6 rounded-xl border border-rose-500/30 bg-rose-500/10 text-center text-sm text-rose-300">
+        <div className="p-6 rounded-xl border border-rose-200 bg-rose-50 text-center text-xs text-rose-700">
           Erro ao carregar histórico de lotes. Tente novamente.
         </div>
       ) : batches.length === 0 ? (
-        <div className="p-12 rounded-xl border border-white/10 bg-slate-900/50 text-center">
-          <p className="text-sm text-slate-400">Nenhum lote encontrado com os filtros aplicados.</p>
+        <div className="p-12 rounded-xl border border-stone-200 bg-white text-center shadow-sm">
+          <p className="text-xs text-stone-500">Nenhum lote encontrado com os filtros aplicados.</p>
         </div>
       ) : (
         <>
-          <div className="rounded-2xl border border-white/10 bg-slate-900/65 backdrop-blur-xl overflow-hidden shadow-xl">
-            <div className="grid grid-cols-12 gap-3 px-5 py-3.5 border-b border-white/10 bg-slate-950/60 font-sansserief text-[10px] tracking-[0.2em] uppercase text-slate-400">
+          <div className="rounded-xl border border-stone-200 bg-white overflow-hidden shadow-sm">
+            <div className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-stone-200 bg-stone-50/70 text-xs font-medium text-stone-500">
               <div className="col-span-2">Lote</div>
-              <div className="col-span-2">Tipo / Motor</div>
-              <div className="col-span-2">Última Análise</div>
+              <div className="col-span-2">Detector</div>
+              <div className="col-span-2">Data</div>
               <div className="col-span-2">Leituras / Status</div>
-              <div className="col-span-2">Defeitos no Tecido</div>
-              <div className="col-span-2 text-right">Relatório</div>
+              <div className="col-span-2">Defeitos</div>
+              <div className="col-span-2 text-right">Detalhes</div>
             </div>
 
             {batches.map((batch) => {
@@ -201,25 +195,32 @@ export const BatchHistoryTable = () => {
               return (
                 <div
                   key={batch.batch_id}
-                  className="grid grid-cols-12 gap-3 px-5 py-4 border-b border-white/5 items-center hover:bg-white/[0.03] transition-colors"
+                  className="grid grid-cols-12 gap-3 px-5 py-3.5 border-b border-stone-100 last:border-b-0 items-center hover:bg-stone-50 transition-colors"
                 >
-                  <div className="col-span-2 text-sm font-mono-tech font-semibold text-white truncate">
-                    {batch.batch_code}
+                  <div className="col-span-2 flex items-center gap-2 min-w-0">
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${
+                        batch.rejected_count > 0 ? "bg-[#B85D3B]" : "bg-stone-900"
+                      }`}
+                    />
+                    <span className="text-sm font-mono-tech font-semibold text-stone-900 truncate">
+                      {batch.batch_code}
+                    </span>
                   </div>
 
                   <div className="col-span-2">
                     <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
                         isPatterned
-                          ? "bg-amber-500/15 text-amber-300 border-amber-400/35"
-                          : "bg-cyan-500/15 text-cyan-300 border-cyan-400/35"
+                          ? "bg-orange-50 text-[#B85D3B] border-orange-200"
+                          : "bg-stone-100 text-stone-700 border-stone-200"
                       }`}
                     >
-                      {isPatterned ? "Detalhado · Anomalib" : "Liso · OpenCV"}
+                      {isPatterned ? "Anomalib" : "OpenCV"}
                     </span>
                   </div>
 
-                  <div className="col-span-2 text-xs text-slate-300">
+                  <div className="col-span-2 text-xs text-stone-600">
                     {new Date(batch.last_analyzed_at).toLocaleString("pt-BR", {
                       day: "2-digit",
                       month: "2-digit",
@@ -229,36 +230,36 @@ export const BatchHistoryTable = () => {
                     })}
                   </div>
 
-                  <div className="col-span-2 text-xs flex items-center gap-2">
-                    <span className="font-mono-tech font-semibold text-white">
+                  <div className="col-span-2 text-xs flex items-center gap-1.5">
+                    <span className="font-mono-tech font-semibold text-stone-900">
                       {batch.total_fabrics}
                     </span>
-                    <span className="text-slate-500">·</span>
-                    <span className="text-emerald-400 font-semibold">{batch.approved_count} ok</span>
+                    <span className="text-stone-400">·</span>
+                    <span className="text-emerald-700 font-medium">{batch.approved_count} ok</span>
                     {batch.rejected_count > 0 && (
                       <>
-                        <span className="text-slate-500">/</span>
-                        <span className="text-rose-400 font-semibold">{batch.rejected_count} repr.</span>
+                        <span className="text-stone-400">/</span>
+                        <span className="text-rose-600 font-medium">{batch.rejected_count} repr.</span>
                       </>
                     )}
                   </div>
 
                   <div className="col-span-2">
                     <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-mono-tech text-xs font-semibold border ${
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-mono-tech text-xs font-medium border ${
                         totalDefects === 0
-                          ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/25"
-                          : "bg-amber-500/15 text-amber-300 border-amber-500/35"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-amber-50 text-amber-800 border-amber-200"
                       }`}
                     >
                       {totalDefects === 0 ? (
                         <>
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                           0 defeitos
                         </>
                       ) : (
                         <>
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
                           {totalDefects} defeito{totalDefects !== 1 ? "s" : ""}
                           {isPatterned && patternedDefects > 0 ? " (Detalhado)" : ""}
                         </>
@@ -271,10 +272,10 @@ export const BatchHistoryTable = () => {
                       size="sm"
                       variant="outline"
                       onClick={() => setSelectedBatchId(batch.batch_id)}
-                      className="text-xs h-8 border-cyan-500/35 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20"
+                      className="text-xs h-8 border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
                     >
-                      <FileText className="w-3.5 h-3.5 mr-1.5" />
-                      Relatório Detalhado
+                      <FileText className="w-3.5 h-3.5 mr-1.5 text-stone-500" />
+                      Detalhes
                     </Button>
                   </div>
                 </div>
@@ -284,9 +285,9 @@ export const BatchHistoryTable = () => {
 
           {/* Paginação */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-2">
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-400">Itens por página:</span>
-              <div className="flex gap-2">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs text-stone-500">Itens por página:</span>
+              <div className="flex gap-1.5">
                 {([5, 10, 25, 50] as const).map((size) => (
                   <Button
                     key={size}
@@ -296,7 +297,11 @@ export const BatchHistoryTable = () => {
                       setPageSize(size);
                       setPageIndex(0);
                     }}
-                    className="text-xs h-8 w-10"
+                    className={`text-xs h-8 w-9 ${
+                      pageSize === size
+                        ? "bg-stone-900 text-white hover:bg-stone-800"
+                        : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
+                    }`}
                   >
                     {size}
                   </Button>
@@ -310,12 +315,12 @@ export const BatchHistoryTable = () => {
                 variant="outline"
                 disabled={pageIndex === 0}
                 onClick={() => setPageIndex(Math.max(0, pageIndex - 1))}
-                className="h-8 w-8 p-0"
+                className="h-8 w-8 p-0 border-stone-200 bg-white text-stone-700"
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
 
-              <span className="text-xs text-slate-400 min-w-fit px-2">
+              <span className="text-xs text-stone-500 min-w-fit px-2">
                 Página {pageIndex + 1} de {totalPages || 1}
               </span>
 
@@ -324,7 +329,7 @@ export const BatchHistoryTable = () => {
                 variant="outline"
                 disabled={pageIndex >= totalPages - 1}
                 onClick={() => setPageIndex(pageIndex + 1)}
-                className="h-8 w-8 p-0"
+                className="h-8 w-8 p-0 border-stone-200 bg-white text-stone-700"
               >
                 <ChevronRight className="w-4 h-4" />
               </Button>
@@ -337,11 +342,11 @@ export const BatchHistoryTable = () => {
       <Dialog open={!!selectedBatchId} onOpenChange={(open) => !open && setSelectedBatchId("")}>
         <DialogContent
           data-report-print
-          className="max-w-4xl max-h-[88vh] overflow-y-auto bg-[#0a0c14] text-white border-slate-800"
+          className="max-w-4xl max-h-[88vh] overflow-y-auto bg-white text-stone-900 border-stone-200"
         >
           {detailsLoading ? (
             <div className="flex items-center justify-center py-14">
-              <Loader2 className="w-6 h-6 animate-spin text-cyan-400" />
+              <Loader2 className="w-6 h-6 animate-spin text-stone-500" />
             </div>
           ) : batchDetails ? (
             <>
@@ -349,14 +354,14 @@ export const BatchHistoryTable = () => {
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2.5">
-                      <DialogTitle className="font-sansserief tracking-[0.18em] uppercase text-lg text-white">
+                      <DialogTitle className="text-lg font-semibold text-stone-900">
                         Relatório Técnico do Lote
                       </DialogTitle>
                       <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${
+                        className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
                           batchDetails.is_patterned
-                            ? "bg-amber-500/20 text-amber-300 border-amber-400/40"
-                            : "bg-cyan-500/20 text-cyan-300 border-cyan-400/40"
+                            ? "border-amber-200 bg-amber-50 text-amber-800"
+                            : "border-orange-200 bg-orange-50 text-[#B85D3B]"
                         }`}
                       >
                         {batchDetails.is_patterned
@@ -364,7 +369,7 @@ export const BatchHistoryTable = () => {
                           : "Tecido Liso · OpenCV (CIEDE2000)"}
                       </span>
                     </div>
-                    <DialogDescription className="font-mono-tech text-sm text-cyan-300">
+                    <DialogDescription className="font-mono text-sm text-stone-600">
                       Código do Lote: {batchDetails.batch_code}
                     </DialogDescription>
                   </div>
@@ -373,7 +378,7 @@ export const BatchHistoryTable = () => {
                     data-no-print
                     type="button"
                     onClick={handlePrint}
-                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3.5 text-xs font-medium uppercase tracking-wider text-slate-200 transition-colors hover:border-cyan-400 hover:text-cyan-300"
+                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3.5 text-xs font-medium text-stone-700 transition-colors hover:bg-stone-50"
                   >
                     <Printer className="h-4 w-4" />
                     Imprimir / PDF
@@ -381,83 +386,83 @@ export const BatchHistoryTable = () => {
                 </div>
               </DialogHeader>
 
-              <div className="space-y-6 mt-4">
+              <div className="mt-4 space-y-6">
                 {/* Cards Principais */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-                  <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800">
-                    <p className="text-[10px] text-slate-400 tracking-widest uppercase mb-1">
+                <div className="grid grid-cols-2 gap-3.5 md:grid-cols-4">
+                  <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+                    <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-stone-500">
                       Inspeções no Lote
                     </p>
-                    <p className="text-2xl font-bold font-mono-tech text-white">
+                    <p className="font-mono text-2xl font-bold text-stone-900">
                       {batchDetails.total_fabrics}
                     </p>
-                    <p className="text-[11px] text-slate-400 mt-1">
+                    <p className="mt-1 text-[11px] text-stone-500">
                       {batchDetails.approved_count} aprov. / {batchDetails.rejected_count} repr.
                     </p>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800">
-                    <p className="text-[10px] text-slate-400 tracking-widest uppercase mb-1">
+                  <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+                    <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-stone-500">
                       Taxa de Qualidade
                     </p>
-                    <p className="text-2xl font-bold font-mono-tech text-emerald-400">
+                    <p className="font-mono text-2xl font-bold text-emerald-700">
                       {batchDetails.total_fabrics > 0
                         ? ((batchDetails.approved_count / batchDetails.total_fabrics) * 100).toFixed(1)
                         : "0.0"}
                       %
                     </p>
-                    <p className="text-[11px] text-slate-400 mt-1">Índice de aprovação</p>
+                    <p className="mt-1 text-[11px] text-stone-500">Índice de aprovação</p>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/35">
-                    <p className="text-[10px] text-amber-300/90 tracking-widest uppercase mb-1">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+                    <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-amber-800">
                       Defeitos no Tecido Detalhado
                     </p>
-                    <p className="text-2xl font-bold font-mono-tech text-amber-300">
+                    <p className="font-mono text-2xl font-bold text-amber-700">
                       {batchDetails.patterned_defects ?? 0}
                     </p>
-                    <p className="text-[11px] text-amber-200/75 mt-1">
+                    <p className="mt-1 text-[11px] text-amber-700/80">
                       Em {batchDetails.patterned_count ?? 0} inspeção(ões) Anomalib
                     </p>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30">
-                    <p className="text-[10px] text-rose-300/90 tracking-widest uppercase mb-1">
+                  <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-4">
+                    <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-rose-800">
                       Total Geral de Defeitos
                     </p>
-                    <p className="text-2xl font-bold font-mono-tech text-rose-400">
+                    <p className="font-mono text-2xl font-bold text-rose-700">
                       {batchDetails.total_defects ?? 0}
                     </p>
-                    <p className="text-[11px] text-rose-200/75 mt-1">
+                    <p className="mt-1 text-[11px] text-rose-700/80">
                       Falhas físicas contabilizadas
                     </p>
                   </div>
                 </div>
 
                 {/* Resumo Técnico do Motor de Visão */}
-                <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-cyan-300">
-                    <Sparkles className="w-4 h-4" />
+                <div className="space-y-3 rounded-xl border border-stone-200 bg-stone-50 p-4">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#B85D3B]">
+                    <Sparkles className="h-4 w-4" />
                     Diagnóstico Técnico de Inspeção
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                    <div className="p-3 rounded-lg bg-slate-950/70 border border-slate-800/80">
-                      <span className="text-slate-400 block text-[10px] uppercase tracking-wider">
+                  <div className="grid grid-cols-1 gap-3 text-xs md:grid-cols-3">
+                    <div className="rounded-lg border border-stone-200 bg-white p-3">
+                      <span className="block text-[10px] uppercase tracking-wider text-stone-400">
                         Motor de Visão Computacional
                       </span>
-                      <span className="font-semibold text-white mt-1 block">
+                      <span className="mt-1 block font-semibold text-stone-900">
                         {batchDetails.is_patterned
                           ? "Anomalib · PatchCore (ResNet18 + LAB)"
                           : "OpenCV Clássico · Colorimetria CIEDE2000"}
                       </span>
                     </div>
 
-                    <div className="p-3 rounded-lg bg-slate-950/70 border border-slate-800/80">
-                      <span className="text-slate-400 block text-[10px] uppercase tracking-wider">
+                    <div className="rounded-lg border border-stone-200 bg-white p-3">
+                      <span className="block text-[10px] uppercase tracking-wider text-stone-400">
                         Densidade Média de Defeitos
                       </span>
-                      <span className="font-mono-tech font-semibold text-amber-300 mt-1 block">
+                      <span className="mt-1 block font-mono font-semibold text-amber-700">
                         {batchDetails.total_fabrics > 0
                           ? (Number(batchDetails.total_defects ?? 0) / batchDetails.total_fabrics).toFixed(2)
                           : "0.00"}{" "}
@@ -465,11 +470,11 @@ export const BatchHistoryTable = () => {
                       </span>
                     </div>
 
-                    <div className="p-3 rounded-lg bg-slate-950/70 border border-slate-800/80">
-                      <span className="text-slate-400 block text-[10px] uppercase tracking-wider">
+                    <div className="rounded-lg border border-stone-200 bg-white p-3">
+                      <span className="block text-[10px] uppercase tracking-wider text-stone-400">
                         {batchDetails.is_patterned ? "Conformidade Estrutural" : "Média Colorimétrica (ΔE / Precisão)"}
                       </span>
-                      <span className="font-mono-tech font-semibold text-cyan-300 mt-1 block">
+                      <span className="mt-1 block font-mono font-semibold text-stone-900">
                         {batchDetails.is_patterned
                           ? Number(batchDetails.patterned_defects ?? 0) === 0
                             ? "100% livre de anomalias"
@@ -483,14 +488,14 @@ export const BatchHistoryTable = () => {
                 {/* Registro Detalhado de Leituras do Lote */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-slate-300 tracking-widest uppercase font-semibold flex items-center gap-2">
-                      <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                    <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-stone-700">
+                      <Layers className="h-3.5 w-3.5 text-[#B85D3B]" />
                       Histórico Detalhado de Leituras deste Lote ({batchDetails.records?.length ?? 0})
                     </p>
                   </div>
 
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
-                    <div className="grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-slate-800 bg-slate-950/70 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+                  <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+                    <div className="grid grid-cols-12 gap-2 border-b border-stone-200 bg-stone-50 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-stone-500">
                       <div className="col-span-2">Horário</div>
                       <div className="col-span-2">Operador</div>
                       <div className="col-span-2">Tipo de Tecido</div>
@@ -503,9 +508,9 @@ export const BatchHistoryTable = () => {
                       batchDetails.records.map((rec) => (
                         <div
                           key={rec.id}
-                          className="grid grid-cols-12 gap-2 px-4 py-3 border-b border-slate-800/60 items-center text-xs last:border-b-0"
+                          className="grid grid-cols-12 items-center gap-2 border-b border-stone-100 px-4 py-3 text-xs last:border-b-0"
                         >
-                          <div className="col-span-2 text-slate-300 font-mono-tech text-[11px]">
+                          <div className="col-span-2 font-mono text-[11px] text-stone-600">
                             {new Date(rec.analyzed_at).toLocaleString("pt-BR", {
                               day: "2-digit",
                               month: "2-digit",
@@ -515,38 +520,38 @@ export const BatchHistoryTable = () => {
                             })}
                           </div>
 
-                          <div className="col-span-2 text-slate-200 truncate">{rec.operator_name}</div>
+                          <div className="col-span-2 truncate text-stone-800">{rec.operator_name}</div>
 
                           <div className="col-span-2">
                             <span
-                              className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
+                              className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase ${
                                 rec.is_patterned
-                                  ? "bg-amber-500/15 text-amber-300 border border-amber-400/30"
-                                  : "bg-cyan-500/15 text-cyan-300 border border-cyan-400/30"
+                                  ? "border-amber-200 bg-amber-50 text-amber-800"
+                                  : "border-orange-200 bg-orange-50 text-[#B85D3B]"
                               }`}
                             >
                               {rec.is_patterned ? "Detalhado (Anomalib)" : "Liso (OpenCV)"}
                             </span>
                           </div>
 
-                          <div className="col-span-2 font-mono-tech font-semibold">
+                          <div className="col-span-2 font-mono font-semibold">
                             {rec.defect_count > 0 ? (
-                              <span className="text-amber-300">
+                              <span className="text-amber-700">
                                 {rec.defect_count} defeito{rec.defect_count !== 1 ? "s" : ""}
                               </span>
                             ) : (
-                              <span className="text-emerald-400">0 defeitos</span>
+                              <span className="text-emerald-700">0 defeitos</span>
                             )}
                           </div>
 
-                          <div className="col-span-2 text-[11px] text-slate-300 truncate" title={rec.failure_reason ?? ""}>
+                          <div className="col-span-2 truncate text-[11px] text-stone-600" title={rec.failure_reason ?? ""}>
                             {rec.is_patterned ? (
                               rec.failure_reason ?? "Padrão de estampa aprovado"
                             ) : (
                               <span className="inline-flex items-center gap-1.5">
                                 {rec.measured_color_hex && (
                                   <span
-                                    className="w-3 h-3 rounded-sm border border-white/20 inline-block shrink-0"
+                                    className="inline-block h-3 w-3 shrink-0 rounded-sm border border-stone-300"
                                     style={{ backgroundColor: rec.measured_color_hex }}
                                   />
                                 )}
@@ -557,19 +562,19 @@ export const BatchHistoryTable = () => {
 
                           <div className="col-span-2 flex justify-end">
                             {rec.result === "ok" ? (
-                              <span className="inline-flex items-center gap-1 text-emerald-400 font-semibold text-[11px]">
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Aprovado
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Aprovado
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-rose-400 font-semibold text-[11px]">
-                                <XCircle className="w-3.5 h-3.5" /> Reprovado
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-700">
+                                <XCircle className="h-3.5 w-3.5" /> Reprovado
                               </span>
                             )}
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="px-4 py-6 text-center text-xs text-slate-500">
+                      <div className="px-4 py-6 text-center text-xs text-stone-500">
                         Nenhuma leitura detalhada encontrada para este lote.
                       </div>
                     )}
@@ -577,33 +582,33 @@ export const BatchHistoryTable = () => {
                 </div>
 
                 {/* Datas e Operadores */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-2 text-xs">
-                    <p className="text-[10px] text-slate-400 tracking-widest uppercase font-semibold">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2 rounded-xl border border-stone-200 bg-stone-50 p-4 text-xs">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-stone-500">
                       Janela de Inspeção do Lote
                     </p>
-                    <p className="text-slate-300">
-                      <strong className="text-white">Início:</strong>{" "}
+                    <p className="text-stone-600">
+                      <strong className="text-stone-900">Início:</strong>{" "}
                       {new Date(batchDetails.first_analyzed_at).toLocaleString("pt-BR")}
                     </p>
-                    <p className="text-slate-300">
-                      <strong className="text-white">Último registro:</strong>{" "}
+                    <p className="text-stone-600">
+                      <strong className="text-stone-900">Último registro:</strong>{" "}
                       {new Date(batchDetails.last_analyzed_at).toLocaleString("pt-BR")}
                     </p>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 space-y-2">
-                    <p className="text-[10px] text-slate-400 tracking-widest uppercase font-semibold">
+                  <div className="space-y-2 rounded-xl border border-stone-200 bg-stone-50 p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-stone-500">
                       Operador(es) Responsável(is)
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {batchDetails.operators.map((op) => (
                         <div
                           key={op.user_id}
-                          className="px-3 py-1.5 rounded-lg bg-slate-950/80 border border-slate-800 flex items-center gap-2 text-xs"
+                          className="flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs"
                         >
-                          <User className="w-3.5 h-3.5 text-cyan-400" />
-                          <span className="font-semibold text-white">{op.display_name}</span>
+                          <User className="h-3.5 w-3.5 text-[#B85D3B]" />
+                          <span className="font-semibold text-stone-900">{op.display_name}</span>
                         </div>
                       ))}
                     </div>
@@ -612,7 +617,7 @@ export const BatchHistoryTable = () => {
               </div>
             </>
           ) : (
-            <p className="text-center text-sm text-slate-400 py-12">
+            <p className="py-12 text-center text-sm text-stone-500">
               Nenhum detalhe encontrado para este lote.
             </p>
           )}

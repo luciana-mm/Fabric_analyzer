@@ -1,11 +1,10 @@
 "use client"
 
-import { CheckCircle2, Circle, Scan, SwatchBook, Triangle, Save } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { ArrowRight, CheckCircle2, Save, Scan, SwatchBook, Triangle } from "lucide-react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   areConfigurationFieldsComplete,
-  getSystemFlowState,
   loadSystemConfig,
   sanitizeSystemConfig,
   saveSystemConfig,
@@ -41,188 +40,169 @@ export const Configuration = ({
 
   const router = useRouter();
 
-  const configurationStatusLabel = useMemo(() => {
-    const step = getSystemFlowState(config).systemStep
-
-    if (step === "READY") {
-      return "Configuracoes e calibracao concluidas"
-    }
-    if (step === "LIGHT") {
-      return "Configuracoes concluidas; falta calibracao da luz"
-    }
-    if (areConfigurationFieldsComplete(config)) {
-      return "Configuracao pronta para salvar"
-    }
-    return "Configuracao pendente"
-  }, [config])
-
   const configSteps = [
-    { label: "Área de análise", done: config.analysisAreaConfigured },
-    { label: "Cor e luz base", done: config.colorConfigured && config.ambientLightConfigured },
-    { label: "Tolerância Delta E", done: config.deltaConfigured },
-    { label: "Configuração salva", done: config.configurationSaved },
+    { num: 1, label: "Área de análise", done: config.analysisAreaConfigured },
+    { num: 2, label: "Cor e luz base", done: config.colorConfigured && config.ambientLightConfigured },
+    { num: 3, label: "Tolerância ΔE", done: config.deltaConfigured },
+    { num: 4, label: "Configuração salva", done: config.configurationSaved },
   ]
 
+  const handleSave = async () => {
+    if (!areConfigurationFieldsComplete(config)) {
+      toast.error("Configuração incompleta", {
+        description: "Configure área de análise, cor e Delta E antes de salvar.",
+      });
+      return;
+    }
+
+    const patch = sanitizeSystemConfig({
+      ...config,
+      systemStep: "LIGHT",
+      configurationSaved: true,
+      lightCalibrated: false,
+      updatedAt: new Date().toISOString(),
+    });
+    const updated = onPersistPatch
+      ? ((await onPersistPatch(patch)) as PersistPatchResult | undefined)?.config ?? patch
+      : saveSystemConfig(patch);
+    setConfig(updated);
+    onSaveComplete?.(updated);
+    toast.success("Configuração geral salva");
+    onClose?.();
+  };
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-900/70 backdrop-blur-xl p-8 text-white max-w-3xl mx-auto shadow-[0_24px_64px_-12px_rgba(0,0,0,0.75)]">
-      <div className="text-center mb-6">
-        <h2 className="font-sansserief text-xl font-bold tracking-[0.14em] uppercase text-white">
-          Painel de Configuração
-        </h2>
-        <p className="text-xs text-slate-400 mt-1.5">{configurationStatusLabel}</p>
-      </div>
-
-      <div className="mb-8 grid gap-2.5 rounded-xl border border-white/10 bg-slate-950/60 p-4 sm:grid-cols-2">
-        {configSteps.map((step) => {
-          const Icon = step.done ? CheckCircle2 : Circle;
-
-          return (
-            <div
-              key={step.label}
-              className={`flex items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-xs font-medium border transition-colors ${
-                step.done
-                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
-                  : "bg-slate-900/60 border-white/5 text-slate-400"
-              }`}
-            >
-              <Icon className={`h-4 w-4 shrink-0 ${step.done ? "text-emerald-400" : "text-slate-500"}`} />
-              <span>{step.label}</span>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <button
-          onClick={() => router.push("/painel/config/area-analise")}
-          className="group relative flex flex-col items-center justify-between p-6 rounded-xl bg-slate-950/60 hover:bg-slate-900/90 border border-white/10 hover:border-cyan-400/50 transition-all duration-300 text-center glow-box active:scale-[0.98]"
-        >
-          <div className="w-12 h-12 rounded-xl bg-cyan-500/15 border border-cyan-400/30 flex items-center justify-center text-cyan-400 mb-3 group-hover:scale-105 transition-transform">
-            <Scan size={24} />
-          </div>
-          <div>
-            <p className="font-sansserief text-xs font-semibold tracking-wider uppercase text-white">
-              Área e Detector
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      {/* Coluna Esquerda: Resumo do Lote + Checklist + Botão Salvar */}
+      <div className="lg:col-span-4 rounded-xl border border-stone-200 bg-white p-5 shadow-sm flex flex-col justify-between space-y-5">
+        <div className="space-y-4">
+          <div className="pb-3 border-b border-stone-100">
+            <p className="text-[11px] font-medium text-stone-400">Código do lote</p>
+            <p className="font-mono-tech text-sm font-bold text-stone-900 mt-0.5">
+              {config.activeTissueCode}
             </p>
-            {config.analysisAreaConfigured ? (
-              <>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  {config.sampleAreaWidthPercent}% × {config.sampleAreaHeightPercent}% · {config.samplePoints} pts
-                </p>
+          </div>
+
+          <div className="pb-3 border-b border-stone-100">
+            <p className="text-[11px] font-medium text-stone-400">Cor / Padrão</p>
+            <div className="flex items-center gap-2 mt-1">
+              {config.colorConfigured && !config.estampado && (
                 <span
-                  className={`inline-block mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase border ${
-                    config.estampado
-                      ? "bg-amber-500/15 border-amber-500/35 text-amber-300"
-                      : "bg-cyan-500/15 border-cyan-500/35 text-cyan-300"
-                  }`}
-                >
-                  {config.estampado ? "Anomalib · Detalhado" : "OpenCV · Liso"}
-                </span>
-              </>
-            ) : (
-              <>
-                <p className="text-[11px] text-slate-500 mt-1">Definir ROI e modo IA</p>
-                <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-medium uppercase border border-white/10 bg-slate-900 text-slate-400">
-                  Pendente
-                </span>
-              </>
-            )}
+                  className="w-4 h-4 rounded border border-stone-300 shrink-0"
+                  style={{ backgroundColor: config.referenceColorHex }}
+                />
+              )}
+              <p className="text-xs font-semibold text-stone-900">
+                {config.colorConfigured
+                  ? config.estampado
+                    ? "Imagens capturadas (IA)"
+                    : config.referenceColorHex
+                  : "Aguardando captura"}
+              </p>
+            </div>
           </div>
-        </button>
 
-        <button
-          onClick={() => router.push("/painel/config/capturar-cor")}
-          className="group relative flex flex-col items-center justify-between p-6 rounded-xl bg-slate-950/60 hover:bg-slate-900/90 border border-white/10 hover:border-cyan-400/50 transition-all duration-300 text-center glow-box active:scale-[0.98]"
-        >
-          <div className="w-12 h-12 rounded-xl bg-cyan-500/15 border border-cyan-400/30 flex items-center justify-center text-cyan-400 mb-3 group-hover:scale-105 transition-transform">
-            <SwatchBook size={24} />
-          </div>
           <div>
-            <p className="font-sansserief text-xs font-semibold tracking-wider uppercase text-white">
-              {config.estampado ? "Capturar Imagens Detalhadas" : "Capturar Cor"}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              {config.estampado ? "Amostras do tecido bom (Anomalib)" : "Luz base D65 e paleta"}
-            </p>
-            {config.colorConfigured ? (
-              config.estampado ? (
-                <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase border bg-emerald-500/15 border-emerald-500/35 text-emerald-300">
-                  Imagens Capturadas
-                </span>
-              ) : (
-                <div className="inline-flex items-center gap-2 mt-2 px-2.5 py-0.5 rounded-full bg-slate-900 border border-white/15">
-                  <span
-                    className="w-3 h-3 rounded-full border border-white/30"
-                    style={{ backgroundColor: config.referenceColorHex }}
-                  />
-                  <span className="font-mono-tech text-[10px] text-slate-200">
-                    {config.referenceColorHex}
+            <p className="text-[11px] font-medium text-stone-400 mb-2.5">Checklist</p>
+            <div className="space-y-2">
+              {configSteps.map((step) => (
+                <div
+                  key={step.label}
+                  className="flex items-center gap-2.5 text-xs"
+                >
+                  {step.done ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <span className="w-4 h-4 rounded-full bg-stone-100 border border-stone-200 text-stone-500 text-[10px] font-semibold flex items-center justify-center shrink-0">
+                      {step.num}
+                    </span>
+                  )}
+                  <span className={step.done ? "font-medium text-stone-900" : "text-stone-500"}>
+                    {step.label}
                   </span>
                 </div>
-              )
-            ) : (
-              <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-medium uppercase border border-white/10 bg-slate-900 text-slate-400">
-                Pendente
-              </span>
-            )}
+              ))}
+            </div>
           </div>
-        </button>
+        </div>
 
         <button
-          onClick={() => router.push("/painel/config/tolerancia-delta-e")}
-          className="group relative flex flex-col items-center justify-between p-6 rounded-xl bg-slate-950/60 hover:bg-slate-900/90 border border-white/10 hover:border-cyan-400/50 transition-all duration-300 text-center glow-box active:scale-[0.98]"
+          type="button"
+          onClick={handleSave}
+          className="w-full h-10 flex items-center justify-center gap-2 rounded-lg bg-stone-900 hover:bg-stone-800 text-white font-semibold text-xs shadow-sm transition-colors"
         >
-          <div className="w-12 h-12 rounded-xl bg-cyan-500/15 border border-cyan-400/30 flex items-center justify-center text-cyan-400 mb-3 group-hover:scale-105 transition-transform">
-            <Triangle size={24} />
-          </div>
-          <div>
-            <p className="font-sansserief text-xs font-semibold tracking-wider uppercase text-white">
-              Tolerância Delta E
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1">Rigor colorimétrico</p>
-            {config.deltaConfigured ? (
-              <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full bg-slate-900 border border-white/15 font-mono-tech text-[10px] text-cyan-300">
-                ΔE ≤ {config.deltaE}
-              </span>
-            ) : (
-              <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-medium uppercase border border-white/10 bg-slate-900 text-slate-400">
-                Pendente
-              </span>
-            )}
-          </div>
+          <Save className="w-3.5 h-3.5" />
+          <span>Salvar Configuração</span>
         </button>
       </div>
 
-      <button
-        onClick={async () => {
-          if (!areConfigurationFieldsComplete(config)) {
-            toast.error("Configuração incompleta", {
-              description: "Configure área de análise, cor e Delta E antes de salvar.",
-            });
-            return;
-          }
+      {/* Coluna Direita: 3 Cartões de Etapas */}
+      <div className="lg:col-span-8 space-y-3.5">
+        <button
+          type="button"
+          onClick={() => router.push("/painel/config/area-analise")}
+          className="w-full group flex items-center justify-between gap-4 p-5 rounded-xl bg-white border border-stone-200 hover:border-stone-400 shadow-sm transition-all text-left"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-lg bg-orange-50 border border-orange-200 text-[#B85D3B] flex items-center justify-center shrink-0">
+              <Scan className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-stone-900">Área e Detector</p>
+              <p className="font-mono-tech text-xs text-stone-500 mt-0.5">
+                {config.analysisAreaConfigured
+                  ? `${config.sampleAreaWidthPercent}% × ${config.sampleAreaHeightPercent}% · ${config.samplePoints} pts · ${config.estampado ? "Anomalib" : "OpenCV"}`
+                  : "Definir ROI, pontos e modo (OpenCV / Anomalib)"}
+              </p>
+            </div>
+          </div>
+          <ArrowRight className="w-4 h-4 text-stone-400 group-hover:text-stone-900 group-hover:translate-x-0.5 transition-all shrink-0" />
+        </button>
 
-          const patch = sanitizeSystemConfig({
-            ...config,
-            systemStep: "LIGHT",
-            configurationSaved: true,
-            lightCalibrated: false,
-            updatedAt: new Date().toISOString(),
-          });
-          const updated = onPersistPatch
-            ? ((await onPersistPatch(patch)) as PersistPatchResult | undefined)?.config ?? patch
-            : saveSystemConfig(patch);
-          setConfig(updated);
-          onSaveComplete?.(updated);
-          toast.success("Configuração geral salva");
-          onClose?.();
-        }}
-        className="w-full h-12 flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-semibold text-xs tracking-[0.18em] uppercase shadow-[0_0_25px_rgba(6,182,212,0.3)] hover:shadow-[0_0_32px_rgba(6,182,212,0.5)] transition-all active:scale-[0.99]"
-      >
-        <Save size={18} />
-        <span>Salvar Configuração Geral</span>
-      </button>
+        <button
+          type="button"
+          onClick={() => router.push("/painel/config/capturar-cor")}
+          className="w-full group flex items-center justify-between gap-4 p-5 rounded-xl bg-white border border-stone-200 hover:border-stone-400 shadow-sm transition-all text-left"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-lg bg-stone-100 border border-stone-200 text-stone-700 flex items-center justify-center shrink-0">
+              <SwatchBook className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-stone-900">
+                {config.estampado ? "Capturar Imagens e Luz" : "Capturar Cor e Luz"}
+              </p>
+              <p className="text-xs text-stone-500 mt-0.5">
+                {config.colorConfigured
+                  ? config.estampado
+                    ? "Imagens de referência capturadas"
+                    : `Cor padrão ${config.referenceColorHex} · Luz base registrada`
+                  : "Ainda não capturada"}
+              </p>
+            </div>
+          </div>
+          <ArrowRight className="w-4 h-4 text-stone-400 group-hover:text-stone-900 group-hover:translate-x-0.5 transition-all shrink-0" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push("/painel/config/tolerancia-delta-e")}
+          className="w-full group flex items-center justify-between gap-4 p-5 rounded-xl bg-white border border-stone-200 hover:border-stone-400 shadow-sm transition-all text-left"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-lg bg-stone-100 border border-stone-200 text-stone-700 flex items-center justify-center shrink-0">
+              <Triangle className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-stone-900">Tolerância ΔE</p>
+              <p className="font-mono-tech text-xs text-stone-500 mt-0.5">
+                {config.deltaConfigured ? `ΔE ≤ ${config.deltaE}` : "Definir limite máximo de desvio"}
+              </p>
+            </div>
+          </div>
+          <ArrowRight className="w-4 h-4 text-stone-400 group-hover:text-stone-900 group-hover:translate-x-0.5 transition-all shrink-0" />
+        </button>
+      </div>
     </div>
   );
 };

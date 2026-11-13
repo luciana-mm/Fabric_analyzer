@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LocateFixed, Save, Info } from "lucide-react";
+import { Check, Info } from "lucide-react";
 import type { DeltaEValue } from "@/lib/systemConfig";
 
 interface DeltaEProps {
@@ -11,54 +11,71 @@ interface DeltaEProps {
 export const DeltaE = ({ onBack, initialDelta, onSave }: DeltaEProps) => {
   const [selectedDelta, setSelectedDelta] = useState<DeltaEValue>(initialDelta);
 
-  const deltaOptions: { value: DeltaEValue; title: string; precision: string; desc: string }[] = [
+  const deltaOptions: { value: DeltaEValue; title: string; badge: string; desc: string }[] = [
     {
       value: 1,
-      title: "ΔE ≤ 1",
-      precision: "Precisão ≥ 80%",
-      desc: "Rigor máximo. Diferença quase imperceptível ao olho humano.",
+      title: "Rigoroso",
+      badge: "1.0",
+      desc: "Diferença quase imperceptível ao olho humano.",
     },
     {
       value: 2,
-      title: "ΔE ≤ 2",
-      precision: "Precisão ≥ 70%",
-      desc: "Padrão industrial têxtil. Perceptível apenas sob inspeção próxima.",
+      title: "Padrão",
+      badge: "2.0",
+      desc: "Recomendado para a maioria dos lotes industriais.",
     },
     {
       value: 3,
-      title: "ΔE ≤ 3",
-      precision: "Precisão ≥ 60%",
-      desc: "Tolerância comercial para lotes com maior variação aceitável.",
+      title: "Flexível",
+      badge: "3.0",
+      desc: "Aceita variações visíveis leves.",
     },
   ];
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-900/75 backdrop-blur-xl p-8 text-white max-w-2xl mx-auto text-sm shadow-[0_24px_64px_-12px_rgba(0,0,0,0.8)]">
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div>
-          <h2 className="font-sansserief text-lg font-bold tracking-[0.14em] uppercase text-white">
-            Tolerância Colorimétrica (ΔE)
-          </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Selecione o limite máximo aceitável de diferença de cor CIELAB (CIE76 / ΔE) para aprovação.
+    <div className="rounded-xl border border-stone-200 bg-white p-7 text-stone-900 shadow-sm space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 text-center">
+          <p className="text-xs font-medium text-stone-500">Limite máximo</p>
+          <p className="mt-1 font-mono-tech text-3xl font-bold text-stone-900">
+            ΔE ≤ {selectedDelta.toFixed(1)}
           </p>
         </div>
 
         <div className="group relative flex items-center justify-center shrink-0">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-950/70 border border-white/10 text-xs text-slate-300 cursor-pointer hover:border-cyan-400/40">
-            <Info size={14} className="text-cyan-400" />
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100 border border-stone-200 text-xs text-stone-600 cursor-pointer hover:border-stone-400">
+            <Info size={13} className="text-stone-500" />
             <span>O que é ΔE?</span>
           </div>
-          <div className="absolute right-0 top-full mt-2 hidden group-hover:block w-72 p-4 bg-slate-950/95 text-xs text-white rounded-xl shadow-2xl border border-white/15 z-50 backdrop-blur-xl">
-            <p className="font-semibold text-cyan-300 mb-1.5">Distância no espaço CIELAB</p>
-            <p className="text-slate-300 mb-2 leading-relaxed">
+          <div className="absolute right-0 top-full mt-2 hidden group-hover:block w-68 p-3.5 bg-white text-xs text-stone-700 rounded-xl shadow-xl border border-stone-200 z-50">
+            <p className="font-semibold text-stone-900 mb-1">Distância no espaço CIELAB</p>
+            <p className="leading-relaxed">
               Quanto menor o valor de ΔE, mais rigorosa é a exigência de fidelidade em relação à cor padrão capturada.
             </p>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      {/* Slider */}
+      <div className="space-y-1.5 px-1">
+        <input
+          type="range"
+          min={1}
+          max={3}
+          step={1}
+          value={selectedDelta}
+          onChange={(e) => setSelectedDelta(Number(e.target.value) as DeltaEValue)}
+          className="w-full h-2 rounded-lg accent-stone-900 cursor-pointer bg-stone-200"
+        />
+        <div className="flex justify-between font-mono-tech text-[11px] text-stone-400">
+          <span>1.0</span>
+          <span>2.0</span>
+          <span>3.0</span>
+        </div>
+      </div>
+
+      {/* 3 Opções */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {deltaOptions.map((option) => {
           const active = selectedDelta === option.value;
           return (
@@ -66,55 +83,35 @@ export const DeltaE = ({ onBack, initialDelta, onSave }: DeltaEProps) => {
               key={option.value}
               type="button"
               onClick={() => setSelectedDelta(option.value)}
-              className={`flex flex-col items-start justify-between p-5 rounded-xl border text-left transition-all duration-200 ${
+              className={`flex flex-col justify-between p-4 rounded-xl border text-left transition-all ${
                 active
-                  ? "bg-cyan-500/15 border-cyan-400 text-white shadow-[0_0_24px_rgba(6,182,212,0.22)]"
-                  : "bg-slate-950/60 border-white/10 text-slate-300 hover:bg-slate-900 hover:border-white/20"
+                  ? "bg-orange-50/70 border-[#B85D3B] ring-1 ring-[#B85D3B]/30"
+                  : "bg-white border-stone-200 hover:border-stone-300"
               }`}
             >
-              <div className="flex items-center justify-between w-full mb-3">
-                <div
-                  className={`w-10 h-10 rounded-lg flex items-center justify-center border ${
-                    active
-                      ? "bg-cyan-500/20 border-cyan-400/40 text-cyan-300"
-                      : "bg-slate-900 border-white/10 text-slate-400"
-                  }`}
-                >
-                  <LocateFixed className="w-5 h-5" />
-                </div>
-                <span
-                  className={`px-2.5 py-0.5 rounded-full font-mono-tech text-[11px] font-semibold border ${
-                    active
-                      ? "bg-cyan-500/20 border-cyan-400/40 text-cyan-200"
-                      : "bg-slate-900 border-white/10 text-slate-400"
-                  }`}
-                >
-                  {option.precision}
+              <div className="flex items-center justify-between w-full mb-2">
+                <p className="text-sm font-semibold text-stone-900">{option.title}</p>
+                <span className="font-mono-tech text-xs font-semibold text-stone-700">
+                  {option.badge}
                 </span>
               </div>
-
-              <div>
-                <p className="font-sansserief text-base font-bold text-white">{option.title}</p>
-                <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{option.desc}</p>
-              </div>
+              <p className="text-xs text-stone-500 leading-relaxed">{option.desc}</p>
             </button>
           );
         })}
       </div>
 
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={async () => {
-            await onSave(selectedDelta);
-            onBack();
-          }}
-          className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-semibold text-xs tracking-wider uppercase shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all"
-        >
-          <Save className="w-4 h-4" />
-          <span>Salvar Tolerância</span>
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={async () => {
+          await onSave(selectedDelta);
+          onBack();
+        }}
+        className="w-full h-11 inline-flex items-center justify-center gap-2 rounded-lg bg-stone-900 hover:bg-stone-800 text-white font-semibold text-xs shadow-sm transition-colors"
+      >
+        <Check className="w-4 h-4" />
+        <span>Confirmar tolerância</span>
+      </button>
     </div>
   );
 };

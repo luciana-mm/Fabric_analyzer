@@ -2,11 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { ArrowRight, Lock, Mail, Microscope } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
-import gridBg from "@/assets/grid-bg.jpg";
 import { useAuth, type AuthUser } from "@/hooks/useAuth";
 import { clearSystemConfigCache } from "@/lib/systemConfig";
 
@@ -100,75 +98,77 @@ const Login = () => {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden p-6 bg-[#050811]">
-      <Image
-        src={gridBg}
-        alt=""
-        fill
-        className="absolute inset-0 object-cover opacity-25 mix-blend-luminosity"
-        sizes="100vw"
-        quality={85}
-        priority
-      />
-      <div className="absolute inset-0 industrial-bg" />
-      <div className="pointer-events-none absolute -top-32 left-1/2 -translate-x-1/2 w-[520px] h-[320px] rounded-full bg-cyan-500/15 blur-[110px]" />
-
-      <div className="relative z-10 w-full max-w-md">
-        <div className="flex flex-col items-center mb-8">
-          <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/10 border border-cyan-400/30 flex items-center justify-center mb-4 shadow-[0_0_30px_rgba(6,182,212,0.2)]">
-            <Microscope className="w-8 h-8 text-cyan-400" />
-          </div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[10px] font-medium tracking-[0.22em] text-cyan-300 uppercase mb-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-            Visão Computacional Têxtil
-          </div>
-          <h1 className="font-sansserief text-3xl font-bold tracking-[0.18em] text-white leading-tight">
-            META
-          </h1>
-          <p className="text-xs tracking-[0.22em] text-slate-400 uppercase mt-1">
-            Inspeção e Classificação de Tecidos
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-[#F7F6F3]">
+      {/* Painel Esquerdo: Hero Têxtil Terracota */}
+      <div
+        className="relative hidden lg:flex flex-col justify-end p-12 overflow-hidden text-white"
+        style={{
+          backgroundColor: "#8C3B2B",
+          backgroundImage:
+            "radial-gradient(circle at 20% 20%, rgba(214, 118, 86, 0.45), transparent 55%), radial-gradient(circle at 80% 75%, rgba(62, 22, 14, 0.65), transparent 60%), repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 6px), repeating-linear-gradient(-45deg, rgba(0,0,0,0.04) 0px, rgba(0,0,0,0.04) 2px, transparent 2px, transparent 6px)",
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-transparent" />
+        <div className="relative z-10 max-w-md space-y-3">
+          <h2 className="text-4xl font-bold tracking-tight leading-tight">
+            Cada metro de tecido,
+            <br />
+            na cor certa.
+          </h2>
+          <p className="text-sm text-stone-200/90 leading-relaxed">
+            Inspeção colorimétrica e detecção de defeitos em tempo real, direto da bancada.
           </p>
         </div>
+      </div>
 
-        <div className="rounded-2xl border border-white/10 bg-slate-900/70 backdrop-blur-xl p-8 shadow-[0_24px_64px_-12px_rgba(0,0,0,0.75)]">
-          <div className="mb-6">
-            <h2 className="text-base font-semibold text-white">Acesso ao Sistema</h2>
-            <p className="text-xs text-slate-400 mt-1">
-              Entre com suas credenciais de Operador ou Gestor.
-            </p>
+      {/* Painel Direito: Formulário Limpo */}
+      <div className="flex items-center justify-center p-6 md:p-12 bg-[#FAF9F6]">
+        <div className="w-full max-w-sm space-y-7">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-stone-900 text-white flex items-center justify-center shadow-sm">
+              <Microscope className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-stone-900 leading-none">
+                META
+              </h1>
+              <p className="text-xs text-stone-500 mt-1">
+                Fabric Analyzer
+              </p>
+            </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
               <label
                 htmlFor="email"
-                className="block text-xs font-medium tracking-wider uppercase text-slate-300"
+                className="block text-xs font-medium text-stone-700"
               >
-                E-mail Corporativo
+                E-mail
               </label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                 <input
                   id="email"
                   type="email"
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="operador@local"
-                  className="w-full h-11 pl-10 pr-3.5 rounded-xl bg-slate-950/70 border border-white/10 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-500/20 transition-all"
+                  placeholder="voce@empresa.com.br"
+                  className="w-full h-11 pl-10 pr-3.5 rounded-lg bg-white border border-stone-200 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-stone-900 focus:ring-2 focus:ring-stone-900/10 transition-all"
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label
                 htmlFor="password"
-                className="block text-xs font-medium tracking-wider uppercase text-slate-300"
+                className="block text-xs font-medium text-stone-700"
               >
                 Senha
               </label>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                 <input
                   id="password"
                   type="password"
@@ -176,7 +176,7 @@ const Login = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full h-11 pl-10 pr-3.5 rounded-xl bg-slate-950/70 border border-white/10 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-500/20 transition-all"
+                  className="w-full h-11 pl-10 pr-3.5 rounded-lg bg-white border border-stone-200 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-stone-900 focus:ring-2 focus:ring-stone-900/10 transition-all"
                 />
               </div>
             </div>
@@ -184,9 +184,9 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-12 mt-2 flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-semibold text-xs tracking-[0.18em] uppercase shadow-[0_0_25px_rgba(6,182,212,0.35)] hover:shadow-[0_0_32px_rgba(6,182,212,0.55)] transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-11 mt-2 flex items-center justify-center gap-2 rounded-lg bg-stone-900 hover:bg-stone-800 text-white font-medium text-sm shadow-sm transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? "Autenticando..." : "Entrar no Painel"}
+              {loading ? "Autenticando..." : "Acessar Estação"}
               {!loading && <ArrowRight className="w-4 h-4" />}
             </button>
           </form>

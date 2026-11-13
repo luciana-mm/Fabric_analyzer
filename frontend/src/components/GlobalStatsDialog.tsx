@@ -60,31 +60,31 @@ export const GlobalStatsDialog = ({ open, onOpenChange }: GlobalStatsDialogProps
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         data-report-print
-        className="max-w-4xl max-h-[88vh] overflow-y-auto bg-[#0a0c14] text-white border-slate-800"
+        className="max-w-4xl max-h-[88vh] overflow-y-auto border-stone-200 bg-white text-stone-900"
       >
         <DialogHeader>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
-              <BarChart3 className="w-6 h-6 text-blue-500" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-orange-200 bg-orange-50">
+              <BarChart3 className="h-6 w-6 text-[#B85D3B]" />
             </div>
             <div>
-              <DialogTitle className="font-sansserief tracking-[0.2em] uppercase text-lg">
+              <DialogTitle className="text-lg font-semibold text-stone-900">
                 Relatório Global de Operações
               </DialogTitle>
-              <DialogDescription className="text-[11px] tracking-[0.25em] uppercase text-slate-400">
+              <DialogDescription className="text-xs text-stone-500">
                 Consolidado de Qualidade · Tecidos Lisos (OpenCV) e Detalhados (Anomalib)
               </DialogDescription>
-              <p className="mt-1 text-xs text-slate-500">Período: {reportPeriodLabel}</p>
+              <p className="mt-1 text-xs text-stone-500">Período: {reportPeriodLabel}</p>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="space-y-6 mt-4">
+        <div className="mt-4 space-y-6">
           <div data-no-print className="flex flex-wrap items-center gap-3">
             <select
               value={period}
               onChange={(event) => setPeriod(event.target.value as GlobalReportPeriod)}
-              className="block w-[170px] bg-slate-900 border border-slate-800 text-slate-300 rounded-lg p-2.5 text-xs font-medium uppercase tracking-wider cursor-pointer transition-colors focus:outline-none focus:border-blue-500"
+              className="block w-[170px] cursor-pointer rounded-lg border border-stone-200 bg-white p-2.5 text-xs font-medium uppercase tracking-wider text-stone-700 transition-colors focus:border-[#B85D3B] focus:outline-none"
             >
               <option value="daily">Diário</option>
               <option value="weekly">Semanal</option>
@@ -95,7 +95,7 @@ export const GlobalStatsDialog = ({ open, onOpenChange }: GlobalStatsDialogProps
             </select>
 
             {isLoading && (
-              <div className="flex items-center gap-2 text-xs text-slate-400">
+              <div className="flex items-center gap-2 text-xs text-stone-500">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Carregando relatório...
               </div>
@@ -105,7 +105,7 @@ export const GlobalStatsDialog = ({ open, onOpenChange }: GlobalStatsDialogProps
               type="button"
               onClick={handlePrint}
               disabled={isLoading || isError || isCustomRangeInvalid}
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 text-xs font-medium uppercase tracking-wider text-slate-300 transition-colors hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-stone-700 transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Printer className="h-4 w-4" />
               Imprimir / PDF
@@ -115,32 +115,32 @@ export const GlobalStatsDialog = ({ open, onOpenChange }: GlobalStatsDialogProps
           {period === "custom" && (
             <div data-no-print className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1.5">
-                <span className="block text-[10px] uppercase tracking-[0.25em] text-slate-500">
+                <span className="block text-[10px] font-medium uppercase tracking-wider text-stone-500">
                   Data inicial
                 </span>
                 <div className="relative">
-                  <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                   <input
                     type="date"
                     value={customStartDate}
                     onChange={(event) => setCustomStartDate(event.target.value)}
-                    className="h-10 w-full rounded-lg border border-slate-800 bg-slate-900 py-2 pl-10 pr-3 text-sm text-slate-200 outline-none transition-colors focus:border-blue-500"
+                    className="h-10 w-full rounded-lg border border-stone-200 bg-white py-2 pl-10 pr-3 text-sm text-stone-900 outline-none transition-colors focus:border-[#B85D3B]"
                   />
                 </div>
               </label>
 
               <label className="space-y-1.5">
-                <span className="block text-[10px] uppercase tracking-[0.25em] text-slate-500">
+                <span className="block text-[10px] font-medium uppercase tracking-wider text-stone-500">
                   Data final
                 </span>
                 <div className="relative">
-                  <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                   <input
                     type="date"
                     value={customEndDate}
                     min={customStartDate}
                     onChange={(event) => setCustomEndDate(event.target.value)}
-                    className="h-10 w-full rounded-lg border border-slate-800 bg-slate-900 py-2 pl-10 pr-3 text-sm text-slate-200 outline-none transition-colors focus:border-blue-500"
+                    className="h-10 w-full rounded-lg border border-stone-200 bg-white py-2 pl-10 pr-3 text-sm text-stone-900 outline-none transition-colors focus:border-[#B85D3B]"
                   />
                 </div>
               </label>
@@ -148,101 +148,101 @@ export const GlobalStatsDialog = ({ open, onOpenChange }: GlobalStatsDialogProps
           )}
 
           {isCustomRangeInvalid && (
-            <p className="text-xs text-rose-300">
+            <p className="text-xs text-rose-600">
               A data final precisa ser igual ou posterior à data inicial.
             </p>
           )}
 
           {isError && (
-            <p className="text-xs text-rose-300">
+            <p className="text-xs text-rose-600">
               Não foi possível carregar o relatório. Verifique as permissões da tabela analysis_records.
             </p>
           )}
 
           {/* Indicadores Principais */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-            <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
-              <div className="flex items-center gap-2 text-slate-400 text-[10px] tracking-[0.18em] uppercase mb-1.5">
-                <Layers className="w-3.5 h-3.5" /> Produção Total
+          <div className="grid grid-cols-2 gap-3.5 md:grid-cols-4">
+            <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+              <div className="mb-1.5 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-stone-500">
+                <Layers className="h-3.5 w-3.5" /> Produção Total
               </div>
-              <p className="text-2xl font-bold font-mono-tech">{stats.verified.toLocaleString("pt-BR")}</p>
-              <p className="text-[11px] text-slate-400 mt-1">
+              <p className="font-mono text-2xl font-bold text-stone-900">{stats.verified.toLocaleString("pt-BR")}</p>
+              <p className="mt-1 text-[11px] text-stone-500">
                 {stats.patternedVerified} detalhado(s) · {stats.plainVerified} liso(s)
               </p>
             </div>
 
-            <div className="p-4 rounded-xl border border-amber-500/35 bg-amber-500/10">
-              <div className="flex items-center gap-2 text-amber-300 text-[10px] tracking-[0.18em] uppercase mb-1.5">
-                <Sparkles className="w-3.5 h-3.5" /> Defeitos (Detalhado)
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+              <div className="mb-1.5 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-amber-800">
+                <Sparkles className="h-3.5 w-3.5" /> Defeitos (Detalhado)
               </div>
-              <p className="text-2xl font-bold font-mono-tech text-amber-300">
+              <p className="font-mono text-2xl font-bold text-amber-700">
                 {stats.patternedDefects.toLocaleString("pt-BR")}
               </p>
-              <p className="text-[11px] text-amber-200/75 mt-1">
+              <p className="mt-1 text-[11px] text-amber-700/80">
                 Detectados pelo Anomalib
               </p>
             </div>
 
-            <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10">
-              <div className="flex items-center gap-2 text-rose-300 text-[10px] tracking-[0.18em] uppercase mb-1.5">
-                <AlertTriangle className="w-3.5 h-3.5" /> Total de Defeitos
+            <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-4">
+              <div className="mb-1.5 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-rose-800">
+                <AlertTriangle className="h-3.5 w-3.5" /> Total de Defeitos
               </div>
-              <p className="text-2xl font-bold font-mono-tech text-rose-400">
+              <p className="font-mono text-2xl font-bold text-rose-700">
                 {stats.totalDefects.toLocaleString("pt-BR")}
               </p>
-              <p className="text-[11px] text-rose-200/75 mt-1">
+              <p className="mt-1 text-[11px] text-rose-700/80">
                 Soma de falhas físicas nos lotes
               </p>
             </div>
 
-            <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
-              <div className="flex items-center gap-2 text-slate-400 text-[10px] tracking-[0.18em] uppercase mb-1.5">
-                <Clock className="w-3.5 h-3.5" /> Ritmo Médio
+            <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+              <div className="mb-1.5 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wider text-stone-500">
+                <Clock className="h-3.5 w-3.5" /> Ritmo Médio
               </div>
-              <p className="text-2xl font-bold font-mono-tech">{stats.avgTime}</p>
-              <p className="text-[11px] text-slate-400 mt-1">Por leitura registrada</p>
+              <p className="font-mono text-2xl font-bold text-stone-900">{stats.avgTime}</p>
+              <p className="mt-1 text-[11px] text-stone-500">Por leitura registrada</p>
             </div>
           </div>
 
-          <section className="p-5 rounded-xl border border-slate-800 bg-slate-900/30">
-            <h3 className="text-[11px] tracking-[0.3em] uppercase text-slate-400 mb-4 flex items-center gap-2">
-              <TrendingUp className="w-3.5 h-3.5 text-cyan-400" /> Eficiência da Planta
+          <section className="rounded-xl border border-stone-200 bg-stone-50 p-5">
+            <h3 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-stone-600">
+              <TrendingUp className="h-3.5 w-3.5 text-[#B85D3B]" /> Eficiência da Planta
             </h3>
             <div className="space-y-4">
               <div>
-                <div className="flex justify-between text-xs mb-2">
-                  <span className="text-emerald-400 uppercase tracking-tighter">
+                <div className="mb-2 flex justify-between text-xs">
+                  <span className="font-medium uppercase tracking-tight text-emerald-700">
                     Taxa de Aprovação ({stats.success} ok)
                   </span>
-                  <span className="font-mono-tech font-semibold">{successRate}%</span>
+                  <span className="font-mono font-semibold text-stone-900">{successRate}%</span>
                 </div>
-                <Progress value={Number(successRate)} className="h-2 bg-slate-800 accent-emerald-500" />
+                <Progress value={Number(successRate)} className="h-2 bg-stone-200" />
               </div>
               <div>
-                <div className="flex justify-between text-xs mb-2">
-                  <span className="text-rose-400 uppercase tracking-tighter">
+                <div className="mb-2 flex justify-between text-xs">
+                  <span className="font-medium uppercase tracking-tight text-rose-700">
                     Taxa de Rejeição ({stats.failure} reprovados)
                   </span>
-                  <span className="font-mono-tech font-semibold">{failureRate}%</span>
+                  <span className="font-mono font-semibold text-stone-900">{failureRate}%</span>
                 </div>
-                <Progress value={Number(failureRate)} className="h-2 bg-slate-800 accent-rose-500" />
+                <Progress value={Number(failureRate)} className="h-2 bg-stone-200" />
               </div>
             </div>
           </section>
 
           {stats.errorBreakdown.length > 0 && (
-            <section className="p-5 rounded-xl border border-slate-800 bg-slate-900/30">
-              <h3 className="text-[11px] tracking-[0.3em] uppercase text-slate-400 mb-3 flex items-center gap-2">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" /> Principais Ocorrências / Motivos de Falha
+            <section className="rounded-xl border border-stone-200 bg-stone-50 p-5">
+              <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-stone-600">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-600" /> Principais Ocorrências / Motivos de Falha
               </h3>
               <div className="space-y-2.5">
                 {stats.errorBreakdown.map((item) => (
                   <div key={item.label} className="space-y-1">
                     <div className="flex justify-between text-xs">
-                      <span className="text-slate-200">{item.label}</span>
-                      <span className="font-mono-tech text-amber-300 font-semibold">{item.percentage}%</span>
+                      <span className="text-stone-700">{item.label}</span>
+                      <span className="font-mono font-semibold text-amber-700">{item.percentage}%</span>
                     </div>
-                    <Progress value={item.percentage} className="h-1.5 bg-slate-800" />
+                    <Progress value={item.percentage} className="h-1.5 bg-stone-200" />
                   </div>
                 ))}
               </div>
@@ -250,18 +250,18 @@ export const GlobalStatsDialog = ({ open, onOpenChange }: GlobalStatsDialogProps
           )}
 
           <section>
-            <h3 className="text-[11px] tracking-[0.3em] uppercase text-slate-400 mb-3 flex items-center gap-2">
-              <Layers className="w-3.5 h-3.5 text-cyan-400" /> Desempenho por Operador no Período
+            <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-stone-600">
+              <Layers className="h-3.5 w-3.5 text-[#B85D3B]" /> Desempenho por Operador no Período
             </h3>
-            <div className="rounded-lg border border-slate-800 bg-slate-900/50 overflow-hidden">
+            <div className="overflow-hidden rounded-lg border border-stone-200 bg-white">
               {stats.employeePerformance.length === 0 && (
-                <div className="px-4 py-3 text-xs text-slate-500">
+                <div className="px-4 py-3 text-xs text-stone-500">
                   Nenhum funcionário com produção registrada neste período.
                 </div>
               )}
               {stats.employeePerformance.length > 0 && (
                 <>
-                  <div className="grid grid-cols-12 gap-2 border-b border-slate-800 px-4 py-3 text-[10px] uppercase tracking-[0.18em] text-slate-400">
+                  <div className="grid grid-cols-12 gap-2 border-b border-stone-200 bg-stone-50 px-4 py-3 text-[10px] font-semibold uppercase tracking-wider text-stone-500">
                     <div className="col-span-4">Funcionário</div>
                     <div className="col-span-2">Turno</div>
                     <div className="col-span-1 text-right">Total</div>
@@ -272,25 +272,25 @@ export const GlobalStatsDialog = ({ open, onOpenChange }: GlobalStatsDialogProps
                   {stats.employeePerformance.map((employee) => (
                     <div
                       key={employee.userId}
-                      className="grid grid-cols-12 gap-2 border-b border-slate-800/70 px-4 py-3 text-xs items-center last:border-b-0"
+                      className="grid grid-cols-12 items-center gap-2 border-b border-stone-100 px-4 py-3 text-xs last:border-b-0"
                     >
                       <div className="col-span-4 min-w-0">
-                        <p className="truncate text-slate-200 font-medium">{employee.name}</p>
-                        <p className="mt-0.5 truncate text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                        <p className="truncate font-medium text-stone-900">{employee.name}</p>
+                        <p className="mt-0.5 truncate text-[10px] uppercase tracking-wider text-stone-500">
                           {employee.id} - {employee.role}
                         </p>
                       </div>
-                      <div className="col-span-2 text-slate-400">{employee.shift}</div>
-                      <div className="col-span-1 text-right font-mono-tech font-semibold text-slate-100">
+                      <div className="col-span-2 text-stone-500">{employee.shift}</div>
+                      <div className="col-span-1 text-right font-mono font-semibold text-stone-900">
                         {employee.verified}
                       </div>
-                      <div className="col-span-1 text-right font-mono-tech text-emerald-300">
+                      <div className="col-span-1 text-right font-mono text-emerald-700">
                         {employee.success}
                       </div>
-                      <div className="col-span-2 text-right font-mono-tech text-rose-300">
+                      <div className="col-span-2 text-right font-mono text-rose-700">
                         {employee.failure}
                       </div>
-                      <div className="col-span-2 text-right font-mono-tech font-semibold text-amber-300">
+                      <div className="col-span-2 text-right font-mono font-semibold text-amber-700">
                         {employee.totalDefects} ({employee.patternedDefects} det.)
                       </div>
                     </div>

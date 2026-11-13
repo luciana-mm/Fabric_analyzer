@@ -116,21 +116,21 @@ export function CftvMosaicPlayer({
   }[effectiveGrid];
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-900/75 backdrop-blur-xl p-5 shadow-2xl space-y-4">
+    <div className="space-y-4 rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
       {/* Barra de Controle do Mosaico */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-white/10">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-stone-200 pb-3.5">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-400/30 flex items-center justify-center text-cyan-400">
-            <LayoutGrid className="w-5 h-5" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-[#B85D3B]">
+            <LayoutGrid className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="text-sm font-bold tracking-wider uppercase text-white flex items-center gap-2">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-stone-900">
               Player CFTV Multi-Câmera (Mosaico)
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono-tech bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-mono text-[10px] font-medium text-emerald-700">
                 {allCameras.length} Canais Ativos
               </span>
             </h3>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-xs text-stone-500">
               Lazy-loading automático de streams fora de foco · Suporte a MJPEG, DroidCam & IA Overlay
             </p>
           </div>
@@ -138,35 +138,35 @@ export function CftvMosaicPlayer({
 
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Modo Stream Bruto vs Analisado IA */}
-          <div className="flex items-center rounded-xl bg-slate-950/90 border border-white/10 p-0.5 text-xs">
+          <div className="flex items-center rounded-lg border border-stone-200 bg-stone-100 p-0.5 text-xs">
             <button
               type="button"
               onClick={() => setStreamMode("raw")}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-all ${
                 streamMode === "raw"
-                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/30"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-white text-stone-900 shadow-sm"
+                  : "text-stone-600 hover:text-stone-900"
               }`}
             >
-              <Video className="w-3.5 h-3.5" />
+              <Video className="h-3.5 w-3.5" />
               Live Bruto
             </button>
             <button
               type="button"
               onClick={() => setStreamMode("analyzed")}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition-all ${
                 streamMode === "analyzed"
-                  ? "bg-purple-500/25 text-purple-200 border border-purple-400/40"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-white text-[#B85D3B] shadow-sm"
+                  : "text-stone-600 hover:text-stone-900"
               }`}
             >
-              <Cpu className="w-3.5 h-3.5 text-purple-400" />
+              <Cpu className="h-3.5 w-3.5" />
               IA Overlay (OpenCV/Anomalib)
             </button>
           </div>
 
           {/* Seletor de Grade 1x1 / 2x2 / 3x3 */}
-          <div className="flex items-center rounded-xl bg-slate-950/90 border border-white/10 p-0.5 text-xs">
+          <div className="flex items-center rounded-lg border border-stone-200 bg-stone-100 p-0.5 text-xs">
             <button
               type="button"
               onClick={() => {
@@ -174,14 +174,14 @@ export function CftvMosaicPlayer({
                 setGridSize("1x1");
                 setPage(0);
               }}
-              className={`px-2.5 py-1.5 rounded-lg font-mono-tech transition-all flex items-center gap-1 ${
+              className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 font-mono transition-all ${
                 effectiveGrid === "1x1"
-                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/30"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-white text-stone-900 shadow-sm"
+                  : "text-stone-600 hover:text-stone-900"
               }`}
               title="Visualização 1x1 (Tela Única)"
             >
-              <Square className="w-3.5 h-3.5" />
+              <Square className="h-3.5 w-3.5" />
               1x1
             </button>
             <button
@@ -191,14 +191,14 @@ export function CftvMosaicPlayer({
                 setGridSize("2x2");
                 setPage(0);
               }}
-              className={`px-2.5 py-1.5 rounded-lg font-mono-tech transition-all flex items-center gap-1 ${
+              className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 font-mono transition-all ${
                 effectiveGrid === "2x2"
-                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/30"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-white text-stone-900 shadow-sm"
+                  : "text-stone-600 hover:text-stone-900"
               }`}
               title="Mosaico 2x2 (4 Canais)"
             >
-              <Grid className="w-3.5 h-3.5" />
+              <Grid className="h-3.5 w-3.5" />
               2x2
             </button>
             <button
@@ -208,28 +208,28 @@ export function CftvMosaicPlayer({
                 setGridSize("3x3");
                 setPage(0);
               }}
-              className={`px-2.5 py-1.5 rounded-lg font-mono-tech transition-all flex items-center gap-1 ${
+              className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 font-mono transition-all ${
                 effectiveGrid === "3x3"
-                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/30"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-white text-stone-900 shadow-sm"
+                  : "text-stone-600 hover:text-stone-900"
               }`}
               title="Mosaico 3x3 (9 Canais)"
             >
-              <LayoutGrid className="w-3.5 h-3.5" />
+              <LayoutGrid className="h-3.5 w-3.5" />
               3x3
             </button>
           </div>
 
           {/* Paginação do Mosaico */}
           {!focusedCamId && totalPages > 1 && (
-            <div className="flex items-center gap-1.5 text-xs font-mono-tech text-slate-300 bg-slate-950/90 border border-white/10 rounded-xl px-2.5 py-1">
+            <div className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1 font-mono text-xs text-stone-700">
               <button
                 type="button"
                 disabled={page === 0}
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
-                className="p-0.5 hover:text-cyan-300 disabled:opacity-30"
+                className="p-0.5 hover:text-stone-900 disabled:opacity-30"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="h-4 w-4" />
               </button>
               <span>
                 Pág {page + 1}/{totalPages}
@@ -238,9 +238,9 @@ export function CftvMosaicPlayer({
                 type="button"
                 disabled={page >= totalPages - 1}
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                className="p-0.5 hover:text-cyan-300 disabled:opacity-30"
+                className="p-0.5 hover:text-stone-900 disabled:opacity-30"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           )}
@@ -255,10 +255,10 @@ export function CftvMosaicPlayer({
             return (
               <div
                 key={`empty-slot-${slotIdx}`}
-                className="aspect-video rounded-xl border border-dashed border-white/10 bg-slate-950/50 flex flex-col items-center justify-center text-slate-500 gap-2"
+                className="flex aspect-video flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-stone-300 bg-stone-50 text-stone-400"
               >
-                <VideoOff className="w-7 h-7 opacity-40" />
-                <span className="text-[11px] font-mono-tech uppercase tracking-wider">
+                <VideoOff className="h-7 w-7 opacity-50" />
+                <span className="font-mono text-[11px] uppercase tracking-wider">
                   Slot {slotIdx + 1} Disponível
                 </span>
               </div>
