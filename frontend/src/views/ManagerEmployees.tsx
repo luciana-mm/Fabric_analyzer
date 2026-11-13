@@ -239,7 +239,7 @@ const ManagerEmployees = () => {
     }
   };
 
-  const handleAddEmployee = () => {
+  const handleAddEmployee = async () => {
     const name = newEmployee.name.trim();
     const email = newEmployee.email.trim().toLowerCase();
     const accessId = newEmployee.accessId.trim();
@@ -248,28 +248,31 @@ const ManagerEmployees = () => {
 
     if (!name || !email || !accessId || !password) return;
 
-    setEmployees((prev) => [
-      ...prev,
-      {
-        id: accessId,
-        userId: accessId,
-        name,
-        email,
-        accessId,
-        password,
-        role: newEmployee.role,
-        shift,
-        verified: 0,
-        success: 0,
-        fails: 0,
-        active: true,
-      },
-    ]);
+    // Converte a string do formulário para o formato aceito pelo banco ("operador" ou "gestor")
+    const apiRole =
+      newEmployee.role === "GESTOR" ? "gestor" : "operador";
 
-    setIsAddOpen(false);
-    resetAddForm();
+    try {
+      await fetchJson("/api/users", {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          email,
+          code: accessId,
+          password,
+          role: apiRole,
+          shift,
+        }),
+      });
+
+      setIsAddOpen(false);
+      resetAddForm();
+      await refresh();
+    } catch (err) {
+      console.error("Erro ao cadastrar funcionário:", err);
+      alert("Não foi possível cadastrar o funcionário. Verifique se o e-mail já existe.");
+    }
   };
-
   return (
     <div className="min-h-screen bg-[#0a0a0f] p-6 text-white">
       <div className="mx-auto max-w-7xl space-y-6">
