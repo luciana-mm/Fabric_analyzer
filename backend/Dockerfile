@@ -13,9 +13,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
+# Instala dependências pesadas em camadas próprias antes do requirements.txt
+# para maximizar o reaproveitamento de cache quando pacotes leves mudarem
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu "torch>=2.2.0" "torchvision>=0.17.0"
+RUN pip install --no-cache-dir "opencv-python>=4.11.0" "numpy>=1.26.0"
+
 COPY requirements.txt ./
-RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu "torch>=2.2.0" "torchvision>=0.17.0" && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
