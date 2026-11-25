@@ -47,7 +47,9 @@ export default async function handler(
       // Sincroniza as credenciais de cada DVR com o backend Python para que cada canal do Mosaico tenha seu próprio stream
       for (const row of dvrsResult.rows) {
         const rawPwd =
-          row.password_encrypted && row.password_encrypted !== "configured"
+          row.password_encrypted &&
+          row.password_encrypted !== "configured" &&
+          row.password_encrypted !== "configured_in_env"
             ? String(row.password_encrypted)
             : "";
         void fetch(`${cameraProxyUrl}/dvr/monitor/register`, {

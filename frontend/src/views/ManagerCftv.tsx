@@ -542,7 +542,7 @@ export default function ManagerCftv() {
               onClick={() => setShowMosaicPlayer((v) => !v)}
               className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
                 showMosaicPlayer
-                  ? "bg-stone-900 border-stone-900 text-stone-900"
+                  ? "bg-stone-900 border-stone-900 text-white hover:bg-stone-800"
                   : "bg-white border-stone-200 text-stone-700 hover:bg-stone-50"
               }`}
             >
@@ -583,7 +583,7 @@ export default function ManagerCftv() {
             <button
               type="button"
               onClick={openCreateModal}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-stone-900 hover:bg-stone-800 text-stone-900 text-xs font-semibold shadow-sm transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold shadow-sm transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               Adicionar dispositivo
@@ -656,17 +656,17 @@ export default function ManagerCftv() {
             </div>
 
             <div className="flex items-center gap-4 p-5 rounded-2xl border border-stone-200 bg-white shadow-sm">
-              <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-400 shrink-0">
+              <div className="w-12 h-12 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700 shrink-0">
                 <Cpu className="w-6 h-6" />
               </div>
               <div>
                 <p className="text-[11px] font-medium tracking-wider uppercase text-stone-500">
                   Motor de Visão / IA
                 </p>
-                <p className="font-sansserief text-lg font-semibold text-purple-300 mt-0.5">
+                <p className="font-sansserief text-lg font-semibold text-purple-800 mt-0.5">
                   Híbrido Ativo
                 </p>
-                <p className="text-[10px] text-purple-400 font-medium uppercase mt-0.5">
+                <p className="text-[10px] text-purple-600 font-medium uppercase mt-0.5">
                   OpenCV + Anomalib
                 </p>
               </div>
@@ -737,11 +737,11 @@ export default function ManagerCftv() {
                             </span>
 
                             <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono-tech uppercase border ${circuitState === "CLOSED"
-                                ? "bg-slate-800/80 text-stone-700 border-stone-200"
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono-tech uppercase border ${circuitState === "CLOSED"
+                                ? "bg-stone-100 text-stone-700 border-stone-200"
                                 : circuitState === "HALF_OPEN"
                                   ? "bg-amber-50 text-amber-700 border-amber-200"
-                                  : "bg-rose-500/20 text-rose-700 border-rose-500/40"
+                                  : "bg-rose-50 text-rose-700 border-rose-200"
                                 }`}
                             >
                               Circuit: {circuitState}
@@ -762,12 +762,12 @@ export default function ManagerCftv() {
 
                       <div className="flex flex-wrap items-center gap-2">
                         {/* Seletor Main Stream vs Sub Stream */}
-                        <div className="flex items-center rounded-xl bg-stone-100/90 border border-stone-200 p-0.5 text-[11px]">
+                        <div className="flex items-center rounded-xl bg-stone-100 border border-stone-200 p-0.5 text-[11px]">
                           <button
                             type="button"
                             onClick={() => handleToggleSubtype(dvr, "main")}
                             className={`px-2.5 py-1 rounded-lg font-medium transition-all flex items-center gap-1 ${activeSubtype === "main"
-                              ? "bg-stone-900 text-stone-700 border border-stone-200"
+                              ? "bg-white text-stone-900 shadow-sm border border-stone-200/80"
                               : "text-stone-500 hover:text-stone-900"
                               }`}
                           >
@@ -778,7 +778,7 @@ export default function ManagerCftv() {
                             type="button"
                             onClick={() => handleToggleSubtype(dvr, "sub")}
                             className={`px-2.5 py-1 rounded-lg font-medium transition-all ${activeSubtype === "sub"
-                              ? "bg-stone-900 text-stone-700 border border-stone-200"
+                              ? "bg-white text-stone-900 shadow-sm border border-stone-200/80"
                               : "text-stone-500 hover:text-stone-900"
                               }`}
                           >
@@ -789,7 +789,7 @@ export default function ManagerCftv() {
                         <button
                           onClick={() => handleDiscoverCameras(dvr)}
                           disabled={isDiscovering}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-50 border border-stone-200 hover:border-stone-900 text-xs text-stone-600 transition-all"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-stone-200 hover:bg-stone-50 hover:border-stone-300 text-xs text-stone-700 transition-all"
                         >
                           <Radar
                             className={`w-3.5 h-3.5 ${isDiscovering ? "animate-spin text-stone-700" : "text-stone-700"
@@ -801,7 +801,7 @@ export default function ManagerCftv() {
                         <button
                           onClick={() => handleTestConnection(dvr)}
                           disabled={isTesting}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-50 border border-stone-200 hover:border-stone-900 text-xs text-stone-600 transition-all"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-stone-200 hover:bg-stone-50 hover:border-stone-300 text-xs text-stone-700 transition-all"
                         >
                           <RefreshCw
                             className={`w-3.5 h-3.5 ${isTesting ? "animate-spin text-stone-700" : ""
@@ -813,7 +813,7 @@ export default function ManagerCftv() {
                         <button
                           type="button"
                           onClick={() => openEditModal(dvr)}
-                          className="p-1.5 rounded-xl bg-stone-50 border border-stone-200 hover:border-stone-900 text-stone-600 hover:text-stone-700 transition-all"
+                          className="p-1.5 rounded-xl bg-white border border-stone-200 hover:bg-stone-50 hover:border-stone-300 text-stone-600 hover:text-stone-900 transition-all"
                           title="Editar configurações do DVR"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -822,7 +822,7 @@ export default function ManagerCftv() {
                         <button
                           type="button"
                           onClick={() => handleDeleteDvr(dvr)}
-                          className="p-1.5 rounded-xl bg-stone-50 border border-stone-200 hover:border-rose-500/40 text-stone-500 hover:text-rose-600 transition-all"
+                          className="p-1.5 rounded-xl bg-white border border-stone-200 hover:bg-rose-50 hover:border-rose-200 text-stone-500 hover:text-rose-600 transition-all"
                           title="Remover DVR"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -833,8 +833,8 @@ export default function ManagerCftv() {
                     {testResult && (
                       <div
                         className={`p-3 rounded-xl border text-xs font-mono-tech flex items-center justify-between ${testResult.success
-                          ? "bg-emerald-950/30 border-emerald-200 text-emerald-700"
-                          : "bg-rose-950/30 border-rose-200 text-rose-700"
+                          ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                          : "bg-rose-50 border-rose-200 text-rose-700"
                           }`}
                       >
                         <span>{testResult.message}</span>
@@ -872,14 +872,20 @@ export default function ManagerCftv() {
                             <div
                               key={cam.id}
                               className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-3 transition-all ${isOperatorCam
-                                ? "border-emerald-200 bg-emerald-950/20 shadow-[0_0_15px_rgba(16,185,129,0.12)]"
+                                ? "border-emerald-200 bg-emerald-50/60 shadow-sm"
                                 : isActive
-                                  ? "border-stone-100 bg-stone-100/40"
-                                  : "border-stone-100 bg-stone-100/20 opacity-60"
+                                  ? "border-stone-200 bg-stone-50/70"
+                                  : "border-stone-200 bg-stone-100/40 opacity-60"
                                 }`}
                             >
                               <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-8 h-8 rounded-lg bg-slate-800/80 border border-stone-200 flex items-center justify-center text-stone-700 shrink-0">
+                                <div
+                                  className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${
+                                    isOperatorCam
+                                      ? "bg-white border-emerald-200 text-emerald-700"
+                                      : "bg-white border-stone-200 text-stone-700"
+                                  }`}
+                                >
                                   <Video className="w-4 h-4" />
                                 </div>
                                 <div className="min-w-0">
@@ -888,7 +894,7 @@ export default function ManagerCftv() {
                                       {cam.name}
                                     </p>
                                     {isOperatorCam && (
-                                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-emerald-500/20 text-emerald-700 border border-emerald-200 shrink-0">
+                                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
                                         Ativa no Operário
                                       </span>
                                     )}
@@ -906,8 +912,8 @@ export default function ManagerCftv() {
                                   disabled={isSwitchingOp}
                                   onClick={() => handleSetOperatorCamera(dvr, cam)}
                                   className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-medium transition-all ${isOperatorCam
-                                    ? "bg-emerald-500/20 border-emerald-200 text-emerald-700"
-                                    : "bg-slate-800/90 border-stone-200 hover:border-emerald-400/40 text-stone-700 hover:text-emerald-700"
+                                    ? "bg-emerald-100 border-emerald-300 text-emerald-800"
+                                    : "bg-white border-stone-200 hover:border-emerald-300 hover:bg-emerald-50 text-stone-700 hover:text-emerald-700"
                                     }`}
                                   title="Define esta câmera como a câmera principal ao vivo do Painel do Operário (/painel/camera e IA)"
                                 >
@@ -923,8 +929,8 @@ export default function ManagerCftv() {
                                   type="button"
                                   onClick={() => handleToggleCameraActive(dvr.id, cam)}
                                   className={`p-1.5 rounded-lg border text-[11px] transition-all ${isActive
-                                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                                    : "bg-slate-800 border-stone-200 text-stone-500"
+                                    ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                                    : "bg-white border-stone-200 text-stone-400 hover:text-stone-700 hover:bg-stone-50"
                                     }`}
                                   title={
                                     isActive
@@ -946,10 +952,10 @@ export default function ManagerCftv() {
                                       cam.id
                                     )
                                   }
-                                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/90 border border-stone-200 hover:border-stone-900 text-stone-700 text-[11px] font-medium transition-all"
+                                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-stone-200 hover:bg-stone-50 hover:border-stone-300 text-stone-700 text-[11px] font-medium transition-all"
                                   title="Capturar frame estático sob demanda (Snapshot)"
                                 >
-                                  <Camera className="w-3.5 h-3.5 text-stone-700" />
+                                  <Camera className="w-3.5 h-3.5 text-stone-600" />
                                   {isCapturing ? "..." : "Snapshot"}
                                 </button>
 
@@ -966,7 +972,11 @@ export default function ManagerCftv() {
                                         }
                                     )
                                   }
-                                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-stone-100 border border-cyan-400/25 hover:bg-stone-900 text-stone-700 text-[11px] font-medium transition-all"
+                                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-medium transition-all ${
+                                    isSelected
+                                      ? "bg-stone-900 border-stone-900 text-white hover:bg-stone-800"
+                                      : "bg-white border-stone-200 hover:bg-stone-50 hover:border-stone-300 text-stone-700"
+                                  }`}
                                 >
                                   <Eye className="w-3.5 h-3.5" />
                                   {isSelected ? "Fechar" : "Live"}
@@ -1037,13 +1047,13 @@ export default function ManagerCftv() {
               <div className="flex-1 h-px bg-gradient-to-r from-white/15 via-white/5 to-transparent" />
             </div>
 
-            <div className="rounded-2xl border border-stone-200 bg-white shadow-sm overflow-hidden shadow-xl">
+            <div className="rounded-2xl border border-stone-200 bg-white shadow-sm overflow-hidden">
               {streamEvents.length === 0 ? (
                 <div className="p-6 text-center text-xs text-stone-500">
                   Nenhum evento de stream registrado até o momento.
                 </div>
               ) : (
-                <div className="divide-y divide-white/5 max-h-72 overflow-y-auto">
+                <div className="divide-y divide-stone-100 max-h-72 overflow-y-auto">
                   {streamEvents.map((ev) => {
                     const badgeStyle =
                       ev.severity === "critical" || ev.severity === "error"
@@ -1055,7 +1065,7 @@ export default function ManagerCftv() {
                     return (
                       <div
                         key={ev.id}
-                        className="px-5 py-3 flex flex-wrap items-center justify-between gap-3 text-xs hover:bg-white/[0.02]"
+                        className="px-5 py-3 flex flex-wrap items-center justify-between gap-3 text-xs hover:bg-stone-50"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <span
@@ -1117,7 +1127,7 @@ export default function ManagerCftv() {
                 <a
                   href={snapshotModal.dataUrl}
                   download={`snapshot-${snapshotModal.cameraId}-${Date.now()}.jpg`}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-xs font-semibold text-slate-950 transition-all"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-xs font-semibold text-white transition-all"
                 >
                   <Download className="w-3.5 h-3.5" />
                   Baixar Frame
@@ -1125,7 +1135,7 @@ export default function ManagerCftv() {
                 <button
                   type="button"
                   onClick={() => setSnapshotModal(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-xs text-stone-600 hover:text-stone-900"
+                  className="px-4 py-2 rounded-xl bg-stone-100 border border-stone-200 hover:bg-stone-200 text-xs text-stone-700 hover:text-stone-900 transition-colors"
                 >
                   Fechar
                 </button>
@@ -1172,7 +1182,7 @@ export default function ManagerCftv() {
                   placeholder="Ex: Celular DroidCam Linha 01 ou NVR Hikvision"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-stone-50 border border-stone-200 focus:border-cyan-400 text-xs text-stone-900 outline-none"
+                  className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-stone-50 border border-stone-200 focus:border-stone-400 text-xs text-stone-900 outline-none"
                 />
               </div>
 
@@ -1195,7 +1205,7 @@ export default function ManagerCftv() {
                         setFormRtspPort(554);
                       }
                     }}
-                    className="w-full mt-1.5 px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 focus:border-cyan-400 text-xs text-stone-900 outline-none"
+                    className="w-full mt-1.5 px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 focus:border-stone-400 text-xs text-stone-900 outline-none"
                   >
                     <option value="droidcam">DroidCam / Celular Wi-Fi (HTTP :4747)</option>
                     <option value="hikvision">Hikvision (ISAPI / RTSP :554)</option>
@@ -1216,13 +1226,13 @@ export default function ManagerCftv() {
                     placeholder={formBrand === "droidcam" ? "Ex: 192.168.1.105" : "192.168.1.65"}
                     value={formHost}
                     onChange={(e) => setFormHost(e.target.value)}
-                    className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-stone-50 border border-stone-200 focus:border-cyan-400 text-xs text-stone-900 outline-none"
+                    className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-stone-50 border border-stone-200 focus:border-stone-400 text-xs text-stone-900 outline-none"
                   />
                 </div>
               </div>
 
               {formBrand === "droidcam" && (
-                <div className="p-3 rounded-xl bg-cyan-950/30 border border-stone-300 text-[11px] text-stone-800 leading-relaxed">
+                <div className="p-3 rounded-xl bg-stone-100 border border-stone-200 text-[11px] text-stone-800 leading-relaxed">
                   <strong>Dica DroidCam:</strong> Abra o app <strong>DroidCam</strong> no celular (conectado no mesmo Wi-Fi), veja o <strong>Wi-Fi IP</strong> e a <strong>DroidCam Port (4747)</strong> na tela do app, preencha acima e clique em Salvar. Depois clique em <strong>&quot;Usar no Operário&quot;</strong>!
                 </div>
               )}
@@ -1236,7 +1246,7 @@ export default function ManagerCftv() {
                     type="number"
                     value={formRtspPort}
                     onChange={(e) => setFormRtspPort(Number(e.target.value))}
-                    className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-stone-50 border border-stone-200 focus:border-cyan-400 text-xs text-stone-900 outline-none"
+                    className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-stone-50 border border-stone-200 focus:border-stone-400 text-xs text-stone-900 outline-none"
                   />
                 </div>
                 <div>
@@ -1247,7 +1257,7 @@ export default function ManagerCftv() {
                     type="text"
                     value={formUsername}
                     onChange={(e) => setFormUsername(e.target.value)}
-                    className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-stone-50 border border-stone-200 focus:border-cyan-400 text-xs text-stone-900 outline-none"
+                    className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-stone-50 border border-stone-200 focus:border-stone-400 text-xs text-stone-900 outline-none"
                   />
                 </div>
                 <div>
@@ -1261,7 +1271,7 @@ export default function ManagerCftv() {
                     disabled={formBrand === "droidcam"}
                     value={formBrand === "droidcam" ? 1 : formChannels}
                     onChange={(e) => setFormChannels(Number(e.target.value))}
-                    className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-stone-50 border border-stone-200 focus:border-cyan-400 text-xs text-stone-900 outline-none disabled:opacity-50"
+                    className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-stone-50 border border-stone-200 focus:border-stone-400 text-xs text-stone-900 outline-none disabled:opacity-50"
                   />
                 </div>
               </div>
@@ -1279,7 +1289,7 @@ export default function ManagerCftv() {
                   placeholder="••••••••"
                   value={formPassword}
                   onChange={(e) => setFormPassword(e.target.value)}
-                  className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-stone-50 border border-stone-200 focus:border-cyan-400 text-xs text-stone-900 outline-none"
+                  className="w-full mt-1.5 px-3.5 py-2 rounded-xl bg-stone-50 border border-stone-200 focus:border-stone-400 text-xs text-stone-900 outline-none"
                 />
               </div>
 
@@ -1287,7 +1297,7 @@ export default function ManagerCftv() {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-xs text-stone-600 hover:text-stone-900"
+                  className="px-4 py-2 rounded-xl bg-stone-100 border border-stone-200 hover:bg-stone-200 text-xs text-stone-700 hover:text-stone-900 transition-colors"
                 >
                   Cancelar
                 </button>
