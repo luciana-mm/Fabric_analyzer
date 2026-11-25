@@ -238,15 +238,16 @@ class StreamSessionManager:
         """
         Busca de forma thread-safe a senha de um DVR pelo ID ou pelo par host:port.
         """
+        ignored = ("configured", "configured_in_env", "none", "null", "****")
         with self._lock:
             if dvr_id and dvr_id in self._devices:
                 pwd = self._devices[dvr_id].config.password
-                if pwd and str(pwd).lower() not in ("configured", "none", "null"):
+                if pwd and str(pwd).lower() not in ignored:
                     return pwd
             for entry in self._devices.values():
                 if entry.config.host == host and int(entry.config.rtsp_port) == int(port):
                     pwd = entry.config.password
-                    if pwd and str(pwd).lower() not in ("configured", "none", "null"):
+                    if pwd and str(pwd).lower() not in ignored:
                         return pwd
         return ""
 
@@ -986,6 +987,9 @@ class CameraState:
 
                 if should_fallback_ffmpeg:
                     self._run_ffmpeg_for_version(url, version)
+                    if self._is_version_active(version):
+                        time.sleep(min(backoff, 10.0))
+                        backoff = min(backoff * 2, 10.0)
                     continue
                 if not is_open:
                     time.sleep(min(backoff, 10.0))
@@ -1318,6 +1322,8 @@ class ChannelStreamWorker:
 
                 if should_fallback:
                     self._run_ffmpeg_once()
+                    if self.running:
+                        time.sleep(2.5)
                 elif self.running:
                     time.sleep(1.5)
         finally:
